@@ -1,0 +1,17 @@
+name: ""
+listen_addr: 127.0.0.1:8443
+data_dir: /var/lib/bmail
+lnd:
+  rpc_host: 127.0.0.1:10009
+  tls_cert_path: /secrets/tls.cert
+  macaroon_path: /secrets/admin.mac
+postage:
+  foreign_sats: 0
+  min_sats: 5
+peers:
+  - name: beta
+    url: ftp://beta.example
+    node_pubkey: deadbeef
+  - name: beta
+    url: https://ok.example
+    node_pubkey: 03678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb6
