@@ -1,0 +1,38 @@
+// bmail v0.1 Envelope — NUR SPECIFIKATION/DOKUMENTATION (Single Source der
+// Feld-Tags). v0.1 baut KEINEN Codegen: das Go-Paket relay/internal/envelope
+// implementiert dasselbe Format als handgeschriebenes length-prefixed Binary
+// (magic "LM1" + version byte, Feld = Tag 1B + Laenge 2B BE + Wert).
+// Diese Datei dient dem TS-Client (M2) als Referenz und der Doku.
+// Bei Abweichung gewinnt docs/spec.md Abschnitt 3.
+syntax = "proto3";
+package bmail.v1;
+option go_package = "github.com/lightningmail/relay/proto/bmail/v1";
+
+// Framing (binar, NICHT protobuf-serialisiert):
+//   "LM1" | version(1B=0x01) | [ tag(1B) | len(2B BE) | value(len) ]*
+// Tags streng aufsteigend, jeder Tag max. einmal, unbekannter Tag => Fehler.
+
+message PostageReceipt {
+  // Tag 0x07, Wert 40B fest: amount_sats(8B BE) + preimage(32B).
+  int64 amount_sats = 7;
+  bytes preimage    = 8;  // 32B, keysend-Preimage = Zustell-Quittung
+}
+
+message Envelope {
+  bytes recipient_hash     = 1;  // 32B sha256(mailbox_pubkey) des Empfaengers
+  bytes msg_id             = 2;  // 32B Zufall, Dedup-Key
+  repeated bytes blob_refs = 3;  // Wert: 1B count + n*32B sha256, n<=16, optional
+  bytes sender_pubkey      = 4;  // 33B compressed secp256k1 (Mailbox-Key)
+  bytes signature          = 5;  // 64B BIP340-Schnorr ueber sha256(Serialisierung OHNE dieses Feld)
+  int64 timestamp          = 6;  // 8B BE unix-secs
+  PostageReceipt receipt   = 7;  // optional
+  bytes payload_ciphertext = 8;  // 24B XChaCha20-Poly1305-Nonce + ct||tag, AAD = recipient_hash||msg_id
+  bytes ephemeral_pubkey   = 9;  // 33B ECIES-Senderkey (Empfaenger leitet Payload-Key ab)
+
+  // Reserviert M2: 10 reply_to_msg_id(32B), 11 conversation(32B), 12-15 padding.
+  reserved 10, 11, 12, 13, 14, 15;
+}
+
+// Keysend-TLV-Registry (Onion-Ebene, sphinx/satoshis.stream-kompatibel,
+// verifiziert in Etappe 1): envelope=34349334, transport_sig=34349337,
+// relay_pubkey=34349339, timestamp=34349343, keysend_preimage=548997074.
