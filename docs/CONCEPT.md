@@ -351,6 +351,34 @@ Integrationsmuster: kein In-Place-Edit — jeder Client schreibt immutable
 leistet der CAS-Layer der App. Mögliche Wiederverwendung M3+: Blob-Mirror
 relay↔relay über Syncthing-Shares statt HTTP.
 
-## 17. Ein-Satz-Pitch
+## 18. Aufladung & Lizenzgrenze (MiCA, 12.11.2026)
+
+Rücklage: Nutzer fragte nach BTCPay-/Karten-Aufladung. Ergebnis: Technik trivial,
+Regulatorik ist der Grund, warum wir's NICHT so bauen.
+
+**Harte Regel: der Relay ist niemals ein Fiat→Sats-Mischer.**
+Seit 1.7.2026 (DE 1.1.2026) verlangt MiCAR für "Krypto gegen Geld tauschen"
+für EU-Kunden eine CASP-Lizenz (50–150k€ Eigenkapital, KYC/AML, BaFin). Ein
+Hobby-Relay, der "zahl 10€, krieg 10€ Sats-Guthaben" macht, wäre
+lizenzpflichtig — tot, bevor er lebt.
+
+Erlaubt / sicher (Händler-Modell, keine Krypto-Dienstleistung):
+- **Nutzer bringt eigene Sats mit** und lädt seine Mailbox auf (Zahlung für
+  eine Dienstleistung, wie ein Shop der BTC akzeptiert). Kein Tausch.
+- **Mailbox-Laufzeit / Speicher als Eur-Dienstleistung verkaufen** (normaler
+  SaaS via Stripe/Mollie, außerhalb des Relay-Kerns). Sats-Guthaben wird
+  NIE aus Euro erzeugt.
+
+Google Pay = kein Zahlungsdienstleister, sondern Karten-Wallet; braucht immer
+einen Acquirer (Stripe/Mollie/Adyen) mit Merchant-Registrierung + KYC.
+BTCPay-Reality: 0% Gebühr/non-custodial, aber 4GB/2vCPU-Pflege + 2026
+aktiv ausgenutzte LND-Macaroon-Schwachstelle (v2.4.2) → nicht neben den
+Live-Key auf dieselbe Maschine. Karten geht bei BTCPay auch nur via Stripe-Plugin.
+
+v0.1-Beschluss: KEIN Fiat-Onramp im Relay. Aufladung = externe Sats des
+Nutzers auf eine Relay-Invoice (On-Chain/Lightning, M3 Feature, kein Tausch).
+Optional spätere Eur-Seite = Dienstleistungskauf, getrennt vom Relay.
+
+## 19. Ein-Satz-Pitch
 
 „Deine Mails sind jetzt bares Geld wert — und die der anderen auch."
