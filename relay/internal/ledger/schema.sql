@@ -23,3 +23,15 @@ CREATE TABLE txlog (
 );
 
 CREATE INDEX txlog_account_idx ON txlog(account_id, id);
+
+-- v2: mailbox table for store & forward (Etappe 3, spec §8.1)
+CREATE TABLE IF NOT EXISTS mailbox (
+  msg_id       BLOB    NOT NULL PRIMARY KEY,
+  account_id   INTEGER NOT NULL REFERENCES account(id),
+  envelope     BLOB    NOT NULL,
+  received_msat INTEGER NOT NULL DEFAULT 0,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  seen         INTEGER NOT NULL DEFAULT 0,
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS mailbox_account_seq_idx ON mailbox(account_id, seq);

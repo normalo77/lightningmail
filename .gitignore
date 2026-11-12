@@ -3,3 +3,4 @@ bin/
 blobs/
 .env
 test/docker/data/
+test/e2e-home/

@@ -1,0 +1,338 @@
+// Package relaysrv: HTTP relay API server (spec §7).
+// Endpoints: /v1/auth, /v1/balance, /v1/send, /v1/inbox, /v1/profile/{addr}.
+// shortcut: in-memory auth tokens, no mTLS, single-node — production needs
+// proper session store + mTLS between relays (Etappe 4).
+package relaysrv
+
+import (
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/lightningmail/relay/internal/config"
+	"github.com/lightningmail/relay/internal/crypto"
+	"github.com/lightningmail/relay/internal/envelope"
+	"github.com/lightningmail/relay/internal/ledger"
+	"github.com/lightningmail/relay/internal/lnclient"
+	"github.com/lightningmail/relay/internal/postage"
+)
+
+type Server struct {
+	cfg     *config.Config
+	ledger  *ledger.Ledger
+	ln      *lnclient.Client
+	postage *postage.Service
+	tokens  map[string]string // token -> account name
+	mu      sync.RWMutex
+}
+
+func New(cfg *config.Config, l *ledger.Ledger, ln *lnclient.Client, p *postage.Service) *Server {
+	return &Server{
+		cfg:     cfg,
+		ledger:  l,
+		ln:      ln,
+		postage: p,
+		tokens:  make(map[string]string),
+	}
+}
+
+func (s *Server) ListenAndServe() error {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/auth", s.handleAuth)
+	mux.HandleFunc("/v1/balance", s.auth(s.handleBalance))
+	mux.HandleFunc("/v1/send", s.auth(s.handleSend))
+	mux.HandleFunc("/v1/inbox", s.auth(s.handleInbox))
+	mux.HandleFunc("/v1/profile/", s.handleProfile)
+	mux.HandleFunc("/v1/account", s.handleAccount)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte(`{"ok":true}`))
+	})
+
+	log.Printf("relaysrv: listening on %s", s.cfg.ListenAddr)
+	return http.ListenAndServe(s.cfg.ListenAddr, mux)
+}
+
+// --- auth middleware ---
+
+func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if tok == "" {
+			http.Error(w, `{"error":"unauthorized"}`, 401)
+			return
+		}
+		s.mu.RLock()
+		account, ok := s.tokens[tok]
+		s.mu.RUnlock()
+		if !ok {
+			http.Error(w, `{"error":"unauthorized"}`, 401)
+			return
+		}
+		r.Header.Set("X-Bmail-Account", account)
+		next(w, r)
+	}
+}
+
+// --- POST /v1/auth ---
+func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, `{"error":"method not allowed"}`, 405)
+		return
+	}
+	var req struct {
+		Address string `json:"address"`
+		Pubkey  string `json:"pubkey_hex"`
+		Sig     string `json:"sig"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"bad request"}`, 400)
+		return
+	}
+	pubBytes, err := hex.DecodeString(req.Pubkey)
+	if err != nil || len(pubBytes) != 33 {
+		http.Error(w, `{"error":"invalid pubkey"}`, 400)
+		return
+	}
+	pub, err := crypto.ParsePubKey(pubBytes)
+	if err != nil {
+		http.Error(w, `{"error":"invalid pubkey"}`, 400)
+		return
+	}
+	sigBytes, err := hex.DecodeString(req.Sig)
+	if err != nil || len(sigBytes) != 64 {
+		http.Error(w, `{"error":"invalid signature"}`, 400)
+		return
+	}
+	challenge := []byte("bmail-auth-v1:" + req.Address)
+	digest := crypto.AuthDigest(challenge)
+	if err := crypto.Verify(pub, digest, sigBytes); err != nil {
+		http.Error(w, `{"error":"signature verification failed"}`, 401)
+		return
+	}
+	acct, err := s.ledger.GetAccount(req.Address)
+	if err != nil {
+		http.Error(w, `{"error":"account not found"}`, 404)
+		return
+	}
+	if hex.EncodeToString(acct.MailboxPubkey) != req.Pubkey {
+		http.Error(w, `{"error":"pubkey mismatch"}`, 401)
+		return
+	}
+	tok := make([]byte, 32)
+	rand.Read(tok)
+	tokenStr := hex.EncodeToString(tok)
+	s.mu.Lock()
+	s.tokens[tokenStr] = req.Address
+	s.mu.Unlock()
+
+	json.NewEncoder(w).Encode(map[string]string{"token": tokenStr})
+}
+
+// --- GET /v1/balance ---
+func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
+	account := r.Header.Get("X-Bmail-Account")
+	bal, err := s.ledger.Balance(account)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 500)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]int64{"balance_msat": bal})
+}
+
+// --- POST /v1/send ---
+func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, `{"error":"method not allowed"}`, 405)
+		return
+	}
+	account := r.Header.Get("X-Bmail-Account")
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, `{"error":"read body"}`, 400)
+		return
+	}
+	env, err := envelope.Decode(raw)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 400)
+		return
+	}
+	if err := crypto.VerifyEnvelope(env, env.SenderPubkey[:], env.Signature); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"bad envelope sig: %v"}`, err), 400)
+		return
+	}
+
+	postageAmt := s.postage.ForeignSats()
+	postageMsat := postageAmt * 1000
+
+	if err := s.ledger.ApplyDelta(account, -postageMsat, ledger.KindPostageOut, hex.EncodeToString(env.MsgID[:])); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"insufficient balance: %v"}`, err), 402)
+		return
+	}
+
+	if len(s.cfg.Peers) == 0 {
+		s.ledger.ApplyDelta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]))
+		http.Error(w, `{"error":"no peers configured"}`, 500)
+		return
+	}
+	peer := &s.cfg.Peers[0]
+
+	envBin, _ := env.MarshalBinary()
+
+	info, err := s.ln.GetInfo(r.Context())
+	if err != nil {
+		s.ledger.ApplyDelta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]))
+		http.Error(w, fmt.Sprintf(`{"error":"lnd: %v"}`, err), 500)
+		return
+	}
+	relayPubkeyBytes, err := hex.DecodeString(info.IdentityPubkey)
+	if err != nil {
+		s.ledger.ApplyDelta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]))
+		http.Error(w, `{"error":"bad node pubkey"}`, 500)
+		return
+	}
+
+	now := time.Now().Unix()
+	ts := make([]byte, 8)
+	ts[0] = byte(now >> 56)
+	ts[1] = byte(now >> 48)
+	ts[2] = byte(now >> 40)
+	ts[3] = byte(now >> 32)
+	ts[4] = byte(now >> 24)
+	ts[5] = byte(now >> 16)
+	ts[6] = byte(now >> 8)
+	ts[7] = byte(now)
+
+	customRecords := map[uint64][]byte{
+		34349334: envBin,
+		34349337: make([]byte, 64), // placeholder transport sig
+		34349339: relayPubkeyBytes,
+		34349343: ts,
+	}
+
+	preimage, err := s.ln.SendKeysend(r.Context(), peer.NodePubkey, postageAmt, customRecords)
+	if err != nil {
+		s.ledger.ApplyDelta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]))
+		http.Error(w, fmt.Sprintf(`{"error":"keysend: %v"}`, err), 502)
+		return
+	}
+
+	// Credit: the recipient relay handles crediting via invoice subscription
+
+	resp := map[string]any{
+		"msg_id": hex.EncodeToString(env.MsgID[:]),
+		"receipt": map[string]any{
+			"amount_sats":  postageAmt,
+			"preimage_b64": base64.StdEncoding.EncodeToString([]byte(preimage)),
+		},
+	}
+	w.WriteHeader(202)
+	json.NewEncoder(w).Encode(resp)
+	log.Printf("send: %s -> peer %s, %d sats, preimage=%s", account, peer.Name, postageAmt, preimage[:16])
+}
+
+// --- GET /v1/inbox ---
+func (s *Server) handleInbox(w http.ResponseWriter, r *http.Request) {
+	account := r.Header.Get("X-Bmail-Account")
+	acct, err := s.ledger.GetAccount(account)
+	if err != nil {
+		http.Error(w, `{"error":"account not found"}`, 404)
+		return
+	}
+	afterSeq := int64(0)
+	if a := r.URL.Query().Get("after"); a != "" {
+		fmt.Sscanf(a, "%d", &afterSeq)
+	}
+	limit := 50
+	if l := r.URL.Query().Get("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+	}
+	msgs, err := s.ledger.ListMessages(acct.ID, afterSeq, limit)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 500)
+		return
+	}
+	type inboxMsg struct {
+		Seq         int64  `json:"seq"`
+		MsgID       string `json:"msg_id_b64"`
+		ReceivedAt  int64  `json:"received_at"`
+		EnvelopeB64 string `json:"envelope_b64"`
+	}
+	out := make([]inboxMsg, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, inboxMsg{
+			Seq:         m.Seq,
+			MsgID:       base64.StdEncoding.EncodeToString(m.MsgID[:]),
+			ReceivedAt:  m.CreatedAt,
+			EnvelopeB64: base64.StdEncoding.EncodeToString(m.Envelope),
+		})
+	}
+	nextSeq := int64(0)
+	if len(msgs) > 0 {
+		nextSeq = msgs[len(msgs)-1].Seq
+	}
+	json.NewEncoder(w).Encode(map[string]any{
+		"messages": out,
+		"next_seq": nextSeq,
+	})
+}
+
+
+// --- POST /v1/account (bootstrap/registration) ---
+func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, `{"error":"method not allowed"}`, 405)
+		return
+	}
+	var req struct {
+		Name   string `json:"name"`
+		Pubkey string `json:"pubkey"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"bad request"}`, 400)
+		return
+	}
+	pubBytes, err := hex.DecodeString(req.Pubkey)
+	if err != nil || len(pubBytes) != 33 {
+		http.Error(w, `{"error":"invalid pubkey"}`, 400)
+		return
+	}
+	acct, err := s.ledger.CreateAccount(req.Name, pubBytes)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 409)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{
+		"name":           acct.Name,
+		"pubkey":         hex.EncodeToString(acct.MailboxPubkey),
+		"recipient_hash": hex.EncodeToString(acct.RecipientHash[:]),
+	})
+}
+
+// --- GET /v1/profile/{addr} ---
+func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
+	addr := strings.TrimPrefix(r.URL.Path, "/v1/profile/")
+	if addr == "" {
+		http.Error(w, `{"error":"address required"}`, 400)
+		return
+	}
+	acct, err := s.ledger.GetAccount(addr)
+	if err != nil {
+		http.Error(w, `{"error":"not found"}`, 404)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{
+		"address":      acct.Name,
+		"pubkey":       hex.EncodeToString(acct.MailboxPubkey),
+		"foreign_sats": s.postage.ForeignSats(),
+		"contact_sats": s.cfg.Postage.ContactSats,
+	})
+}

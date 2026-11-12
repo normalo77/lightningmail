@@ -19,7 +19,7 @@ import (
 //go:embed schema.sql
 var schemaFS embed.FS
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 // schema v2 (mailbox table, store&forward) belongs to Etappe 3/mailbox —
 // deliberately not created here (spec §8.1).
@@ -263,6 +263,70 @@ func (l *Ledger) History(name string, limit int) ([]Tx, error) {
 		out = append(out, tx)
 	}
 	return out, rows.Err()
+}
+
+
+// --- Mailbox (store & forward, spec §8.1 mailbox table) ---
+
+type Message struct {
+	MsgID        [32]byte
+	AccountID    int64
+	Envelope     []byte
+	ReceivedMsat int64
+	Seq          int64
+	Seen         bool
+	CreatedAt    int64
+}
+
+// PutMessage stores an envelope in the recipient's mailbox. Dedup on msg_id.
+func (l *Ledger) PutMessage(msgID [32]byte, accountID int64, envelope []byte, receivedMsat int64) (int64, error) {
+	// Get next seq for this account
+	var maxSeq sql.NullInt64
+	err := l.db.QueryRow(`SELECT MAX(seq) FROM mailbox WHERE account_id=?`, accountID).Scan(&maxSeq)
+	if err != nil {
+		return 0, err
+	}
+	nextSeq := int64(1)
+	if maxSeq.Valid {
+		nextSeq = maxSeq.Int64 + 1
+	}
+	t := now()
+	_, err = l.db.Exec(
+		`INSERT OR IGNORE INTO mailbox (msg_id, account_id, envelope, received_msat, seq, seen, created_at)
+     VALUES (?,?,?,?,?,0,?)`, msgID[:], accountID, envelope, receivedMsat, nextSeq, t)
+	if err != nil {
+		return 0, err
+	}
+	return nextSeq, nil
+}
+
+// ListMessages returns inbox messages for an account, newest first, after a given seq.
+func (l *Ledger) ListMessages(accountID int64, afterSeq int64, limit int) ([]Message, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := l.db.Query(
+		`SELECT msg_id, account_id, envelope, received_msat, seq, seen, created_at
+     FROM mailbox WHERE account_id=? AND seq > ? ORDER BY seq DESC LIMIT ?`,
+		accountID, afterSeq, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var msgs []Message
+	for rows.Next() {
+		var m Message
+		var mid, env []byte
+		var seen int
+		if err := rows.Scan(&mid, &m.AccountID, &env, &m.ReceivedMsat, &m.Seq, &seen, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		copy(m.MsgID[:], mid)
+		m.Envelope = env
+		m.Seen = seen != 0
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
 }
 
 func validKind(k Kind) bool {
