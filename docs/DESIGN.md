@@ -29,14 +29,17 @@ Weisung Bernd: basic E-Mail-Client (Rechnungen, Dauerablage), KEIN Messenger.
 - unerwünscht: clientseitig sofort nach 'Unerwünscht', stumm; Endablage ohne weitere Aktion
   (Abschreckung = der gezahlte Preis des Senders, nicht Erkennung).
 
-### Compose & Porto
-- Adresseingabe → profile-Lookup: Whitelist 0 / Konversationsfenster <30d 0 / sonst Empfängerpreis.
-- Chips je Empfänger mit Einzelporto; Footer 'Senden (Gesamtporto: N Sats)';
-  balance < porto → Button aus + 'Guthaben unzureichend (Fehlen: X Sats)'.
+### Compose & Porto (Stand 12.11.: KEIN Konversationsfenster, KEIN Whitelist-Privileg)
+- Verfassen wie klassisches Mail-Formular: `An` (mehre), `Cc`, `Betreff`, Body, Anhänge.
+- Empfänger-Chip zeigt **fixes Basisporto** (Bsp. 5 ct in sats, laut Preisprofil des
+  Empfängers) + getrennt ausgewiesenen **Betreiberanteil 2 ct/MB** (Speicher, Relay-Operator).
+  Whitelist ändert am Porto NICHTS (nur Klassifikation/Anzeige).
+- Summenzeile: `Senden (Empfänger: N sats · Speicher: M sats)`.
+  balance < Summe → Button aus + 'Guthaben unzureichend (Fehlen: X Sats)'.
 
 ### Anhänge
-- Kompressions-Pipeline vor Verschlüsselung; Default komprimiert, Toggle 'Original senden' je Datei+global;
-  Anzeige 'Rechnung_Scan.jpg (4,2 MB → 680 KB)'; danach AEAD + blob-Upload.
+- **Nur Bilder** werden umkodiert (Downscale/Re-Encode), PDFs/Dokumente unverändert
+  (Qualitäts- und Rechtsrisiko bei Dokumenten-Verfälschung).
 
 ### Lokale Datenhaltung (IndexedDB)
 - messages (Header+Volltext entschlüsselt, paidSats, threadId), blobs (Cache), contacts

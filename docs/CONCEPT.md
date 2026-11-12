@@ -70,9 +70,10 @@ bevor irgendein Code den Inhalt ansieht.
   **Default: an; pro Sendevorgang UND pro Konto ausschaltbar** ("Original
   senden"). Komprimierung NIE verlustfrei-zerstörend: Original bleibt
   lokal erhalten, Relay speichert nur die gewählte Form.
-- **Porto skaliert mit Größe:** Preis = Basis + sats/MB (Empfänger-Preisprofil,
-  §6/§4.1) — schwere Mails kosten mehr; adressiert sowohl Spam-Bulk als auch
-  das 12-MB-Foto-Problem ohne technische Limitschlacht.
+- **Zweites Porto (Bernd, 12.11.):** Fester Sockel ~5 ct an den Empfänger
+  PLUS ~2 ct/MB an den Relay-Betreiber (Speicher/Bandbreite). Kein
+  Größen-Aufschlag beim Empfänger-Porto. Split-Mechanik (pro Mail zwei
+  Zahlungen vs. periodic billing) ist M2-Planungspunkt.
 - **Adressen:** `name@provider.tld` (Lightning-Address-kompatibel, DNS = SRV-like
   Lookup auf Relay-Node-ID). Key-Bindung über Web-of-Trust-light: Erstkontakt
   zeigt Fingerprint beidseitig (WhatsApp-Safety-Number-Muster). → siehe 4.1
@@ -146,17 +147,18 @@ damit ein echtes „Postamt gehört mir"-Modell.
 - **Manuelle Klassifizierung (kein Auto-Spamfilter):** Absenderstatus nur
   `unbekannt | whitelisted | unerwünscht(spam)` — pflegt der Nutzer selbst.
   Da Relays E2EE-blind sind, ist Filter/Ordner/Zuordnung zwingend
-  **clientseitig**: Ordner Inbox/Entwürfe/Gesendet/Spam, Suche als lokaler
-  Index, Status-Flags im Client (verschlüsselt zu den Mailbox-Metadaten).
-  Whitelist = 0 Porto + Antwort-frei; unbekannt = vollen Porto-Preis;
-  Spam-Ordner = Endablage ohne weitere Aktion (Abschreckung wirkt über den
-  bereits gezahlten Preis des Senders, nicht durch Erkennung).
+  **clientseitig**. Whitelist = Klassifikation (Sofort-Inbox, Benachrichtigung),
+  **kein Porto-Privileg** (Hermes-Entscheidung 12.11., Bernd-vorbehaltlich:
+  sonst trägt das Rückläufer-Modell nicht).
 - **Fremd-Mail kostet:** Unbekannter Absender zahlt Empfängersetzen.
   10 Mio Spammails × 10 sats ≈ 3000 € — vorbei.
-- **Antwort frei:** Konversationsfenster (z. B. 30 Tage) nach erstem bezahltem
-  Kontakt → normale Unterhaltung kostet nichts mehr. (Spam-Bait „erst zahlt der
-  Spammer 10, dann 1000 Gratis-Antworten" begrenzt: Fenster = N Antworten, dann neu.)
-- **Kontakte/Whitelist:** gratis, vom Nutzer bestätigt.
+- **KEIN Konversationsfenster (Bernd, 12.11.):** Jede Richtung zahlt ihr
+  Porto. In Antworten fließt das eigene zurück, nur **unbeantwortete
+  Einweg-Mail kostet wirklich** — der Spammer zahlt für Müll, der
+  Korrespondent nicht. Damit entfallen Antwort-Quoten, 0-Sats-Tokens und
+  die Fälschbarkeit des Fensters. Spam-Ordner = Endablage ohne Aktion.
+- **Kontakte/Whitelist:** Klassifikations-Funktion (Sofort-Inbox, keine
+  Stummschaltung), Porto-Privileg abgeschafft (s.o.).
 - **Newsletter/Transaktionale Mail (v2):** Massenversender lösen über
   Abonnement-Semantik (Empfänger opt-in = Absender-Privileg, Preis pro Abo-Mail)
   oder verifizierte Absender-Lizenz. Ohne das bricht der ganze Geschäfts-E-Mail-Verkehr.
@@ -314,6 +316,29 @@ Dünner stdio-/HTTP-MCP-Server auf der Relay-API (Go), kein Eigen-system:
 - Plan: MCP-Server ab M2 parallel zur Webmail (Relay-API existiert dann);
   erster Referenz-Client: Hermes selbst als MCP-Host.
 
-## 16. Ein-Satz-Pitch
+## 16. Client-Sync über mehrere Geräte (Planungsthema, M2.5)
+
+Realfall (Bernd): 1 Konto, 3+ Clients (Privatrechner, Büro, Handy). Sync muss
+**kostenlos und ohne Lightning** laufen — es ist der eigene Account, keine
+Fremd-Mail.
+
+Optionen:
+- **A) Relay-zentriert, "blind IMAP" (Empfehlung Hermes):** Client-Status
+  (Ordner, Klassifizierung, Labels, Entwürfe) als **verschlüsseltes
+  State-Dokument** im bestehenden Blob-Store des eigenen Relays; Clients
+  tauschen es per CAS (compare-and-swap auf Version/Hash), Konflikt =
+  letzterwinscht mit Merge-Log. Kein Porto, keine neue Infrastruktur,
+  funktioniert durch jede Firewall (der Relay ist ohnehin erreichbar).
+  Aufwand klein: 1 Endpunkt + versioniertes JSON, AEAD wie Mails.
+- **B) Syncthing-artig P2P:** verschlüsselte State-CRDT direkt zwischen
+  Clients. Datenschutz-schön, aber CGNAT/NAT-Partner-Suche, Geräte-
+  Pairing-UX, Verfügbarkeit ohne Server — für "Oma" der bessere Weg zum
+  Abbruch. Als Power-User-Option später denkbar.
+- C) beides: A als Grundschicht (immer da), B als optionaler Accelerator.
+
+Entscheidungsbedarf Bernd: A vs. C. Bis dahin bleibt v0.1-Client-Status rein
+lokal mit exportierbarer Backup-Datei (Design Q1 Antwort interim).
+
+## 17. Ein-Satz-Pitch
 
 „Deine Mails sind jetzt bares Geld wert — und die der anderen auch."
