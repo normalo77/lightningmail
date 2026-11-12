@@ -351,10 +351,12 @@ Integrationsmuster: kein In-Place-Edit — jeder Client schreibt immutable
 leistet der CAS-Layer der App.
 
 **Architektur-Rollenteilung (Bernd, 12.11.):**
-- Server/Relay = **Zeitlimit-Frachtbahnhof (POP3-Semantik)**: Anhänge mit
-  Aufbewahrungsfrist (30–90 d), klassischer Download durch den ersten Client,
-  danach Löschkandidat. Server-Storage = Volumen × Frist, nicht × Dauer.
-  Dedup: content-addressierter Blob-Store (gleiche Datei = ein Exemplar).
+- Server/Relay = **Zeitlimit-Frachtbahnhof (POP3-Semantik)**: Anhänge
+  überleben bis **Erstdownload des Empfängers + 7 Tage Nachladesperre**
+  (Bernd, 12.11.), absolute Obergrenze 30–90 d konfigurierbar für
+  Niemals-Geladenes. Dedup-Regel: Content-Addressierung heißt Löschung erst,
+  wenn ALLE blob_refs auf dieselbe sha downloadet/abgelaufen sind — sonst
+  frisst Nutzer A dem Nutzer B die Anlage weg.
 - Clients = **Dauerarchiv**: Syncthingclient↔client trägt Staat, herunter-
   geladene Blobs UND lokale Archive; einmal heruntergeladene Anhänge brauchen
   den Server nicht erneut. Solo-Gerät: Server-Fallback innerhalb Frist (P2P =
