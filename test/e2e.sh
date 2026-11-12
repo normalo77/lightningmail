@@ -53,7 +53,7 @@ ALPHA_PID=$!; cd "$REPO"
 cd relay && go run ./cmd/relayd/ -config "$REPO/relay-beta.yaml" -addr 127.0.0.1:9443 > /tmp/relayd-beta.log 2>&1 &
 BETA_PID=$!; cd "$REPO"
 
-cleanup() { kill $ALPHA_PID 2>/dev/null; kill $BETA_PID 2>/dev/null; }
+cleanup() { kill $ALPHA_PID 2>/dev/null || true; kill $BETA_PID 2>/dev/null || true; }
 trap cleanup EXIT
 
 # 5. Health check
@@ -209,7 +209,7 @@ sleep 2
 # Restart alpha relay
 cd relay && go run ./cmd/relayd/ -config "$REPO/relay-alpha.yaml" -addr 127.0.0.1:8443 > /tmp/relayd-alpha.log 2>&1 &
 ALPHA_PID=$!; cd "$REPO"
-trap "kill $ALPHA_PID 2>/dev/null; kill $BETA_PID 2>/dev/null" EXIT
+trap "kill $ALPHA_PID 2>/dev/null || true; kill $BETA_PID 2>/dev/null || true" EXIT
 
 # Wait for health
 for i in $(seq 1 20); do
