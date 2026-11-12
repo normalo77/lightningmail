@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lightningmail</title>
+<link rel="manifest" href="./manifest.json">
+<style>
+:root { --paper:#f7f4ec; --ink:#2b2620; --line:#d9d2c3; --accent:#6b5b3e; --faint:#8a8271; }
+* { box-sizing:border-box }
+body { margin:0; font-family:Georgia,'Times New Roman',serif; background:var(--paper); color:var(--ink) }
+header { display:flex; gap:12px; align-items:baseline; padding:10px 16px; border-bottom:2px solid var(--ink) }
+header h1 { font-size:18px; margin:0; letter-spacing:.5px }
+#balance { margin-left:auto; color:var(--accent); font-size:14px }
+main { display:flex; min-height:calc(100vh - 54px) }
+nav { width:170px; border-right:1px solid var(--line); padding:12px 8px }
+nav button { display:block; width:100%; text-align:left; background:none; border:0; font:inherit; padding:7px 9px; cursor:pointer; color:var(--ink) }
+nav button.on { background:var(--ink); color:var(--paper) }
+#list { width:340px; border-right:1px solid var(--line); overflow-y:auto }
+#list .row { padding:10px 12px; border-bottom:1px solid var(--line); cursor:pointer }
+#list .row:hover { background:#efe9dc }
+#list .row.sel { background:#e7dfcd }
+.subj { font-weight:bold }
+.meta { font-size:12px; color:var(--faint) }
+#detail { flex:1; padding:18px 22px; overflow-y:auto }
+.card { border:1px solid var(--line); background:#fffdf7; padding:14px 16px; max-width:70ch }
+.attach { display:inline-block; margin:4px 8px 0 0; padding:5px 10px; border:1px solid var(--accent); color:var(--accent); cursor:pointer; text-decoration:none; font-size:14px }
+.classify { margin-top:14px; font-size:13px; color:var(--faint) }
+.classify button, .compose button, .login button { font:inherit; font-size:13px; padding:5px 10px; border:1px solid var(--accent); background:none; color:var(--accent); cursor:pointer }
+.classify button.on { background:var(--accent); color:#fff }
+form.compose { display:grid; gap:8px; max-width:60ch }
+form.compose input, form.compose textarea { font:inherit; padding:7px; border:1px solid var(--line); background:#fffdf7 }
+form.compose textarea { min-height:160px }
+#portofuss { color:var(--faint); font-size:13px }
+.login { max-width:44ch; margin:60px auto; padding:22px; border:1px solid var(--line); background:#fffdf7 }
+.login label { display:block; margin:10px 0 3px; font-size:14px; color:var(--faint) }
+.login input, .login select { width:100%; font:inherit; padding:7px; border:1px solid var(--line) }
+.login .row { display:flex; gap:10px; margin-top:16px }
+.hidden { display:none }
+@media (max-width:860px){ nav{width:64px} #list{width:220px} }
+</style>
+</head>
+<body>
+<header><h1>⚡ lightningmail</h1><span id="who" class="meta"></span><span id="balance"></span></header>
+<div id="login" class="login">
+  <label>Relay</label>
+  <select id="l-relay"><option value="/relay-a">alpha (Portofino 8443)</option><option value="/relay-b">beta (9443)</option></select>
+  <label>Konto</label><input id="l-acct" value="gisela">
+  <div class="row">
+    <button id="l-demo">Demo-Schlüssel laden</button>
+    <label style="margin:0;align-self:center">oder Datei: <input type="file" id="l-file" accept=".key,.pem" style="width:140px"></label>
+  </div>
+  <div class="row"><button id="l-login" class="on" style="background:var(--accent);color:#fff">Anmelden</button></div>
+  <p id="l-err" class="meta"></p>
+</div>
+<main class="hidden" id="app">
+  <nav>
+    <button id="nav-in" class="on">Posteingang</button>
+    <button id="nav-spam">Unerwünscht</button>
+    <button id="nav-new">✉ Schreiben</button>
+    <button id="nav-out">Abmelden</button>
+  </nav>
+  <div id="list"></div>
+  <div id="detail"></div>
+</main>
+<script type="module" src="./main.ts"></script>
+</body>
+</html>

@@ -59,8 +59,20 @@ export function decryptPayload(priv: Uint8Array, ephPub: Uint8Array, sealed: Uin
   return xchacha20poly1305(key, sealed.slice(0, NONCE), aad).decrypt(sealed.slice(NONCE));
 }
 
+// ed25519-artige scope-sichere Zufalls-Skalare (noble v2 hat kein randomPrivateKey)
+const _N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+function randScalar32(): Uint8Array {
+  for (;;) {
+    const b = new Uint8Array(32);
+    globalThis.crypto.getRandomValues(b);
+    let x = 0n;
+    for (const y of b) x = (x << 8n) | BigInt(y);
+    if (x > 0n && x < _N) return b;
+  }
+}
+
 export function encryptPayload(recipientPub: Uint8Array, plaintext: Uint8Array, aad: Uint8Array): { eph: Uint8Array; sealed: Uint8Array } {
-  const ephPriv = secp256k1.utils.randomPrivateKey();
+  const ephPriv = randScalar32();
   const eph = pubFromPriv(ephPriv);
   const shared = ecdhX(ephPriv, recipientPub);
   const key = deriveKey(shared);
