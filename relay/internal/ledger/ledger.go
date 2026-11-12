@@ -266,6 +266,30 @@ func (l *Ledger) History(name string, limit int) ([]Tx, error) {
 }
 
 
+// HasMessage checks if msgID already exists in the mailbox (dedup, replay rejection).
+func (l *Ledger) HasMessage(msgID [32]byte) (bool, error) {
+	var exists int
+	err := l.db.QueryRow(`SELECT COUNT(*) FROM mailbox WHERE msg_id=?`, msgID[:]).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists > 0, nil
+}
+
+// MsgWasSent checks txlog for a postage_out entry with this ref (send dedup).
+func (l *Ledger) MsgWasSent(ref string) (bool, error) {
+	var exists int
+	err := l.db.QueryRow(`SELECT COUNT(*) FROM txlog WHERE kind="postage_out" AND ref=?`, ref).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists > 0, nil
+}
+
+// CreditRecipient credits the postage to the recipient account and logs it.
+func (l *Ledger) CreditRecipient(name string, amountMsat int64, ref string) error {
+	return l.ApplyDelta(name, amountMsat, KindPostageIn, ref)
+}
 // --- Mailbox (store & forward, spec §8.1 mailbox table) ---
 
 type Message struct {

@@ -24,9 +24,11 @@ func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "usage: lmcli <command> [args]")
 		fmt.Fprintln(os.Stderr, "  init <name>            create mailbox keypair + account")
-		fmt.Fprintln(os.Stderr, "  send <to> <subject> <body>")
+		fmt.Fprintln(os.Stderr, "  send <to> <subject> <body> [--attach <sha256>]")
 		fmt.Fprintln(os.Stderr, "  inbox                  list inbox messages")
 		fmt.Fprintln(os.Stderr, "  balance                show balance")
+		fmt.Fprintln(os.Stderr, "  blob upload <file>     upload attachment blob")
+		fmt.Fprintln(os.Stderr, "  blob get <sha256>      download blob to stdout")
 		os.Exit(1)
 	}
 
@@ -44,8 +46,12 @@ func main() {
 		cmdSend(home, os.Args[2:])
 	case "inbox":
 		cmdInbox(home, os.Args[2:])
+	case "token":
+		cmdToken(home, os.Args[2:])
 	case "balance":
 		cmdBalance(home, os.Args[2:])
+	case "blob":
+		cmdBlob(home, os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", cmd)
 		os.Exit(1)
@@ -171,13 +177,24 @@ func mustAuth(home string) *session {
 func (s *session) authHdr() string { return "Bearer " + s.token }
 
 func cmdSend(home string, args []string) {
-	if len(args) < 3 {
-		fmt.Fprintln(os.Stderr, "usage: lmcli send <to> <subject> <body>")
+	// Parse --attach <sha256_hex> optional flag before positional args.
+	var attachRefs []string
+	posArgs := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--attach" && i+1 < len(args) {
+			attachRefs = append(attachRefs, args[i+1])
+			i++
+		} else {
+			posArgs = append(posArgs, args[i])
+		}
+	}
+	if len(posArgs) < 3 {
+		fmt.Fprintln(os.Stderr, "usage: lmcli send <to> <subject> <body> [--attach <sha256>]")
 		os.Exit(1)
 	}
-	to := args[0]
-	subject := args[1]
-	body := args[2]
+	to := posArgs[0]
+	subject := posArgs[1]
+	body := posArgs[2]
 
 	s := mustAuth(home)
 
@@ -211,10 +228,26 @@ func cmdSend(home string, args []string) {
 		os.Exit(1)
 	}
 
+	// Build attachments list for the inner payload.
+	type attInfo struct {
+		SHA256 string `json:"sha256"`
+		Name   string `json:"name"`
+		Size   int    `json:"size"`
+	}
+	var attachments []attInfo
+	for _, refHex := range attachRefs {
+		attachments = append(attachments, attInfo{
+			SHA256: refHex,
+			Name:   refHex[:12] + ".bin",
+			Size:   0, // unknown size without head request
+		})
+	}
+
 	payload, _ := json.Marshal(map[string]any{
-		"subject": subject,
-		"body":    body,
-		"headers": map[string]string{},
+		"subject":     subject,
+		"body":        body,
+		"headers":     map[string]string{},
+		"attachments": attachments,
 	})
 
 	var msgID [32]byte
@@ -231,9 +264,23 @@ func cmdSend(home string, args []string) {
 		os.Exit(1)
 	}
 
+	// Build blob_refs for envelope tag 0x03.
+	var blobRefs [][32]byte
+	for _, refHex := range attachRefs {
+		refBytes, err := hex.DecodeString(refHex)
+		if err != nil || len(refBytes) != 32 {
+			fmt.Fprintf(os.Stderr, "bad blob ref: %s\n", refHex)
+			os.Exit(1)
+		}
+		var ref32 [32]byte
+		copy(ref32[:], refBytes)
+		blobRefs = append(blobRefs, ref32)
+	}
+
 	env := &envelope.Envelope{
 		RecipientHash:     recipientHash,
 		MsgID:             msgID,
+		BlobRefs:          blobRefs,
 		SenderPubkey:      senderPub,
 		Timestamp:         time.Now().Unix(),
 		PayloadCiphertext: sealed,
@@ -320,6 +367,12 @@ func cmdInbox(home string, args []string) {
 	}
 }
 
+
+func cmdToken(home string, args []string) {
+	s := mustAuth(home)
+	fmt.Println(s.token)
+}
+
 func cmdBalance(home string, args []string) {
 	s := mustAuth(home)
 	req, _ := http.NewRequest("GET", s.relay+"/v1/balance", nil)
@@ -332,4 +385,69 @@ func cmdBalance(home string, args []string) {
 	defer resp.Body.Close()
 	io.Copy(os.Stdout, resp.Body)
 	fmt.Println()
+}
+
+// --- blob commands ---
+
+func cmdBlob(home string, args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: lmcli blob <upload|get> ...")
+		os.Exit(1)
+	}
+	switch args[0] {
+	case "upload":
+		cmdBlobUpload(home, args[1:])
+	case "get":
+		cmdBlobGet(home, args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "unknown blob command: %s\n", args[0])
+		os.Exit(1)
+	}
+}
+
+func cmdBlobUpload(home string, args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: lmcli blob upload <file>")
+		os.Exit(1)
+	}
+	s := mustAuth(home)
+	data, err := os.ReadFile(args[0])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "read file: %v\n", err)
+		os.Exit(1)
+	}
+	req, _ := http.NewRequest("POST", s.relay+"/v1/blob", bytes.NewReader(data))
+	req.Header.Set("Authorization", s.authHdr())
+	req.Header.Set("Content-Type", "application/octet-stream")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "blob upload: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+	io.Copy(os.Stdout, resp.Body)
+	fmt.Println()
+}
+
+func cmdBlobGet(home string, args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: lmcli blob get <sha256_hex>")
+		os.Exit(1)
+	}
+	s := mustAuth(home)
+	sha := args[0]
+	req, _ := http.NewRequest("GET", s.relay+"/v1/blob/"+sha, nil)
+	req.Header.Set("Authorization", s.authHdr())
+	resp, err := s.client.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "blob get: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Fprintf(os.Stderr, "blob get failed (%d): %s\n", resp.StatusCode, body)
+		os.Exit(1)
+	}
+	io.Copy(os.Stdout, resp.Body)
 }

@@ -1,6 +1,6 @@
 # bmail v0.1 — M0-Spec (Wire-Format, Receipt, Discovery, Ledger, API)
 
-Stand: 11.11.2026 · Etappe 2a · Basis für Etappe 2 (Clients) und 3 (relayd/lnclient).
+Stand: 12.11.2026 · Etappe 3b · Portomail-Flow, 1-MB-Attachment-Roundtrip, Replay-Ablehnung, Balance-Assertions.
 Verbindliche Setzungen: docs/PRECODING.md §B, vorgegeben durch Bernd/Hermes.
 Code: `relay/internal/{envelope,config,crypto,ledger}` — Spec und Code müssen
 schrittgehalten; bei Abweichung gewinnt diese Spec (Issue öffnen).

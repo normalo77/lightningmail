@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	"encoding/hex"
 	"os"
 	"os/signal"
 	"syscall"
@@ -98,6 +99,9 @@ func main() {
 			if err2 != nil {
 				log.Printf("incoming: mailbox put error: %v", err2)
 				continue
+			}
+			if err2 := l.CreditRecipient(acct.Name, update.AmtPaid*1000, hex.EncodeToString(env.MsgID[:])); err2 != nil {
+				log.Printf("incoming: credit error for %s: %v", acct.Name, err2)
 			}
 			log.Printf("incoming: msg stored for %s seq=%d amt=%d", acct.Name, seq, update.AmtPaid)
 		}

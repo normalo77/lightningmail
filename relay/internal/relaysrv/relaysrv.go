@@ -1,11 +1,13 @@
 // Package relaysrv: HTTP relay API server (spec §7).
-// Endpoints: /v1/auth, /v1/balance, /v1/send, /v1/inbox, /v1/profile/{addr}.
+// Endpoints: /v1/auth, /v1/balance, /v1/send, /v1/inbox, /v1/profile/{addr},
+// /v1/blob, /v1/blob/{sha256}.
 // shortcut: in-memory auth tokens, no mTLS, single-node — production needs
 // proper session store + mTLS between relays (Etappe 4).
 package relaysrv
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +15,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -51,6 +54,8 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/send", s.auth(s.handleSend))
 	mux.HandleFunc("/v1/inbox", s.auth(s.handleInbox))
 	mux.HandleFunc("/v1/profile/", s.handleProfile)
+	mux.HandleFunc("/v1/blob", s.auth(s.handleBlobUpload))
+	mux.HandleFunc("/v1/blob/", s.auth(s.handleBlobGet))
 	mux.HandleFunc("/v1/account", s.handleAccount)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
@@ -170,6 +175,17 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Replay rejection: duplicate msg_id yields 409.
+	dup, err := s.ledger.MsgWasSent(hex.EncodeToString(env.MsgID[:]))
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"ledger: %v"}`, err), 500)
+		return
+	}
+	if dup {
+		http.Error(w, `{"error":"duplicate msg_id"}`, 409)
+		return
+	}
+
 	postageAmt := s.postage.ForeignSats()
 	postageMsat := postageAmt * 1000
 
@@ -224,8 +240,6 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":"keysend: %v"}`, err), 502)
 		return
 	}
-
-	// Credit: the recipient relay handles crediting via invoice subscription
 
 	resp := map[string]any{
 		"msg_id": hex.EncodeToString(env.MsgID[:]),
@@ -285,7 +299,6 @@ func (s *Server) handleInbox(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
 // --- POST /v1/account (bootstrap/registration) ---
 func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -335,4 +348,59 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 		"foreign_sats": s.postage.ForeignSats(),
 		"contact_sats": s.cfg.Postage.ContactSats,
 	})
+}
+
+// --- POST /v1/blob (attachment upload, spec §6.3) ---
+func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, `{"error":"method not allowed"}`, 405)
+		return
+	}
+	if r.ContentLength > s.cfg.Postage.BlobMaxBytes {
+		http.Error(w, `{"error":"blob too large"}`, 413)
+		return
+	}
+	raw, err := io.ReadAll(io.LimitReader(r.Body, s.cfg.Postage.BlobMaxBytes+1))
+	if err != nil {
+		http.Error(w, `{"error":"read body"}`, 500)
+		return
+	}
+	if int64(len(raw)) > s.cfg.Postage.BlobMaxBytes {
+		http.Error(w, `{"error":"blob too large"}`, 413)
+		return
+	}
+	h := sha256.Sum256(raw)
+	hexSha := hex.EncodeToString(h[:])
+	dir := s.cfg.DataDir + "/blob/" + hexSha[:2]
+	os.MkdirAll(dir, 0700)
+	path := dir + "/" + hexSha
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err := os.WriteFile(path, raw, 0600); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"write: %v"}`, err), 500)
+			return
+		}
+	}
+	json.NewEncoder(w).Encode(map[string]any{
+		"sha256_hex":    hexSha,
+		"bytes_written": len(raw),
+	})
+}
+
+// --- GET /v1/blob/{sha256} (attachment download, spec §6.3) ---
+func (s *Server) handleBlobGet(w http.ResponseWriter, r *http.Request) {
+	hexSha := strings.TrimPrefix(r.URL.Path, "/v1/blob/")
+	if len(hexSha) != 64 {
+		http.Error(w, `{"error":"invalid sha256 hex"}`, 400)
+		return
+	}
+	dir := s.cfg.DataDir + "/blob/" + hexSha[:2]
+	path := dir + "/" + hexSha
+	data, err := os.ReadFile(path)
+	if err != nil {
+		http.Error(w, `{"error":"blob not found"}`, 404)
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
+	w.Write(data)
 }
