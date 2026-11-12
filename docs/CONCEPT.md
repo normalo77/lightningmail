@@ -348,8 +348,23 @@ P2P-Wahl **Syncthing** (MPL-2.0, aktiv; Android via gepflegtem Syncthing-Fork,
 ~Aug 2026 — Upstream-Wrapper tot; Resilio/BTSync abgelehnt: closed/dead).
 Integrationsmuster: kein In-Place-Edit — jeder Client schreibt immutable
 `state-<device>-<version>.json` in den Sync-Ordner, Merge/Conflict-Resolution
-leistet der CAS-Layer der App. Mögliche Wiederverwendung M3+: Blob-Mirror
-relay↔relay über Syncthing-Shares statt HTTP.
+leistet der CAS-Layer der App.
+
+**Architektur-Rollenteilung (Bernd, 12.11.):**
+- Server/Relay = **Zeitlimit-Frachtbahnhof (POP3-Semantik)**: Anhänge mit
+  Aufbewahrungsfrist (30–90 d), klassischer Download durch den ersten Client,
+  danach Löschkandidat. Server-Storage = Volumen × Frist, nicht × Dauer.
+  Dedup: content-addressierter Blob-Store (gleiche Datei = ein Exemplar).
+- Clients = **Dauerarchiv**: Syncthingclient↔client trägt Staat, herunter-
+  geladene Blobs UND lokale Archive; einmal heruntergeladene Anhänge brauchen
+  den Server nicht erneut. Solo-Gerät: Server-Fallback innerhalb Frist (P2P =
+  Accelerator, nie Voraussetzung).
+- Verfallene Anhänge beim Weiterleiten: Client hat Original lokal (sha bekannt)
+  → re-Upload, Adressierung bleibt intakt.
+- UI-Regeln: "läuft ab in X Tagen" + Download-Status pro Mail, sichtbar.
+- Späteres Geschäftsmodell: verlängerte Aufbewahrung = Eur-Dienstleistung
+  (§18 sauber: Dienstleistung, kein Fiat→Sats). Blob-Mirror relay↔relay
+  (6.4) bleibt für Übertrag, e2e-seitig; Frist-Cleanup = M3.
 
 ## 18. Aufladung & Lizenzgrenze (MiCA, 12.11.2026)
 
