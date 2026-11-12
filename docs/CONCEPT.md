@@ -344,6 +344,13 @@ eigenen Relay als Grundschicht (M2.5-Bau), P2P(Syncthing-artiger)
 Accelerator als optionale Power-User-Erweiterung. v0.1-Client bleibt derweil
 rein lokal mit exportierbarer Backup-Datei.
 
+P2P-Wahl **Syncthing** (MPL-2.0, aktiv; Android via gepflegtem Syncthing-Fork,
+~Aug 2026 — Upstream-Wrapper tot; Resilio/BTSync abgelehnt: closed/dead).
+Integrationsmuster: kein In-Place-Edit — jeder Client schreibt immutable
+`state-<device>-<version>.json` in den Sync-Ordner, Merge/Conflict-Resolution
+leistet der CAS-Layer der App. Mögliche Wiederverwendung M3+: Blob-Mirror
+relay↔relay über Syncthing-Shares statt HTTP.
+
 ## 17. Ein-Satz-Pitch
 
 „Deine Mails sind jetzt bares Geld wert — und die der anderen auch."
