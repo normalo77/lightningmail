@@ -2,6 +2,7 @@
 // (docs/spec.md §8). Driver modernc.org/sqlite — pure Go, no CGO.
 // Money is stored as integer msat; writes use optimistic locking on the
 // account.version column (spec §8.2), never balance-UPDATE-without-check.
+// v3 (Etappe 4a): persistent auth tokens, blob ACL, storage quota.
 package ledger
 
 import (
@@ -19,10 +20,7 @@ import (
 //go:embed schema.sql
 var schemaFS embed.FS
 
-const schemaVersion = 2
-
-// schema v2 (mailbox table, store&forward) belongs to Etappe 3/mailbox —
-// deliberately not created here (spec §8.1).
+const schemaVersion = 3
 
 type Kind string
 
@@ -40,11 +38,10 @@ var (
 	ErrConflict         = errors.New("ledger: version conflict retries exhausted")
 	ErrInvalidKind      = errors.New("ledger: invalid tx kind")
 	ErrDuplicateAccount = errors.New("ledger: account name or recipient_hash already exists")
+	ErrQuotaExceeded    = errors.New("ledger: storage quota exceeded")
+	ErrBlobNotFound     = errors.New("ledger: blob not found")
 )
 
-// maxRetries: optimistic locking gives up after this many version conflicts.
-// 32 + linear backoff, because the single-writer SQLite pool can starve a
-// loser under test-level contention; real relay traffic is far below this.
 const maxRetries = 32
 
 type Ledger struct{ db *sql.DB }
@@ -55,6 +52,7 @@ type Account struct {
 	MailboxPubkey []byte
 	RecipientHash [32]byte
 	BalanceMsat   int64
+	QuotaBytes    int64
 	Version       int64
 }
 
@@ -67,7 +65,6 @@ type Tx struct {
 	CreatedAt int64
 }
 
-// Open creates the DB (path ":memory:" for tests), turns on WAL for files.
 func Open(path string) (*Ledger, error) {
 	dsn := path
 	if path != ":memory:" {
@@ -77,9 +74,6 @@ func Open(path string) (*Ledger, error) {
 	if err != nil {
 		return nil, err
 	}
-	// modernc + concurrent writers: serialize at the pool level; WAL/
-	// busy_timeout covers multi-process. shortcut: single-conn pool, upgrade
-	// when relayd shows contention (Etappe 3 benchmarks).
 	db.SetMaxOpenConns(1)
 	l := &Ledger{db: db}
 	if err := l.migrate(); err != nil {
@@ -98,6 +92,9 @@ func (l *Ledger) migrate() error {
 	}
 	if v == schemaVersion {
 		return nil
+	}
+	if v > schemaVersion {
+		return fmt.Errorf("ledger: unsupported schema version %d (max %d)", v, schemaVersion)
 	}
 	if v != 0 {
 		return fmt.Errorf("ledger: unsupported schema version %d", v)
@@ -131,8 +128,8 @@ func (l *Ledger) CreateAccount(name string, mailboxPubkey []byte) (*Account, err
 	h := RecipientHash(mailboxPubkey)
 	t := now()
 	res, err := l.db.Exec(
-		`INSERT INTO account (name, mailbox_pubkey, recipient_hash, balance_msat, version, created_at, updated_at)
-     VALUES (?,?,?,0,0,?,?)`, name, mailboxPubkey, h[:], t, t)
+		`INSERT INTO account (name, mailbox_pubkey, recipient_hash, balance_msat, quota_bytes, version, created_at, updated_at)
+     VALUES (?,?,?,0,104857600,0,?,?)`, name, mailboxPubkey, h[:], t, t)
 	if err != nil {
 		if isUnique(err) {
 			return nil, fmt.Errorf("%w: %s", ErrDuplicateAccount, name)
@@ -141,16 +138,16 @@ func (l *Ledger) CreateAccount(name string, mailboxPubkey []byte) (*Account, err
 	}
 	id, _ := res.LastInsertId()
 	return &Account{ID: id, Name: name, MailboxPubkey: mailboxPubkey,
-		RecipientHash: h, BalanceMsat: 0, Version: 0}, nil
+		RecipientHash: h, BalanceMsat: 0, QuotaBytes: 104857600, Version: 0}, nil
 }
 
 func (l *Ledger) GetAccount(name string) (*Account, error) {
 	a := &Account{}
 	var h []byte
 	err := l.db.QueryRow(
-		`SELECT id, name, mailbox_pubkey, recipient_hash, balance_msat, version
+		`SELECT id, name, mailbox_pubkey, recipient_hash, balance_msat, quota_bytes, version
      FROM account WHERE name=?`, name).
-		Scan(&a.ID, &a.Name, &a.MailboxPubkey, &h, &a.BalanceMsat, &a.Version)
+		Scan(&a.ID, &a.Name, &a.MailboxPubkey, &h, &a.BalanceMsat, &a.QuotaBytes, &a.Version)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -161,15 +158,13 @@ func (l *Ledger) GetAccount(name string) (*Account, error) {
 	return a, nil
 }
 
-// LookupByRecipientHash is the inbox-routing call for the relay: envelope
-// tag 0x01 -> account (spec §3.2, §8.1 UNIQUE index).
 func (l *Ledger) LookupByRecipientHash(h [32]byte) (*Account, error) {
 	a := &Account{}
 	var hb []byte
 	err := l.db.QueryRow(
-		`SELECT id, name, mailbox_pubkey, recipient_hash, balance_msat, version
+		`SELECT id, name, mailbox_pubkey, recipient_hash, balance_msat, quota_bytes, version
      FROM account WHERE recipient_hash=?`, h[:]).
-		Scan(&a.ID, &a.Name, &a.MailboxPubkey, &hb, &a.BalanceMsat, &a.Version)
+		Scan(&a.ID, &a.Name, &a.MailboxPubkey, &hb, &a.BalanceMsat, &a.QuotaBytes, &a.Version)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -188,15 +183,11 @@ func (l *Ledger) Balance(name string) (int64, error) {
 	return a.BalanceMsat, nil
 }
 
-// ApplyDelta moves the balance of one account with optimistic locking on
-// version (spec §8.2). Negative deltas that would underflow return
-// ErrInsufficient without writing anything.
 func (l *Ledger) ApplyDelta(name string, deltaMsat int64, kind Kind, ref string) error {
 	if !validKind(kind) {
 		return fmt.Errorf("%w: %s", ErrInvalidKind, kind)
 	}
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		// 1. read current version outside the write txn (the optimistic part)
 		var id, bal, ver int64
 		err := l.db.QueryRow(`SELECT id, balance_msat, version FROM account WHERE name=?`, name).
 			Scan(&id, &bal, &ver)
@@ -210,7 +201,6 @@ func (l *Ledger) ApplyDelta(name string, deltaMsat int64, kind Kind, ref string)
 		if newBal < 0 {
 			return ErrInsufficient
 		}
-		// 2. conditional update + log in one txn
 		tx, err := l.db.Begin()
 		if err != nil {
 			return err
@@ -224,7 +214,7 @@ func (l *Ledger) ApplyDelta(name string, deltaMsat int64, kind Kind, ref string)
 			return err
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
-			tx.Rollback() // version moved under us -> back off and retry
+			tx.Rollback()
 			time.Sleep(time.Duration(attempt) * time.Millisecond / 4)
 			continue
 		}
@@ -265,7 +255,6 @@ func (l *Ledger) History(name string, limit int) ([]Tx, error) {
 	return out, rows.Err()
 }
 
-
 // HasMessage checks if msgID already exists in the mailbox (dedup, replay rejection).
 func (l *Ledger) HasMessage(msgID [32]byte) (bool, error) {
 	var exists int
@@ -286,10 +275,10 @@ func (l *Ledger) MsgWasSent(ref string) (bool, error) {
 	return exists > 0, nil
 }
 
-// CreditRecipient credits the postage to the recipient account and logs it.
 func (l *Ledger) CreditRecipient(name string, amountMsat int64, ref string) error {
 	return l.ApplyDelta(name, amountMsat, KindPostageIn, ref)
 }
+
 // --- Mailbox (store & forward, spec §8.1 mailbox table) ---
 
 type Message struct {
@@ -302,9 +291,7 @@ type Message struct {
 	CreatedAt    int64
 }
 
-// PutMessage stores an envelope in the recipient's mailbox. Dedup on msg_id.
 func (l *Ledger) PutMessage(msgID [32]byte, accountID int64, envelope []byte, receivedMsat int64) (int64, error) {
-	// Get next seq for this account
 	var maxSeq sql.NullInt64
 	err := l.db.QueryRow(`SELECT MAX(seq) FROM mailbox WHERE account_id=?`, accountID).Scan(&maxSeq)
 	if err != nil {
@@ -324,7 +311,6 @@ func (l *Ledger) PutMessage(msgID [32]byte, accountID int64, envelope []byte, re
 	return nextSeq, nil
 }
 
-// ListMessages returns inbox messages for an account, newest first, after a given seq.
 func (l *Ledger) ListMessages(accountID int64, afterSeq int64, limit int) ([]Message, error) {
 	if limit <= 0 {
 		limit = 50
@@ -351,6 +337,99 @@ func (l *Ledger) ListMessages(accountID int64, afterSeq int64, limit int) ([]Mes
 		msgs = append(msgs, m)
 	}
 	return msgs, rows.Err()
+}
+
+// --- Persistent auth tokens (Etappe 4a) ---
+
+const tokenLifetime = 24 * 3600 // 24 hours
+
+func (l *Ledger) StoreToken(tokenHex, accountName string) error {
+	h := sha256.Sum256([]byte(tokenHex))
+	t := now()
+	_, err := l.db.Exec(
+		`INSERT OR REPLACE INTO auth_tokens (token_hash, account_name, created_at, expires_at)
+     VALUES (?,?,?,?)`, h[:], accountName, t, t+tokenLifetime)
+	return err
+}
+
+// LookupToken returns the account name for a valid, non-expired token.
+func (l *Ledger) LookupToken(tokenHex string) (string, error) {
+	h := sha256.Sum256([]byte(tokenHex))
+	var name string
+	var expires int64
+	err := l.db.QueryRow(
+		`SELECT account_name, expires_at FROM auth_tokens WHERE token_hash=?`, h[:]).
+		Scan(&name, &expires)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if now() > expires {
+		l.db.Exec(`DELETE FROM auth_tokens WHERE token_hash=?`, h[:])
+		return "", nil
+	}
+	return name, nil
+}
+
+// CleanExpiredTokens removes expired tokens from the DB.
+func (l *Ledger) CleanExpiredTokens() error {
+	_, err := l.db.Exec(`DELETE FROM auth_tokens WHERE expires_at < ?`, now())
+	return err
+}
+
+// --- Blob ACL + Quota (Etappe 4a) ---
+
+// RegisterBlobRef records that an account owns/has access to a blob.
+func (l *Ledger) RegisterBlobRef(accountID int64, sha256 [32]byte, size int64) error {
+	t := now()
+	_, err := l.db.Exec(
+		`INSERT OR IGNORE INTO blob_refs (sha256, account_id, bytes, created_at)
+     VALUES (?,?,?,?)`, sha256[:], accountID, size, t)
+	return err
+}
+
+// HasBlobAccess returns true if the account has a blob_ref for this sha256.
+func (l *Ledger) HasBlobAccess(accountID int64, sha256 [32]byte) (bool, error) {
+	var exists int
+	err := l.db.QueryRow(
+		`SELECT COUNT(*) FROM blob_refs WHERE sha256=? AND account_id=?`,
+		sha256[:], accountID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists > 0, nil
+}
+
+// BlobUsage returns total bytes stored by an account.
+func (l *Ledger) BlobUsage(accountID int64) (int64, error) {
+	var total sql.NullInt64
+	err := l.db.QueryRow(
+		`SELECT SUM(bytes) FROM blob_refs WHERE account_id=?`, accountID).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+	if !total.Valid {
+		return 0, nil
+	}
+	return total.Int64, nil
+}
+
+// CheckQuota returns nil if account can store additionalBytes without exceeding quota.
+func (l *Ledger) CheckQuota(name string, additionalBytes int64) error {
+	a, err := l.GetAccount(name)
+	if err != nil {
+		return err
+	}
+	used, err := l.BlobUsage(a.ID)
+	if err != nil {
+		return err
+	}
+	if used+additionalBytes > a.QuotaBytes {
+		return ErrQuotaExceeded
+	}
+	return nil
 }
 
 func validKind(k Kind) bool {

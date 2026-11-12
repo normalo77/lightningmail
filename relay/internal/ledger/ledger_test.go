@@ -18,7 +18,7 @@ func openTestLedger(t *testing.T) *Ledger {
 
 func TestMigrateIdempotent(t *testing.T) {
 	l := openTestLedger(t)
-	if err := l.migrate(); err != nil { // second run must be a no-op
+	if err := l.migrate(); err != nil {
 		t.Fatalf("re-migrate: %v", err)
 	}
 	var v int
@@ -38,6 +38,9 @@ func TestCreateAccountAndLookup(t *testing.T) {
 	}
 	if a.RecipientHash != RecipientHash(pub) {
 		t.Fatal("recipient hash not sha256(mailbox_pubkey)")
+	}
+	if a.QuotaBytes != 104857600 {
+		t.Fatalf("default quota: %d", a.QuotaBytes)
 	}
 	got, err := l.LookupByRecipientHash(a.RecipientHash)
 	if err != nil || got.Name != "bernd" {
@@ -75,7 +78,7 @@ func TestBalanceDeltaHistory(t *testing.T) {
 	if err != nil || len(h) != 2 {
 		t.Fatalf("history len=%d err=%v", len(h), err)
 	}
-	if h[0].Kind != KindWithdraw || h[1].Kind != KindPostageIn { // newest first
+	if h[0].Kind != KindWithdraw || h[1].Kind != KindPostageIn {
 		t.Fatalf("history order/kind: %+v", h)
 	}
 	if h[1].Ref != "msg-a" {
@@ -110,7 +113,6 @@ func TestInsufficientFundsLeavesNoTrace(t *testing.T) {
 	}
 }
 
-// Concurrent credits must not lose updates (optimistic locking, spec §8.2).
 func TestConcurrentNoLostUpdates(t *testing.T) {
 	l := openTestLedger(t)
 	if _, err := l.CreateAccount("busy", bytes33(3)); err != nil {
@@ -159,6 +161,79 @@ func TestWALFileDB(t *testing.T) {
 	var jm string
 	if err := l.db.QueryRow("PRAGMA journal_mode").Scan(&jm); err != nil || jm != "wal" {
 		t.Fatalf("journal_mode=%q err=%v (WAL required for file DBs)", jm, err)
+	}
+}
+
+// --- Etappe 4a: persistent tokens, blob ACL, quota ---
+
+func TestPersistentTokens(t *testing.T) {
+	l := openTestLedger(t)
+	// Store a token
+	if err := l.StoreToken("abc123", "bernd"); err != nil {
+		t.Fatal(err)
+	}
+	// Lookup valid
+	name, err := l.LookupToken("abc123")
+	if err != nil || name != "bernd" {
+		t.Fatalf("lookup: name=%q err=%v", name, err)
+	}
+	// Lookup invalid
+	name, err = l.LookupToken("nonexistent")
+	if err != nil || name != "" {
+		t.Fatalf("lookup invalid: name=%q err=%v", name, err)
+	}
+	// Clean expired (token still valid, 24h)
+	if err := l.CleanExpiredTokens(); err != nil {
+		t.Fatal(err)
+	}
+	name, _ = l.LookupToken("abc123")
+	if name != "bernd" {
+		t.Fatal("token cleaned prematurely")
+	}
+}
+
+func TestBlobACLAndQuota(t *testing.T) {
+	l := openTestLedger(t)
+	a, err := l.CreateAccount("bernd", bytes33(5))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var sha [32]byte
+	sha[0] = 0xAB
+	sha[31] = 0xCD
+
+	// Register blob ref
+	if err := l.RegisterBlobRef(a.ID, sha, 1024); err != nil {
+		t.Fatal(err)
+	}
+
+	// ACL: authorized
+	ok, err := l.HasBlobAccess(a.ID, sha)
+	if err != nil || !ok {
+		t.Fatalf("HasBlobAccess: ok=%v err=%v", ok, err)
+	}
+
+	// ACL: other account
+	ok2, err := l.HasBlobAccess(999, sha)
+	if err != nil || ok2 {
+		t.Fatalf("HasBlobAccess other account: ok=%v", ok2)
+	}
+
+	// Quota usage
+	used, err := l.BlobUsage(a.ID)
+	if err != nil || used != 1024 {
+		t.Fatalf("BlobUsage: %d err=%v", used, err)
+	}
+
+	// CheckQuota: under limit
+	if err := l.CheckQuota("bernd", 100); err != nil {
+		t.Fatalf("CheckQuota under: %v", err)
+	}
+
+	// CheckQuota: over limit
+	if err := l.CheckQuota("bernd", 200_000_000); !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("CheckQuota over: want ErrQuotaExceeded, got %v", err)
 	}
 }
 

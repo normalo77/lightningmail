@@ -1,8 +1,7 @@
 // Package relaysrv: HTTP relay API server (spec §7).
 // Endpoints: /v1/auth, /v1/balance, /v1/send, /v1/inbox, /v1/profile/{addr},
 // /v1/blob, /v1/blob/{sha256}.
-// shortcut: in-memory auth tokens, no mTLS, single-node — production needs
-// proper session store + mTLS between relays (Etappe 4).
+// Etappe 4a: persistent auth tokens (SQLite), blob ACL, storage quota.
 package relaysrv
 
 import (
@@ -17,7 +16,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/lightningmail/relay/internal/config"
@@ -33,21 +31,16 @@ type Server struct {
 	ledger  *ledger.Ledger
 	ln      *lnclient.Client
 	postage *postage.Service
-	tokens  map[string]string // token -> account name
-	mu      sync.RWMutex
 }
 
 func New(cfg *config.Config, l *ledger.Ledger, ln *lnclient.Client, p *postage.Service) *Server {
-	return &Server{
-		cfg:     cfg,
-		ledger:  l,
-		ln:      ln,
-		postage: p,
-		tokens:  make(map[string]string),
-	}
+	return &Server{cfg: cfg, ledger: l, ln: ln, postage: p}
 }
 
 func (s *Server) ListenAndServe() error {
+	// Clean expired tokens on startup
+	s.ledger.CleanExpiredTokens()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/auth", s.handleAuth)
 	mux.HandleFunc("/v1/balance", s.auth(s.handleBalance))
@@ -66,7 +59,7 @@ func (s *Server) ListenAndServe() error {
 	return http.ListenAndServe(s.cfg.ListenAddr, mux)
 }
 
-// --- auth middleware ---
+// --- auth middleware (persistent tokens, Etappe 4a) ---
 
 func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -75,10 +68,12 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, `{"error":"unauthorized"}`, 401)
 			return
 		}
-		s.mu.RLock()
-		account, ok := s.tokens[tok]
-		s.mu.RUnlock()
-		if !ok {
+		account, err := s.ledger.LookupToken(tok)
+		if err != nil {
+			http.Error(w, `{"error":"internal"}`, 500)
+			return
+		}
+		if account == "" {
 			http.Error(w, `{"error":"unauthorized"}`, 401)
 			return
 		}
@@ -135,9 +130,12 @@ func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 	tok := make([]byte, 32)
 	rand.Read(tok)
 	tokenStr := hex.EncodeToString(tok)
-	s.mu.Lock()
-	s.tokens[tokenStr] = req.Address
-	s.mu.Unlock()
+
+	// Persist token to SQLite (survives restart)
+	if err := s.ledger.StoreToken(tokenStr, req.Address); err != nil {
+		http.Error(w, `{"error":"token store"}`, 500)
+		return
+	}
 
 	json.NewEncoder(w).Encode(map[string]string{"token": tokenStr})
 }
@@ -175,7 +173,6 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Replay rejection: duplicate msg_id yields 409.
 	dup, err := s.ledger.MsgWasSent(hex.EncodeToString(env.MsgID[:]))
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"ledger: %v"}`, err), 500)
@@ -229,7 +226,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 
 	customRecords := map[uint64][]byte{
 		34349334: envBin,
-		34349337: make([]byte, 64), // placeholder transport sig
+		34349337: make([]byte, 64),
 		34349339: relayPubkeyBytes,
 		34349343: ts,
 	}
@@ -350,12 +347,13 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- POST /v1/blob (attachment upload, spec §6.3) ---
+// --- POST /v1/blob (attachment upload, spec §6.3, Etappe 4a: quota + ACL) ---
 func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, `{"error":"method not allowed"}`, 405)
 		return
 	}
+	account := r.Header.Get("X-Bmail-Account")
 	if r.ContentLength > s.cfg.Postage.BlobMaxBytes {
 		http.Error(w, `{"error":"blob too large"}`, 413)
 		return
@@ -369,30 +367,77 @@ func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"blob too large"}`, 413)
 		return
 	}
+
+	// Quota check
+	if err := s.ledger.CheckQuota(account, int64(len(raw))); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"quota exceeded: %v"}`, err), 413)
+		return
+	}
+
 	h := sha256.Sum256(raw)
 	hexSha := hex.EncodeToString(h[:])
 	dir := s.cfg.DataDir + "/blob/" + hexSha[:2]
 	os.MkdirAll(dir, 0700)
 	path := dir + "/" + hexSha
+
+	// Only write file if new; always register blob ref
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if err := os.WriteFile(path, raw, 0600); err != nil {
 			http.Error(w, fmt.Sprintf(`{"error":"write: %v"}`, err), 500)
 			return
 		}
 	}
+
+	// Register blob ref for ACL
+	acct, err := s.ledger.GetAccount(account)
+	if err != nil {
+		http.Error(w, `{"error":"account lookup"}`, 500)
+		return
+	}
+	if err := s.ledger.RegisterBlobRef(acct.ID, h, int64(len(raw))); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"blob ref: %v"}`, err), 500)
+		return
+	}
+
 	json.NewEncoder(w).Encode(map[string]any{
 		"sha256_hex":    hexSha,
 		"bytes_written": len(raw),
 	})
 }
 
-// --- GET /v1/blob/{sha256} (attachment download, spec §6.3) ---
+// --- GET /v1/blob/{sha256} (Etappe 4a: ACL check) ---
 func (s *Server) handleBlobGet(w http.ResponseWriter, r *http.Request) {
+	account := r.Header.Get("X-Bmail-Account")
 	hexSha := strings.TrimPrefix(r.URL.Path, "/v1/blob/")
 	if len(hexSha) != 64 {
 		http.Error(w, `{"error":"invalid sha256 hex"}`, 400)
 		return
 	}
+
+	// ACL: only accounts with a blob_ref can download
+	acct, err := s.ledger.GetAccount(account)
+	if err != nil {
+		http.Error(w, `{"error":"account not found"}`, 404)
+		return
+	}
+	shaBytes, err := hex.DecodeString(hexSha)
+	if err != nil || len(shaBytes) != 32 {
+		http.Error(w, `{"error":"invalid sha256"}`, 400)
+		return
+	}
+	var sha32 [32]byte
+	copy(sha32[:], shaBytes)
+
+	ok, err := s.ledger.HasBlobAccess(acct.ID, sha32)
+	if err != nil {
+		http.Error(w, `{"error":"ledger"}`, 500)
+		return
+	}
+	if !ok {
+		http.Error(w, `{"error":"blob not accessible"}`, 403)
+		return
+	}
+
 	dir := s.cfg.DataDir + "/blob/" + hexSha[:2]
 	path := dir + "/" + hexSha
 	data, err := os.ReadFile(path)
