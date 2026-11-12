@@ -157,8 +157,11 @@ damit ein echtes „Postamt gehört mir"-Modell.
   Einweg-Mail kostet wirklich** — der Spammer zahlt für Müll, der
   Korrespondent nicht. Damit entfallen Antwort-Quoten, 0-Sats-Tokens und
   die Fälschbarkeit des Fensters. Spam-Ordner = Endablage ohne Aktion.
-- **Kontakte/Whitelist:** Klassifikations-Funktion (Sofort-Inbox, keine
-  Stummschaltung), Porto-Privileg abgeschafft (s.o.).
+- **Whitelist: Ideen-Parkplatz, nicht v0.1 (Bernd, 12.11.).** Klassifikation
+  v0.1 nur `rest | unerwünscht(spam)`. Whitelist-Idee zur späteren Aufnahme:
+  *beidseitige Porto-Verabredung, ausgelöst als eingebaute Anfrage beim
+  Antworten* ("uns gegenseitig privilegieren?", beides Opt-in, verhandelbar,
+  nichts implizit). Bis dahin keine Whitelist-Logik im Client.
 - **Newsletter/Transaktionale Mail (v2):** Massenversender lösen über
   Abonnement-Semantik (Empfänger opt-in = Absender-Privileg, Preis pro Abo-Mail)
   oder verifizierte Absender-Lizenz. Ohne das bricht der ganze Geschäfts-E-Mail-Verkehr.
@@ -336,8 +339,10 @@ Optionen:
   Abbruch. Als Power-User-Option später denkbar.
 - C) beides: A als Grundschicht (immer da), B als optionaler Accelerator.
 
-Entscheidungsbedarf Bernd: A vs. C. Bis dahin bleibt v0.1-Client-Status rein
-lokal mit exportierbarer Backup-Datei (Design Q1 Antwort interim).
+Entschieden (Bernd, 12.11.): **C** — verschlüsseltes State-Doc über den
+eigenen Relay als Grundschicht (M2.5-Bau), P2P(Syncthing-artiger)
+Accelerator als optionale Power-User-Erweiterung. v0.1-Client bleibt derweil
+rein lokal mit exportierbarer Backup-Datei.
 
 ## 17. Ein-Satz-Pitch
 

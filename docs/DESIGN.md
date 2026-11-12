@@ -23,11 +23,12 @@ Weisung Bernd: basic E-Mail-Client (Rechnungen, Dauerablage), KEIN Messenger.
 - Lesen + Compose als Vollbild-Views mit Zurück-Header.
 
 ## 3. Kernlogik
-### Klassifizierung (manuell, keine Auto-Erkennung)
-- unbekannt (Default): eigene Ansicht, Leseansicht zeigt Aktionsleiste [→Whitelist (0 Sats)] [→Unerwünscht].
-- whitelisted: direkter Posteingang, 0 Porto an dich.
-- unerwünscht: clientseitig sofort nach 'Unerwünscht', stumm; Endablage ohne weitere Aktion
+### Klassifizierung (v0.1: nur `rest | unerwünscht` — kein Auto-Filter, keine Whitelist-Logik)
+- **rest (Default):** normal im Posteingang.
+- **unerwünscht:** clientseitig sofort nach 'Unerwünscht', stumm; Endablage ohne weitere Aktion
   (Abschreckung = der gezahlte Preis des Senders, nicht Erkennung).
+- Whitelist (Idee: beidseitige Porto-Verabredung als Anfrage beim Antworten) ist
+  Ideen-Parkplatz, siehe CONCEPT §6 — in v0.1 nicht gebaut.
 
 ### Compose & Porto (Stand 12.11.: KEIN Konversationsfenster, KEIN Whitelist-Privileg)
 - Verfassen wie klassisches Mail-Formular: `An` (mehre), `Cc`, `Betreff`, Body, Anhänge.
