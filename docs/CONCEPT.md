@@ -65,6 +65,14 @@ bevor irgendein Code den Inhalt ansieht.
 - **Attachments:** nie inline über Onion-Limits — Client verschlüsselt Blob,
   lädt auf Blob-Store des Relays (Größenlimit = Kontingent), Nachricht trägt
   nur `hash + key`. (Muster übernimmt Sphinx-Media-Handling.)
+- **Anhang-Vorverarbeitung:** Client komprimiert vor dem Senden
+  (Bilder Kante ≤2560px → JPEG/WebP; PDFs optipng/ghostscript-optional).
+  **Default: an; pro Sendevorgang UND pro Konto ausschaltbar** ("Original
+  senden"). Komprimierung NIE verlustfrei-zerstörend: Original bleibt
+  lokal erhalten, Relay speichert nur die gewählte Form.
+- **Porto skaliert mit Größe:** Preis = Basis + sats/MB (Empfänger-Preisprofil,
+  §6/§4.1) — schwere Mails kosten mehr; adressiert sowohl Spam-Bulk als auch
+  das 12-MB-Foto-Problem ohne technische Limitschlacht.
 - **Adressen:** `name@provider.tld` (Lightning-Address-kompatibel, DNS = SRV-like
   Lookup auf Relay-Node-ID). Key-Bindung über Web-of-Trust-light: Erstkontakt
   zeigt Fingerprint beidseitig (WhatsApp-Safety-Number-Muster). → siehe 4.1
@@ -131,6 +139,10 @@ damit ein echtes „Postamt gehört mir"-Modell.
 
 ## 6. Spam-Ökonomie
 
+- **LN-Paketgröße ist hart:** Onion = 1300 B (BOLT4), nutzbare Final-Payload
+  ~150–500 B über Hops verteilt. Envelope (hash+id+sig+receipt+blob-refs)
+  ~200–300 B passt; alles größere geht NIE über LN — Blob-Store-Route ist
+  damit alternativlos, nicht nur elegant.
 - **Fremd-Mail kostet:** Unbekannter Absender zahlt Empfängersetzen.
   10 Mio Spammails × 10 sats ≈ 3000 € — vorbei.
 - **Antwort frei:** Konversationsfenster (z. B. 30 Tage) nach erstem bezahltem
