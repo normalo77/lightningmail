@@ -308,3 +308,9 @@ API (Go-Paket `ledger`): `Open/Close`, `CreateAccount(name, pubkey)`,
 | Envelope| Tags 0x01–0x09      | recipient_hash … ephemeral_pubkey |
 | Format  | magic / version     | "LM1" / 0x01                  |
 | Ledger  | user_version        | 1                             |
+
+### 6.4 Blob-Mirror (M2a, 12.11.)
+Empfaenger-Relay holt bei Zustellung referenzierte Blobs per GET /v1/relay/blob/{sha}
+(X-Relay-Secret, peer.token) vom Sender-Relay, prueft sha256, legt lokal ab und
+registriert blob_ref fuer das Empfaenger-Konto (ACL). Spaegelfehler blockieren die
+Zustellung nicht (Log + Retry-Moeglichkeit M3). Beweis: make client-interop.

@@ -40,15 +40,17 @@ type Peer struct {
 	Name       string `yaml:"name"`
 	URL        string `yaml:"url"`
 	NodePubkey string `yaml:"node_pubkey"`
+	Token      string `yaml:"token"`
 }
 
 type Config struct {
-	Name       string  `yaml:"name"`
-	ListenAddr string  `yaml:"listen_addr"`
-	DataDir    string  `yaml:"data_dir"`
-	LND        LND     `yaml:"lnd"`
-	Postage    Postage `yaml:"postage"`
-	Peers      []Peer  `yaml:"peers"`
+	Name        string  `yaml:"name"`
+	ListenAddr  string  `yaml:"listen_addr"`
+	DataDir     string  `yaml:"data_dir"`
+	LND         LND     `yaml:"lnd"`
+	Postage     Postage `yaml:"postage"`
+	Peers       []Peer  `yaml:"peers"`
+	RelaySecret string  `yaml:"relay_secret"`
 }
 
 const DefaultBlobMaxBytes = 10 * 1024 * 1024 // 10 MiB (PRECODING §B)

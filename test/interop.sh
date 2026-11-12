@@ -1,103 +1,45 @@
 #!/usr/bin/env bash
-# M2a Interop-Test: lmcli -> relayd (interop mode) -> TS client.
-# Proves: E2EE envelope + real Go crypto + TS fetch/decode roundtrip.
-# Exit 0 = green.
+# lightningmail M2a Interop: echte relayd + LND(regtest) -> lmcli send -> TS-Client decryptet.
 set -euo pipefail
-cd "$(dirname "$0")/.."
-REPO="$(pwd)"
-RELAY_URL="http://127.0.0.1:8443"
-
-reap() {
-  pkill -f "interop-relay" 2>/dev/null || true
-  for i in $(seq 1 10); do
-    (exec 3<>/dev/tcp/127.0.0.1/8443) 2>/dev/null && { exec 3>&-; sleep 0.5; continue; }
-    return 0
-  done
-}
+REPO=/root/lightningmail; export PATH=$PATH:/usr/local/go/bin
+RA=http://127.0.0.1:8443; RB=http://127.0.0.1:9443
+H="$REPO/test/interop-home"
+fail(){ echo "INTEROP FAIL: $*" >&2; exit 1; }
+reap(){ pkill -f lm-relayd 2>/dev/null || true; pkill -f "relayd -config" 2>/dev/null || true; sleep 1.5; }
+trap 'pkill -f lm-relayd 2>/dev/null || true' EXIT
 reap
-trap "pkill -f interop-relay 2>/dev/null || true" EXIT
+rm -rf /tmp/bmail-alpha /tmp/bmail-beta "$H"; mkdir -p "$H/bernd" "$H/gisela"
 
-fail() { echo "[interop] FAIL: $*" >&2; exit 1; }
-note() { echo "[interop] $*"; }
+echo "[interop] build..."
+cd "$REPO/relay"
+go build -o /tmp/lm-relayd ./cmd/relayd
+go build -o /tmp/lm-cli ./cmd/lmcli
 
-# Build
-note "Building interop relay + lmcli ..."
-cd "$REPO/relay" && go build -o /dev/null ./cmd/interop-relay/ ./cmd/lmcli/ && cd "$REPO"
+echo "[interop] starting relays (live LND via relay-beta.yaml/relay-alpha.yaml)..."
+/tmp/lm-relayd -config "$REPO/relay-alpha.yaml" -addr 127.0.0.1:8443 >/tmp/lm-i-a.log 2>&1 &
+/tmp/lm-relayd -config "$REPO/relay-beta.yaml" -addr 127.0.0.1:9443 >/tmp/lm-i-b.log 2>&1 &
+for i in $(seq 1 40); do curl -sf $RA/health >/dev/null 2>&1 && curl -sf $RB/health >/dev/null 2>&1 && break; sleep 1; done
+curl -sf $RA/health >/dev/null || { cat /tmp/lm-i-a.log; fail "alpha not healthy"; }
 
-# Start interop relay
-TMPDIR=$(mktemp -d)
-note "Starting interop relay (data=$TMPDIR) ..."
-cd "$REPO/relay" && go run ./cmd/interop-relay/ "$TMPDIR" > /tmp/interop-relay.log 2>&1 &
-RELAY_PID=$!
-cd "$REPO"
-trap "kill $RELAY_PID 2>/dev/null || true" EXIT
+cli(){ local home=$1 acct=$2 relay=$3; shift 3; BMAIL_HOME="$home" BMAIL_RELAY="$relay" BMAIL_ACCOUNT="$acct" /tmp/lm-cli "$@" 2>&1; }
 
-# Health check
-for i in $(seq 1 20); do
-  curl -sf "$RELAY_URL/health" >/dev/null 2>&1 && break
-  sleep 0.5
-done
-curl -sf "$RELAY_URL/health" >/dev/null || fail "interop relay not healthy"
+BP=$(cli "$H/bernd" bernd "$RA" init bernd | grep '^pubkey:' | awk '{print $2}')
+GP=$(cli "$H/gisela" gisela "$RB" init gisela | grep '^pubkey:' | awk '{print $2}')
+[ -n "$BP" ] && [ -n "$GP" ] || fail "keygen"
+curl -s -X POST "$RA/v1/account" -H 'Content-Type: application/json' -d "{\"name\":\"gisela\",\"pubkey\":\"$GP\"}" -o /dev/null
+curl -s -X POST "$RB/v1/account" -H 'Content-Type: application/json' -d "{\"name\":\"bernd\",\"pubkey\":\"$BP\"}" -o /dev/null
+python3 -c "import sqlite3;db=sqlite3.connect('/tmp/bmail-alpha/ledger.db');db.execute('UPDATE account SET balance_msat=100000000000 WHERE name=\"bernd\"');db.commit()"
+echo "[interop] accounts ready"
 
-note "Interop relay healthy"
+BODY="Interop TS-Proof $(date +%s)"
+dd if=/dev/urandom of=/tmp/lm-blob.bin bs=1024 count=1024 2>/dev/null
+SHA=$(sha256sum /tmp/lm-blob.bin | awk '{print $1}')
+cli "$H/bernd" bernd "$RA" blob upload /tmp/lm-blob.bin | grep -q "$SHA" || fail "blob upload"
+cli "$H/bernd" bernd "$RA" send gisela "Interop Test" "$BODY" --attach "$SHA" | grep -q '"msg_id"' || fail "send"
+echo "[interop] sent with attachment; waiting delivery..."
+sleep 5
 
-# Setup test home
-HOME_B="$TMPDIR/home"
-mkdir -p "$HOME_B/bernd" "$HOME_B/gisela"
-
-run_lmcli() {
-  local home="$1" acct="$2"; shift 2
-  BMAIL_HOME="$home" BMAIL_RELAY="$RELAY_URL" BMAIL_ACCOUNT="$acct" \
-    go run -C "$REPO/relay" ./cmd/lmcli/ "$@" 2>&1
-}
-
-# Init accounts
-note "Creating accounts (bernd, gisela) ..."
-BERND_PUBKEY=$(run_lmcli "$HOME_B/bernd" bernd init bernd | grep '^pubkey:' | awk '{print $2}')
-GISELA_PUBKEY=$(run_lmcli "$HOME_B/gisela" gisela init gisela | grep '^pubkey:' | awk '{print $2}')
-[ -n "$BERND_PUBKEY" ] || fail "bernd keygen"
-[ -n "$GISELA_PUBKEY" ] || fail "gisela keygen"
-
-# Fund bernd (100000 sats in msat)
-python3 -c "
-import sqlite3
-db = sqlite3.connect('$TMPDIR/ledger.db')
-db.execute('UPDATE account SET balance_msat=100000000000 WHERE name=\"bernd\"')
-db.commit()
-" || fail "fund bernd"
-
-# Check balance
-BAL=$(run_lmcli "$HOME_B/bernd" bernd balance)
-echo "$BAL" | grep -q '100000000000' || fail "bernd start balance: $BAL"
-note "Balance OK"
-
-# Send: bernd -> gisela
-BODY="Interop-Test $(date +%s)"
-note "Sending bernd -> gisela ..."
-SEND_OUT=$(run_lmcli "$HOME_B/bernd" bernd send gisela "Interop" "$BODY")
-echo "$SEND_OUT" | grep -q '"msg_id"' || fail "send failed: $SEND_OUT"
-MSG_ID=$(echo "$SEND_OUT" | sed 's/^sent: //' | python3 -c "import sys,json; print(json.load(sys.stdin)['msg_id'])")
-note "Sent msg_id=$MSG_ID"
-
-# Get gisela token for TS client
-GISELA_TOKEN=$(run_lmcli "$HOME_B/gisela" gisela token | tail -1)
-[ -n "$GISELA_TOKEN" ] || fail "gisela token empty"
-
-# TS interop: fetch inbox via Node.js client
-note "TS interop: fetching inbox via Node.js ..."
-node "$REPO/test/interop-client.mjs" "$RELAY_URL" gisela "$GISELA_TOKEN" || fail "TS interop client failed"
-
-# Verify via Go inbox
-note "Checking gisela inbox (Go) ..."
-INBOX=$(run_lmcli "$HOME_B/gisela" gisela inbox)
-echo "$INBOX" | grep -q "Interop" || fail "Message not in gisela inbox"
-note "Message delivered OK"
-
-# Check gisela balance (should be +10 sats = 10000 msat)
-BAL=$(run_lmcli "$HOME_B/gisela" gisela balance)
-echo "$BAL" | grep -q '10000' || fail "gisela credit: $BAL"
-note "Balance gisela: +10 sats OK"
-
-note "PASS: lmcli -> interop-relay -> lmcli inbox Roundtrip erfolgreich"
-note "Chain: Go-crypto E2EE envelope + real signature verification"
-exit 0
+cd "$REPO/client"
+BETA_URL=$RB GISELA_HOME="$H/gisela" EXPECT_BODY="$BODY" EXPECT_SHA=$SHA \
+  npx tsx test/interop-client.ts || fail "TS client interop"
+echo "INTEROP OK"

@@ -19,3 +19,6 @@ e2e:
 # M2a: lmcli -> interop-relay -> TS client roundtrip
 interop:
 	./test/interop.sh
+
+client-interop:
+	bash test/interop.sh

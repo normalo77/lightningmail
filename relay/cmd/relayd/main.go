@@ -1,13 +1,16 @@
 package main
 
 import (
-	"strings"
 	"context"
-	"flag"
-	"log"
+	"crypto/sha256"
 	"encoding/hex"
+	"flag"
+	"io"
+	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/lightningmail/relay/internal/config"
@@ -104,6 +107,10 @@ func main() {
 				log.Printf("incoming: credit error for %s: %v", acct.Name, err2)
 			}
 			log.Printf("incoming: msg stored for %s seq=%d amt=%d", acct.Name, seq, update.AmtPaid)
+			// Blob-Mirror (spec 6.4): Empfaenger-Relay holt referenzierte Blobs vom Peer und vergibt ACL
+			if cfg.RelaySecret != "" && len(env.BlobRefs) > 0 {
+				mirrorBlobs(cfg, l, env.BlobRefs, acct.ID, acct.Name)
+			}
 		}
 	}()
 
@@ -119,5 +126,51 @@ func main() {
 	log.Printf("relayd %s starting (lnd=%s)", cfg.Name, cfg.LND.RPCHost)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("server: %v", err)
+	}
+}
+func mirrorBlobs(cfg *config.Config, l *ledger.Ledger, refs [][32]byte, acctID int64, acctName string) {
+	for _, ref := range refs {
+		hexSha := hex.EncodeToString(ref[:])
+		loc := cfg.DataDir + "/blob/" + hexSha[:2] + "/" + hexSha
+		if st, err := os.Stat(loc); err == nil {
+			l.RegisterBlobRef(acctID, ref, st.Size())
+			continue
+		}
+		var raw []byte
+		for i := range cfg.Peers {
+			p := cfg.Peers[i]
+			if p.URL == "" {
+				continue
+			}
+			req, _ := http.NewRequest("GET", p.URL+"/v1/relay/blob/"+hexSha, nil)
+			req.Header.Set("X-Relay-Secret", p.Token)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil || resp.StatusCode != 200 {
+				if resp != nil {
+					resp.Body.Close()
+				}
+				continue
+			}
+			raw, err = io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err == nil {
+				break
+			}
+		}
+		if raw == nil {
+			log.Printf("mirror: blob %s nicht abrufbar (nachricht trotzdem zugestellt)", hexSha[:12])
+			continue
+		}
+		if h := sha256.Sum256(raw); h != ref {
+			log.Printf("mirror: sha mismatch fuer %s", hexSha[:12])
+			continue
+		}
+		os.MkdirAll(cfg.DataDir+"/blob/"+hexSha[:2], 0700)
+		if err := os.WriteFile(loc, raw, 0600); err != nil {
+			log.Printf("mirror: write %s: %v", hexSha[:12], err)
+			continue
+		}
+		l.RegisterBlobRef(acctID, ref, int64(len(raw)))
+		log.Printf("mirror: blob %s gespiegelt fuer %s (%d bytes)", hexSha[:12], acctName, len(raw))
 	}
 }

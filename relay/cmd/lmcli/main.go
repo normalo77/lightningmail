@@ -367,7 +367,6 @@ func cmdInbox(home string, args []string) {
 	}
 }
 
-
 func cmdToken(home string, args []string) {
 	s := mustAuth(home)
 	fmt.Println(s.token)

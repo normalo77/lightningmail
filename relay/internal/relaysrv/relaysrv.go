@@ -49,6 +49,7 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/profile/", s.handleProfile)
 	mux.HandleFunc("/v1/blob", s.auth(s.handleBlobUpload))
 	mux.HandleFunc("/v1/blob/", s.auth(s.handleBlobGet))
+	mux.HandleFunc("/v1/relay/blob/", s.relayBlob)
 	mux.HandleFunc("/v1/account", s.handleAccount)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
@@ -448,4 +449,26 @@ func (s *Server) handleBlobGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
 	w.Write(data)
+}
+
+// GET /v1/relay/blob/{sha} — relay-zu-relay Blob-Spiegel (spec 6.4, M2a).
+func (s *Server) relayBlob(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.RelaySecret == "" || r.Header.Get("X-Relay-Secret") != s.cfg.RelaySecret {
+		http.Error(w, `{"error":"relay auth"}`, 401)
+		return
+	}
+	hexSha := strings.TrimPrefix(r.URL.Path, "/v1/relay/blob/")
+	if len(hexSha) != 64 {
+		http.Error(w, `{"error":"bad sha"}`, 400)
+		return
+	}
+	path := s.cfg.DataDir + "/blob/" + hexSha[:2] + "/" + hexSha
+	f, err := os.Open(path)
+	if err != nil {
+		http.Error(w, `{"error":"not found"}`, 404)
+		return
+	}
+	defer f.Close()
+	w.Header().Set("Content-Type", "application/octet-stream")
+	io.Copy(w, f)
 }

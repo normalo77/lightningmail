@@ -12,4 +12,7 @@ postage:
 peers:
   - name: beta
     url: http://127.0.0.1:9443
+    token: lm-relay-mirror-secret
     node_pubkey: 034eb8af6a688cf339349a303c0403b635ad126176075cc387e1f0e74ae455e16e
+
+relay_secret: lm-relay-mirror-secret

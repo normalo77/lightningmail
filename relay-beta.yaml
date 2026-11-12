@@ -12,4 +12,7 @@ postage:
 peers:
   - name: alpha
     url: http://127.0.0.1:8443
+    token: lm-relay-mirror-secret
     node_pubkey: 029eff8e7a9104be7c26f4c354d9ea1b7bc312dab4b7b8b0fa28c730ed2a34cd9b
+
+relay_secret: lm-relay-mirror-secret
