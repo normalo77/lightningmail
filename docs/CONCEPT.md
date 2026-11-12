@@ -143,6 +143,14 @@ damit ein echtes „Postamt gehört mir"-Modell.
   ~150–500 B über Hops verteilt. Envelope (hash+id+sig+receipt+blob-refs)
   ~200–300 B passt; alles größere geht NIE über LN — Blob-Store-Route ist
   damit alternativlos, nicht nur elegant.
+- **Manuelle Klassifizierung (kein Auto-Spamfilter):** Absenderstatus nur
+  `unbekannt | whitelisted | unerwünscht(spam)` — pflegt der Nutzer selbst.
+  Da Relays E2EE-blind sind, ist Filter/Ordner/Zuordnung zwingend
+  **clientseitig**: Ordner Inbox/Entwürfe/Gesendet/Spam, Suche als lokaler
+  Index, Status-Flags im Client (verschlüsselt zu den Mailbox-Metadaten).
+  Whitelist = 0 Porto + Antwort-frei; unbekannt = vollen Porto-Preis;
+  Spam-Ordner = Endablage ohne weitere Aktion (Abschreckung wirkt über den
+  bereits gezahlten Preis des Senders, nicht durch Erkennung).
 - **Fremd-Mail kostet:** Unbekannter Absender zahlt Empfängersetzen.
   10 Mio Spammails × 10 sats ≈ 3000 € — vorbei.
 - **Antwort frei:** Konversationsfenster (z. B. 30 Tage) nach erstem bezahltem
