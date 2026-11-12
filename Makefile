@@ -1,4 +1,4 @@
-.PHONY: smoke smoke-down relay-build relay-test relay-vet relay-fmt relay-check e2e
+.PHONY: smoke smoke-down relay-build relay-test relay-vet relay-fmt relay-check e2e interop
 
 smoke:
 	./test/smoke.sh
@@ -15,3 +15,7 @@ relay-check:
 # Etappe 3: E2E Portomail-Flow
 e2e:
 	./test/e2e.sh
+
+# M2a: lmcli -> interop-relay -> TS client roundtrip
+interop:
+	./test/interop.sh

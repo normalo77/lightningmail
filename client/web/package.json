@@ -1,0 +1,14 @@
+{
+  "name": "bmail-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx serve public -l 3000",
+    "build": "echo 'bmail-web v0.1.0 — static PWA (ES modules, no bundler)'",
+    "check": "npx tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

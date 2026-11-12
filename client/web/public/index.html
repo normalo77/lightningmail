@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <title>bmail — Lightning Post</title>
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f0f1a; color: #e0e0e0; }
+    #app { max-width: 600px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 1.2rem; margin-bottom: 16px; color: #f7931a; }
+    .card { background: #1a1a2e; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+    .msg-from { font-size: 0.8rem; color: #888; }
+    .msg-body { margin-top: 4px; }
+    button { background: #f7931a; color: #000; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+    #status { font-size: 0.75rem; color: #666; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>⚡ bmail</h1>
+    <div id="messages"></div>
+    <div id="status">verbinde…</div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
