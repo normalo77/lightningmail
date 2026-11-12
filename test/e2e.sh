@@ -2,6 +2,22 @@
 # bmail Etappe 3 — E2E-Test: Portomail-Flow über beide regtest-LND-Nodes.
 # Exit 0 = gruen.
 set -euo pipefail
+# Idempotenz: Prozesse frueherer Laeute reapen, Ports freigeben
+reap() {
+  pkill -f "cmd/relayd" 2>/dev/null || true
+  pkill -f "[r]elayd -config" 2>/dev/null || true
+  for i in $(seq 1 30); do
+    busy=0
+    (exec 3<>/dev/tcp/127.0.0.1/8443) 2>/dev/null && busy=1
+    (exec 3<>/dev/tcp/127.0.0.1/9443) 2>/dev/null && busy=1
+    [ $busy -eq 0 ] && return 0
+    sleep 0.5
+  done
+  echo "[e2e] FAIL: relay-Ports nicht frei" >&2; exit 1
+}
+reap
+trap "pkill -f cmd/relayd 2>/dev/null; pkill -f [r]elayd -config 2>/dev/null" EXIT
+
 cd "$(dirname "$0")/.."
 REPO="$(pwd)"
 export PATH="$PATH:/usr/local/go/bin"
