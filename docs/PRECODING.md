@@ -4,7 +4,8 @@ Status: ⬚ = wartet auf Bernds Entscheidung, ✓ = empfohlen/kann so laufen.
 
 ## A. Muss Bernd entscheiden
 
-1. ✓ **Lizenz: AGPLv3** (Bernd, 11.11.2026) — Copyleft inkl. Network-Klausel.
+1. ✓ **Lizenz: MIT** (Bernd, 13.11.2026 — ersetzt AGPLv3-Entscheid vom 11.11.) —
+   jeder soll forken und verwenden können wie er will; Ziel = Inspiration, nicht Kontrolle.
 2. ✓ **Infra: nur Leverkusen (PVE)**, 2 Relays lokal (regtest); QNAP Frechen =
    M2+. CGNAT/Tailscale damit vom Tisch. Repo: **lokal + Backup-Bare-Repo auf
    NAS; GitHub bewusst noch nicht** (Nähe zu LNemail; Org lightningmail wäre
