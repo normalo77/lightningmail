@@ -496,3 +496,55 @@ E-Mail-Lesebestätigungen. Immer an (v0.1), Stempel bei **Client-Abruf**.
   Tests: `go test ./internal/ledger -run Receipts`, `npx tsx test/receipts.mts`
   (Cross-Relay-Kette inkl. Dedup).
 
+## 24. Denkskizze: Gruppen & Netnews-Nachfolge (13.11.2026, Reflexion — KEIN Beschluss)
+
+Ausgangspunkt (Bernd): Die Ender-Game-Romane skizzieren eine offene
+Netz-Diskussionskultur; alte Mail-Clients hatten NNTP/Netnews eingebaut
+(Thunderbird kann es bis heute). Heute: Moderationspflicht, Extremismus,
+Strafverfolgung — „die alten Zeiten sind vorbei, aber reizvoll wäre es."
+
+**Korrektur am Mythos:** In der Serie wirken Peter und Valentine als
+„Locke"/„Demosthenes" — die Utopie ist nicht Klarnamenszwang, sondern
+**Autorität durch Inhalt statt Ausweis**. Exakt das könnte bmail: Identität =
+Schlüssel mit Kontinuität + portabler Reputation (BMRV-Delegations-Record,
+§4.1). Klarnamen wären das illiberalste Feature, das man bauen könnte.
+
+**Was bmail genuinely ändern würde:** Usenet starb nicht an der
+Meinungsfreiheit, sondern am Rauschen (Spam, Binary-Groups, Cancel-Kriege).
+Porto ist die einzige bekannte Moderation ohne Moderatoren: Massen-Trolling
+kostet Geld, Gruppen setzen ihren Mindestpreis selbst (Preisprofile §4.1).
+Technisch ist eine „Gruppe" kein neues Subsystem, sondern eine Adresse mit
+Fanout: Gruppen-Schlüssel am Relay, Abo-Tabelle, Porto-Regel, Verteilung über
+den bestehenden Relay-Mirror (6.4).
+
+**Die harte Wand (Recht):** DSA/NetzDG — wer öffentlich zugängliche
+Diskussionsräume hostet, haftet als Plattform: Löschfristen, Meldewege,
+Bußgelder. E2E hilft bei öffentlichen Gruppen nicht (was alle lesen können,
+verantwortet der Betreiber). Aus DE/EU ist ein offenes Netnews-Revival für
+Relay-Betreiber schlicht nicht betreibbar. Hosting außerhalb der EU (§21-Domain-
+Diskussion) verlagert nur das Betreiber-Risiko; die Nutzer haften für ihre
+Aussagen weiter.
+
+**Das natürliche Experiment heißt Nostr:** Schlüssel-Identität + Relays +
+Lightning-Zaps, seit 2022 live. Ergebnis: Rauschen mutierte statt zu
+verschwinden, Moderation wanderte in client-seitige Blocklisten. Lehre:
+Schlüssel + Lightning allein erzeugt keine Kultur. bmails Unterschied:
+**Porto auf dem Weg in MEIN Postfach** — bei Nostr sendet man gratis in die
+Welt, hier kostet es, fremde Aufmerksamkeit zu kaufen. Näher am bezahlten
+Brief als am Marktplatz.
+
+**Fazit der Skizze:**
+1. Realistischer Kern = **bezahlte Mailingliste** (Substack+Discord als
+   Protokoll statt Firma): geschlossene Gruppen, Porto-Ökonomie, rechtlich als
+   private Gruppenkommunikation handhabbar, finanziert Relay-Betreiber.
+   Kleiner technischer Schritt vom Bestand (Adresse + Fanout + Abo-Tabelle).
+2. Offene Netnews-Romantik = ökonomisch lösbar, rechtlich von der EU aus tot.
+   Bliebe Experiment für Relays in fernen Jurisdiktionen — mit dem
+   Extremismus-Risiko, das Nostr exemplarisch vormacht.
+3. Anschlussfähig an §20: eine Gruppe ist „nur" eine weitere Identität
+   (Schlüssel) mit eigenen Porto-Regeln — ein Schlüssel, ein Transport,
+   ein Speicher gilt auch hier.
+
+Status: Idee, nicht eingeplant. Wenn je gebaut, dann erst nach Etappe 6/7
+und nur Variante 1 (geschlossen, bezahlt).
+
