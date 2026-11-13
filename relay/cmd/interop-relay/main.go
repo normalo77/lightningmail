@@ -190,7 +190,7 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":"recipient not found: %v"}`, err), 404)
 		return
 	}
-	if _, err := s.ledger.PutMessage(env.MsgID, acct.ID, raw, postageMsat); err != nil {
+	if _, _, err := s.ledger.PutMessage(env.MsgID, acct.ID, raw, postageMsat); err != nil {
 		s.ledger.ApplyDelta(account, postageMsat, ledger.KindPostageOut, "refund:"+msgIDHex)
 		http.Error(w, fmt.Sprintf(`{"error":"store: %v"}`, err), 500)
 		return

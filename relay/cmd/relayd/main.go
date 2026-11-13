@@ -98,10 +98,13 @@ func main() {
 				log.Printf("incoming: unknown recipient_hash: %v", err2)
 				continue
 			}
-			seq, err2 := l.PutMessage(env.MsgID, acct.ID, envRaw, update.AmtPaid*1000)
+			seq, inserted, err2 := l.PutMessage(env.MsgID, acct.ID, envRaw, update.AmtPaid*1000)
 			if err2 != nil {
 				log.Printf("incoming: mailbox put error: %v", err2)
 				continue
+			}
+			if !inserted {
+				continue // Duplikat-Event: Portokasse NICHT doppelt fuellen
 			}
 			if err2 := l.CreditRecipient(acct.Name, update.AmtPaid*1000, hex.EncodeToString(env.MsgID[:])); err2 != nil {
 				log.Printf("incoming: credit error for %s: %v", acct.Name, err2)

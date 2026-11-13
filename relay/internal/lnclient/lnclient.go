@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -33,8 +34,8 @@ type NodeInfo struct {
 
 type InvoiceUpdate struct {
 	Settled         bool
-	AmtPaid         int64            // sats
-	PaymentPreimage string           // hex
+	AmtPaid         int64  // sats
+	PaymentPreimage string // hex
 	CustomRecords   map[uint64][]byte
 	Error           error
 }
@@ -164,17 +165,16 @@ func (c *Client) SubscribeInvoices(ctx context.Context) (<-chan *InvoiceUpdate, 
 	ch := make(chan *InvoiceUpdate, 32)
 	go func() {
 		defer close(ch)
-		var lastIndex string
+		var lastIndex int64
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-time.After(2 * time.Second):
 			}
-			path := "/v1/invoices?reversed=true&num_max_invoices=10"
-			if lastIndex != "" {
-				path += "&index_offset=" + lastIndex
-			}
+			// shortcut: LND-REST ignoriert first_index (0.21.8实测) — wir ziehen
+			// die neuesten 100 und filtern numerisch. Upgrade: gRPC-Streaming.
+			path := "/v1/invoices?reversed=true&num_max_invoices=100"
 			data, err := c.do(ctx, "GET", path, nil)
 			if err != nil {
 				select {
@@ -199,9 +199,14 @@ func (c *Client) SubscribeInvoices(ctx context.Context) (<-chan *InvoiceUpdate, 
 			if err := json.Unmarshal(data, &resp); err != nil {
 				continue
 			}
+			advanced := lastIndex
 			for _, inv := range resp.Invoices {
-				if inv.AddIndex <= lastIndex {
+				idx, perr := strconv.ParseInt(inv.AddIndex, 10, 64)
+				if perr != nil || idx <= lastIndex {
 					continue
+				}
+				if idx > advanced {
+					advanced = idx
 				}
 				if inv.State != "SETTLED" {
 					continue
@@ -211,10 +216,10 @@ func (c *Client) SubscribeInvoices(ctx context.Context) (<-chan *InvoiceUpdate, 
 					for k, v := range h.CustomRecords {
 						var key uint64
 						fmt.Sscanf(k, "%d", &key)
-						b, err := base64.StdEncoding.DecodeString(v)
-						if err != nil {
-							b, err = hex.DecodeString(strings.TrimPrefix(v, "0x"))
-							if err != nil {
+						b, derr := base64.StdEncoding.DecodeString(v)
+						if derr != nil {
+							b, derr = hex.DecodeString(strings.TrimPrefix(v, "0x"))
+							if derr != nil {
 								continue
 							}
 						}
@@ -238,9 +243,10 @@ func (c *Client) SubscribeInvoices(ctx context.Context) (<-chan *InvoiceUpdate, 
 					return
 				}
 			}
-			if resp.LastIndexOffset != "" {
-				lastIndex = resp.LastIndexOffset
+			if advanced > lastIndex {
+				lastIndex = advanced
 			}
+			_ = resp.LastIndexOffset
 		}
 	}()
 	return ch, nil

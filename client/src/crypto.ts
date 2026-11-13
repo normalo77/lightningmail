@@ -12,22 +12,21 @@ const PAYLOAD_INFO = new TextEncoder().encode('bmail-payload-v1');
 const CHALLENGE_PREFIX = 'bmail-auth-v1:';
 const NONCE = 24;
 
-export const toHex = (b: Uint8Array): string => Buffer.from(b).toString('hex');
-export const fromHex = (h: string): Uint8Array => new Uint8Array(Buffer.from(h, 'hex'));
-export const fromB64 = (s: string): Uint8Array => new Uint8Array(Buffer.from(s, 'base64'));
+
+
 export const u8 = (s: string): Uint8Array => new TextEncoder().encode(s);
 
 // SEC1 PEM: 30 xx 02 01 01 04 20 <priv32> ...
 export function parseSec1PEM(pem: string): Uint8Array {
   const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
-  const der = new Uint8Array(Buffer.from(b64, 'base64'));
+  const der = _b64d(b64);
   if (der.length < 7 || der[2] !== 0x02 || der[3] !== 0x01 || der[4] !== 0x01 || der[5] !== 0x04 || der[6] !== 0x20) {
     throw new Error('not SEC1 EC private key');
   }
   return der.slice(7, 39);
 }
 
-const bytesToNumber = (b: Uint8Array): bigint => BigInt("0x" + Buffer.from(b).toString("hex"));
+
 
 export function pubFromPriv(priv: Uint8Array): Uint8Array {
   return secp256k1.Point.BASE.multiply(bytesToNumber(priv)).toBytes(true);
@@ -98,6 +97,21 @@ export function decodeEnvelope(buf: Uint8Array): EnvelopeFields {
   }
   return out;
 }
+
+
+// --- browserreine Bytes-Helfer (kein Node-Buffer) ---
+const _hx = (n: number) => n.toString(16).padStart(2, "0");
+export const toHex = (b: Uint8Array): string => Array.from(b, _hx).join("");
+export const fromHex = (h: string): Uint8Array => {
+  const x = h.replace(/[^0-9a-fA-F]/g, "");
+  const o = new Uint8Array(x.length >> 1);
+  for (let i = 0; i < o.length; i++) o[i] = parseInt(x.substr(i * 2, 2), 16);
+  return o;
+};
+const _b64d = (s: string): Uint8Array =>
+  Uint8Array.from(atob(s.replace(/\s+/g, "")), (c) => c.charCodeAt(0));
+export const fromB64 = (s: string): Uint8Array => _b64d(s);
+const bytesToNumber = (b: Uint8Array): bigint => BigInt("0x" + toHex(b));
 
 export const TAG = { RecipientHash: 1, MsgID: 2, BlobRefs: 3, SenderPubkey: 4, Signature: 5, Timestamp: 6, Receipt: 7, Payload: 8, Ephemeral: 9 } as const;
 export const blobCount = (refs: Uint8Array): number => refs[0];

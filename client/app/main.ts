@@ -2,6 +2,38 @@
 import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef } from '../src/crypto';
 import { composeAndSend } from '../src/send';
 
+// Buffer shim: noble-Bibliotheken referenzieren Node-APIs auch im Browser
+(globalThis as any).Buffer ??= class extends Uint8Array {
+  static from(x: any, _enc?: string): Uint8Array {
+    if (typeof x === "string") {
+      if (_enc === "base64") return Uint8Array.from(atob(x.replace(/\s+/g, "")), (c) => c.charCodeAt(0));
+      if (_enc === "hex") {
+        const h = x.replace(/[^0-9a-fA-F]/g, "");
+        const b = new Uint8Array(h.length >> 1);
+        for (let i = 0; i < b.length; i++) b[i] = parseInt(h.substr(i * 2, 2), 16);
+        return b;
+      }
+      return new TextEncoder().encode(x);
+    }
+    if (x instanceof Uint8Array) return new Uint8Array(x);
+    if (Array.isArray(x)) return new Uint8Array(x);
+    throw new Error("Buffer.from: unsupported " + typeof x);
+  }
+  static isBuffer(): boolean { return true; }
+  static alloc(n: number): Uint8Array { return new Uint8Array(n); }
+  static concat(list: Uint8Array[]): Uint8Array {
+    const out = new Uint8Array(list.reduce((a, x) => a + x.length, 0));
+    let o = 0; for (const x of list) { out.set(x, o); o += x.length; }
+    return out;
+  }
+  toString(enc?: string): string {
+    const self = this as unknown as Uint8Array;
+    if (enc === "hex") return [...self].map((b) => b.toString(16).padStart(2, "0")).join("");
+    if (enc === "base64") return btoa(String.fromCharCode(...self));
+    return new TextDecoder().decode(self);
+  }
+};
+
 const $ = (id: string) => document.getElementById(id)!;
 let base = '/relay-b', token = '', priv: Uint8Array | null = null, acct = '';
 let msgs: { seq: number; subject: string; body: string; sender: string; ts: number; atts: { sha256: string; name: string }[] }[] = [];
@@ -44,7 +76,7 @@ async function refresh() {
       const atts = (p.attachments || []).map((a: any) => ({ sha256: a.sha256, name: a.name }));
       const refs = env[TAG.BlobRefs] ? Array.from({ length: blobCount(env[TAG.BlobRefs]) }, (_, i) => toHex(blobRef(env[TAG.BlobRefs]!, i))) : [];
       msgs.push({ seq: m.seq, subject: p.subject, body: p.body, sender: toHex(env[TAG.SenderPubkey]).slice(0, 12), ts: m.received_at, atts: atts.length ? atts : refs.map((r, i) => ({ sha256: r, name: `anhang-${i + 1}` })) });
-    } catch { /* unreadbar — ordentlich ignorieren */ }
+    } catch (e: any) { (window as any).__decodeErr = String(e && e.stack || e); }
   }
   render();
 }
@@ -102,6 +134,7 @@ async function renderCompose() {
   </form></div>`;
   $('cform').onsubmit = async (ev) => {
     ev.preventDefault();
+    if (!token || !priv) { $('c-msg').textContent = '✗ nicht angemeldet'; return; }
     $('c-msg').textContent = 'sende…';
     try {
       const files = [...($('c-file') as any).files];

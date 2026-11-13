@@ -291,24 +291,33 @@ type Message struct {
 	CreatedAt    int64
 }
 
-func (l *Ledger) PutMessage(msgID [32]byte, accountID int64, envelope []byte, receivedMsat int64) (int64, error) {
+// PutMessage legt eine zugestellte Nachricht ab. msg_id ist UNIQUE:
+// wiederholte Events derselben Zahlung liefern inserted=false zurueck, damit
+// der Aufrufer Guthaben NICHT doppelt gutschreibt (Geld-Identitaet!).
+func (l *Ledger) PutMessage(msgID [32]byte, accountID int64, envelope []byte, receivedMsat int64) (int64, bool, error) {
+	var dupSeq sql.NullInt64
+	_ = l.db.QueryRow(`SELECT seq FROM mailbox WHERE msg_id=?`, msgID[:]).Scan(&dupSeq)
+	if dupSeq.Valid {
+		return dupSeq.Int64, false, nil
+	}
 	var maxSeq sql.NullInt64
 	err := l.db.QueryRow(`SELECT MAX(seq) FROM mailbox WHERE account_id=?`, accountID).Scan(&maxSeq)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	nextSeq := int64(1)
 	if maxSeq.Valid {
 		nextSeq = maxSeq.Int64 + 1
 	}
 	t := now()
-	_, err = l.db.Exec(
+	res, err := l.db.Exec(
 		`INSERT OR IGNORE INTO mailbox (msg_id, account_id, envelope, received_msat, seq, seen, created_at)
      VALUES (?,?,?,?,?,0,?)`, msgID[:], accountID, envelope, receivedMsat, nextSeq, t)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	return nextSeq, nil
+	n, _ := res.RowsAffected()
+	return nextSeq, n > 0, nil
 }
 
 func (l *Ledger) ListMessages(accountID int64, afterSeq int64, limit int) ([]Message, error) {
