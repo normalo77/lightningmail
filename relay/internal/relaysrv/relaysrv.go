@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lightningmail/relay/internal/config"
@@ -32,10 +33,15 @@ type Server struct {
 	ledger  *ledger.Ledger
 	ln      *lnclient.Client
 	postage *postage.Service
+
+	// Etappe 6: fluechtige WebAuthn-Zeremonie-Sessions (shortcut:
+	// In-Memory, single-process; bei Multi-Instanz-Relay externalisieren).
+	waMu       sync.Mutex
+	waSessions map[string]waSessionEntry
 }
 
 func New(cfg *config.Config, l *ledger.Ledger, ln *lnclient.Client, p *postage.Service) *Server {
-	return &Server{cfg: cfg, ledger: l, ln: ln, postage: p}
+	return &Server{cfg: cfg, ledger: l, ln: ln, postage: p, waSessions: map[string]waSessionEntry{}}
 }
 
 func (s *Server) ListenAndServe() error {
@@ -53,6 +59,13 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/state", s.auth(s.handleState))
 	mux.HandleFunc("/v1/relay/blob/", s.relayBlob)
 	mux.HandleFunc("/v1/account", s.handleAccount)
+	// Etappe 6: WebAuthn/Passkey (CONCEPT §21)
+	mux.HandleFunc("/v1/webauthn/register/begin", s.auth(s.handleWARegisterBegin))
+	mux.HandleFunc("/v1/webauthn/register/finish", s.auth(s.handleWARegisterFinish))
+	mux.HandleFunc("/v1/webauthn/login/begin", s.handleWALoginBegin)
+	mux.HandleFunc("/v1/webauthn/login/finish", s.handleWALoginFinish)
+	mux.HandleFunc("/v1/webauthn/credentials", s.auth(s.handleWAList))
+	mux.HandleFunc("/v1/webauthn/credentials/delete", s.auth(s.handleWADelete))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte(`{"ok":true}`))

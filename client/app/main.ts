@@ -2,7 +2,7 @@
 import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef } from '../src/crypto';
 import { composeAndSend } from '../src/send';
 import { StateSync } from '../src/state';
-import { wrapKey, unwrapKey, isWrapped } from '../src/keywrap';
+import { wrapKey, unwrapKey, isWrapped, wrapKeyPRF, unwrapKeyPRF } from '../src/keywrap';
 let pendingWrap = '';
 
 
@@ -89,6 +89,7 @@ async function login(pem: string) {
   }
   token = ((await r.json()) as any).token;
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+  const bp = $('btn-passkey'); if (bp && passkeyAvailable()) { bp.style.display = ''; bp.onclick = passkeyRegister; }
   const kw = $('btn-keywrap'); if (kw) { kw.style.display = ''; kw.onclick = () => {
     const p1 = prompt('Passphrase fuer die Key-Datei (min. 8 Zeichen):'); if (!p1) return;
     if (p1 !== prompt('zur Kontrolle erneut eingeben:')) { alert('Passphrases stimmen nicht ueberein'); return; }
@@ -320,6 +321,111 @@ $('l-login').onclick = async () => {
   if (!pemCache) { $('l-err').textContent = 'Erst Schluessel laden (Demo-Knopf oder Datei).'; return; }
   await login(pemCache);
 };
+
+// --- Etappe 6: Passkey/WebAuthn-Login + Registrierung (CONCEPT §21) ---
+const passkeyAvailable = (): boolean => window.isSecureContext && !!(window as any).PublicKeyCredential;
+
+const b64u = (buf: ArrayBuffer | Uint8Array): string => {
+  const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+const b64uDec = (s: string): Uint8Array => {
+  const p = s.replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(p + '='.repeat((4 - (p.length % 4)) % 4)), (c) => c.charCodeAt(0));
+};
+// Server-Options (JSON, b64url) -> WebAuthn-API (ArrayBuffer-Felder)
+const decodeOpts = (o: any): any => {
+  o.challenge = b64uDec(o.challenge).slice().buffer;
+  if (o.user?.id) o.user.id = b64uDec(o.user.id).slice().buffer;
+  for (const c of o.excludeCredentials || []) c.id = b64uDec(c.id).slice().buffer;
+  for (const c of o.allowCredentials || []) c.id = b64uDec(c.id).slice().buffer;
+  // PRF-Salt kommt base64url vom Server, die WebAuthn-API will ArrayBuffer
+  // (prf.eval.first IST der Salt, kein .salt-Unterfeld)
+  const ev = o.extensions?.prf?.eval;
+  if (ev) for (const k of ['first', 'second']) {
+    if (typeof ev[k] === 'string') ev[k] = b64uDec(ev[k]).slice().buffer;
+  }
+  return o;
+};
+// Credential-Response -> JSON fuer go-webauthn (b64url, leere Felder weg)
+const cred2json = (c: any): any => {
+  const r: any = { clientDataJSON: b64u(c.response.clientDataJSON) };
+  for (const f of ['attestationObject', 'authenticatorData', 'signature', 'userHandle'] as const) {
+    const v = (c.response as any)[f]; if (v) r[f] = b64u(v);
+  }
+  if (c.response.getTransports) r.transports = c.response.getTransports();
+  return { id: c.id, rawId: b64u(c.rawId), type: c.type, response: r, clientExtensionResults: c.getClientExtensionResults?.() || {} };
+};
+
+if (!passkeyAvailable()) {
+  const lp = $('l-passkey') as HTMLButtonElement;
+  lp.disabled = true; lp.title = 'Passkeys brauchen HTTPS (Secure Context)';
+}
+
+async function passkeyLogin() {
+  $('l-err').textContent = '';
+  acct = ($('l-acct') as HTMLInputElement).value.trim(); base = ($('l-relay') as HTMLSelectElement).value;
+  if (!acct) { $('l-err').textContent = 'Kontoname eingeben.'; return; }
+  try {
+    const br = await fetch(base + '/v1/webauthn/login/begin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: acct }) });
+    const begin = await br.json().catch(() => ({}));
+    if (!br.ok) { $('l-err').textContent = '✗ ' + (begin.error || errText(br.status)); return; }
+    const opts = decodeOpts(begin.options.publicKey);
+    const cred = await navigator.credentials.get({ publicKey: opts });
+    const ext: any = (cred as any).getClientExtensionResults?.() || {};
+    const prfSecret = ext.prf?.first ? new Uint8Array(ext.prf.first) : null;
+    const fr = await fetch(base + '/v1/webauthn/login/finish', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: acct, sid: begin.sid, credential: cred2json(cred) }) });
+    const fin = await fr.json().catch(() => ({}));
+    if (!fr.ok) { $('l-err').textContent = '✗ ' + (fin.error || errText(fr.status)); return; }
+    if (fin.wrap_prf && prfSecret) {
+      pemCache = unwrapKeyPRF(fin.wrap_prf, prfSecret);
+      await login(pemCache);
+    } else if (fin.wrap_pass) {
+      pendingWrap = fin.wrap_pass;
+      $('l-passrow').style.display = '';
+      $('l-err').textContent = 'Passkey bestätigt. Dieser Browser kann den Schlüssel nicht per PRF entsiegeln — Notfall-Passphrase eingeben.';
+    } else {
+      $('l-err').textContent = '✗ Dieser Passkey hat keinen Schlüssel-Wrap. Einmal mit Schlüsseldatei anmelden und Passkey neu hinzufügen.';
+    }
+  } catch (e: any) {
+    $('l-err').textContent = '✗ ' + String(e?.message || e).slice(0, 140);
+  }
+}
+$('l-passkey').onclick = passkeyLogin;
+
+async function passkeyRegister() {
+  try {
+    const br = await api('/v1/webauthn/register/begin', { method: 'POST' });
+    if (!br.ok) { alert(errText(br.status, await br.text())); return; }
+    const begin = await br.json();
+    const opts = decodeOpts(begin.options.publicKey);
+    const cred = await navigator.credentials.create({ publicKey: opts });
+    const ext: any = (cred as any).getClientExtensionResults?.() || {};
+    const prfSecret = ext.prf?.first ? new Uint8Array(ext.prf.first) : null;
+    const wrap_prf = prfSecret ? wrapKeyPRF(pemCache, prfSecret) : '';
+    let wrap_pass = pendingWrap || ''; // vorhandener Passphrase-Wrap wird mitgespeichert
+    if (!wrap_pass && confirm('Zusätzlich eine Notfall-Passphrase für diesen Passkey setzen?\n\n(Abbrechen = nur Passkey/PRF — Anmeldung in Browsern ohne PRF-Unterstützung, z.B. Firefox/Safari, ist dann nicht möglich.)')) {
+      const p1 = prompt('Notfall-Passphrase (min. 8 Zeichen):') || '';
+      if (p1) {
+        if (p1 === prompt('zur Kontrolle erneut eingeben:')) wrap_pass = wrapKey(pemCache, p1);
+        else alert('Passphrasen stimmen nicht überein — ohne Notfall-Wrap gespeichert.');
+      }
+    }
+    const ua = navigator.userAgent;
+    const label = `${new Date().toLocaleDateString('de-DE')} ${/android/i.test(ua) ? 'Android' : /iphone|ipad/i.test(ua) ? 'iOS' : /windows/i.test(ua) ? 'Windows' : /mac os/i.test(ua) ? 'macOS' : /linux/i.test(ua) ? 'Linux' : 'Gerät'} ${prfSecret ? '(PRF ✓)' : '(PRF ✗)'}`;
+    const fr = await api('/v1/webauthn/register/finish', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sid: begin.sid, name: label, credential: cred2json(cred), wrap_prf, wrap_pass }) });
+    const fin = await fr.json().catch(() => ({}));
+    if (!fr.ok) { alert('✗ ' + (fin.error || errText(fr.status))); return; }
+    alert(`✓ Passkey hinzugefügt: ${label}${prfSecret ? '' : '\nAchtung: ohne PRF wurde kein Schlüssel-Wrap erzeugt — Notfall-Passphrase nötig für Login.'}`);
+  } catch (e: any) {
+    alert('Passkey-Registrierung fehlgeschlagen: ' + String(e?.message || e).slice(0, 160));
+  }
+}
 $('nav-in').onclick = () => { folder = 'in'; sel = -1; mark(); render(); };
 $('nav-spam').onclick = () => { folder = 'spam'; sel = -1; mark(); render(); };
 if ($('nav-sent')) $('nav-sent').onclick = () => { folder = 'out'; sel = -1; mark(); render(); };

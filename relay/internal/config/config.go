@@ -51,6 +51,14 @@ type Retention struct {
 	MaxDays   int `yaml:"max_days"`
 }
 
+// WebAuthn (Etappe 6, CONCEPT §21): Passkey-Login. RPID = Host der UI
+// (Domain oder IP), Origins = exakte UI-Origin(s) inkl. Schema+Port.
+type WebAuthn struct {
+	RPID    string   `yaml:"rp_id"`
+	RPName  string   `yaml:"rp_name"`
+	Origins []string `yaml:"origins"`
+}
+
 type Config struct {
 	Name        string    `yaml:"name"`
 	ListenAddr  string    `yaml:"listen_addr"`
@@ -60,6 +68,7 @@ type Config struct {
 	Peers       []Peer    `yaml:"peers"`
 	RelaySecret string    `yaml:"relay_secret"`
 	Retention   Retention `yaml:"retention"`
+	WebAuthn    WebAuthn  `yaml:"webauthn"`
 }
 
 const DefaultBlobMaxBytes = 10 * 1024 * 1024 // 10 MiB (PRECODING §B)

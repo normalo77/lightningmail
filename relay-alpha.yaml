@@ -16,3 +16,9 @@ peers:
     node_pubkey: 034eb8af6a688cf339349a303c0403b635ad126176075cc387e1f0e74ae455e16e
 
 relay_secret: lm-relay-mirror-secret
+
+webauthn:
+  rp_id: "bmail.192-168-177-77.sslip.io"
+  rp_name: lightningmail
+  origins:
+    - "https://bmail.192-168-177-77.sslip.io:5173"
