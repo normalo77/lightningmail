@@ -46,9 +46,9 @@ type waUser struct {
 	creds []webauthn.Credential
 }
 
-func (u *waUser) WebAuthnID() []byte                  { return []byte("bmail:" + u.acct) }
-func (u *waUser) WebAuthnName() string                { return u.acct }
-func (u *waUser) WebAuthnDisplayName() string         { return u.acct }
+func (u *waUser) WebAuthnID() []byte                         { return []byte("bmail:" + u.acct) }
+func (u *waUser) WebAuthnName() string                       { return u.acct }
+func (u *waUser) WebAuthnDisplayName() string                { return u.acct }
 func (u *waUser) WebAuthnCredentials() []webauthn.Credential { return u.creds }
 
 func (s *Server) waInstance() (*webauthn.WebAuthn, error) {
@@ -84,8 +84,8 @@ func (s *Server) loadWAUser(acct string) (*waUser, error) {
 			continue
 		}
 		u.creds = append(u.creds, webauthn.Credential{
-			ID:          id,
-			PublicKey:   r.PublicKey,
+			ID:        id,
+			PublicKey: r.PublicKey,
 			Authenticator: webauthn.Authenticator{
 				SignCount: r.SignCount,
 			},

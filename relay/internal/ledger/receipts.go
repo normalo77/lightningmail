@@ -1,8 +1,10 @@
 // Etappe 6b: Empfangsbestaetigungen (CONCEPT §23, WhatsApp-Semantik).
-//   ✓  = LN-Settle am Empfaenger-Relay (weiss der Absender-Client schon lokal)
-//   ✓✓ = Client-Abruf: Empfaenger-Relay stempelt beim Inbox-Abruf und
-//        spiegelt den Receipt an die Peers; das Absender-Relay ordnet ihn
-//        via sha256(sender_pub) = recipientHash dem Absender-Konto zu.
+//
+//	✓  = LN-Settle am Empfaenger-Relay (weiss der Absender-Client schon lokal)
+//	✓✓ = Client-Abruf: Empfaenger-Relay stempelt beim Inbox-Abruf und
+//	     spiegelt den Receipt an die Peers; das Absender-Relay ordnet ihn
+//	     via sha256(sender_pub) = recipientHash dem Absender-Konto zu.
+//
 // Kein Gelesen-Status (bewusst weniger als WhatsApp). Immer an (v0.1).
 package ledger
 
@@ -26,9 +28,9 @@ type ReceiptOut struct {
 
 // IncomingReceipt = von einem Peer gemeldeter Receipt (Absender-Seite).
 type IncomingReceipt struct {
-	MsgIDHex    string `json:"msg_id"`
+	MsgIDHex     string `json:"msg_id"`
 	SenderPubHex string `json:"sender_pub"`
-	Ts          int64  `json:"ts"`
+	Ts           int64  `json:"ts"`
 }
 
 func (l *Ledger) ensureReceipts() error {
