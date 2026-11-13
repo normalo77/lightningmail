@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/lightningmail/relay/internal/config"
 	"github.com/lightningmail/relay/internal/envelope"
@@ -22,6 +23,8 @@ import (
 )
 
 func main() {
+	var cleanupOnce bool
+	flag.BoolVar(&cleanupOnce, "cleanup-once", false, "Retention-Sweep einmal ausfuehren und beenden")
 	cfgPath := flag.String("config", "relay.yaml", "path to relay.yaml")
 	listenAddr := flag.String("addr", "", "override listen address")
 	flag.Parse()
@@ -65,6 +68,37 @@ func main() {
 
 	p := postage.New(cfg)
 	srv := relaysrv.New(cfg, l, ln, p)
+
+	// M3 Retention: Sweep 60s nach Start und dann taeglich; -cleanup-once fuer Tests.
+	sweep := func() {
+		shas, err := l.RetentionSweep(time.Now().Unix(), int64(cfg.Retention.GraceDays)*86400, int64(cfg.Retention.MaxDays)*86400)
+		if err != nil {
+			log.Printf("retention sweep: %v", err)
+			return
+		}
+		for _, sha := range shas {
+			hexs := hex.EncodeToString(sha)
+			path := cfg.DataDir + "/blob/" + hexs[:2] + "/" + hexs
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				log.Printf("retention remove %s: %v", hexs[:12], err)
+				continue
+			}
+			if err := l.DeleteBlobRefs(sha); err != nil {
+				log.Printf("retention refs %s: %v", hexs[:12], err)
+			}
+			log.Printf("retention: blob %s… getilgt", hexs[:12])
+		}
+	}
+	if cleanupOnce {
+		sweep()
+		return
+	}
+	go func() {
+		time.AfterFunc(60*time.Second, sweep)
+		for range time.Tick(24 * time.Hour) {
+			sweep()
+		}
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

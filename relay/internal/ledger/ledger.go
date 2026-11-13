@@ -526,3 +526,65 @@ func validKind(k Kind) bool {
 func isUnique(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
+
+// --- M3 Retention: blob_refs.downloaded_at + Sweep ---
+
+func (l *Ledger) ensureRetention() error {
+	// ALTER TABLE ignoriert "duplicate column" auf wiederholten Laeufen.
+	_, err := l.db.Exec(`ALTER TABLE blob_refs ADD COLUMN downloaded_at INTEGER NOT NULL DEFAULT 0`)
+	if err != nil && !containsCI(err.Error(), "duplicate column") {
+		return err
+	}
+	return nil
+}
+
+func containsCI(hay, needle string) bool {
+	return strings.Contains(strings.ToLower(hay), needle)
+}
+
+// MarkBlobDownloaded setzt den Stempel genau einmal pro Konto+Blob.
+func (l *Ledger) MarkBlobDownloaded(accountID int64, sha [32]byte) error {
+	if err := l.ensureRetention(); err != nil {
+		return err
+	}
+	_, err := l.db.Exec(`UPDATE blob_refs SET downloaded_at=? WHERE sha256=? AND account_id=? AND downloaded_at=0`,
+		now(), sha, accountID)
+	return err
+}
+
+// RetentionSweep liefert die zu loeschenden shas:
+//   - alle Referenzen geladen UND der spaeteste Download aelter als grace, oder
+//   - aelter als maxAge (bezogen auf die aelteste Referenz = Lieferdatum).
+func (l *Ledger) RetentionSweep(nowUnix, graceSec, maxSec int64) ([][]byte, error) {
+	if err := l.ensureRetention(); err != nil {
+		return nil, err
+	}
+	rows, err := l.db.Query(`SELECT sha256, MIN(created_at), MAX(downloaded_at), COUNT(*) FROM blob_refs GROUP BY sha256`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out [][]byte
+	for rows.Next() {
+		var sha []byte
+		var minCreate, maxDl, cnt int64
+		if err := rows.Scan(&sha, &minCreate, &maxDl, &cnt); err != nil {
+			return nil, err
+		}
+		allDl := maxDl > 0
+		expDl := graceSec >= 0 && allDl && nowUnix-maxDl > graceSec
+		expAge := maxSec >= 0 && nowUnix-minCreate > maxSec
+		if expDl || expAge {
+			cp := make([]byte, len(sha))
+			copy(cp, sha)
+			out = append(out, cp)
+		}
+	}
+	return out, rows.Err()
+}
+
+// DeleteBlobRefs entfernt nach File-Löschung die Referenzzeilen (Quota sinkt).
+func (l *Ledger) DeleteBlobRefs(sha []byte) error {
+	_, err := l.db.Exec(`DELETE FROM blob_refs WHERE sha256=?`, sha)
+	return err
+}

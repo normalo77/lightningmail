@@ -43,14 +43,23 @@ type Peer struct {
 	Token      string `yaml:"token"`
 }
 
+// Retention steuert die POP3-artige Aufbewahrung (CONCEPT 16):
+// GraceDays nach dem letzten Erstdownload ALLER Referenzen, MaxDays absolut.
+// -1 deaktiviert den jeweiligen Zweig.
+type Retention struct {
+	GraceDays int `yaml:"grace_days"`
+	MaxDays   int `yaml:"max_days"`
+}
+
 type Config struct {
-	Name        string  `yaml:"name"`
-	ListenAddr  string  `yaml:"listen_addr"`
-	DataDir     string  `yaml:"data_dir"`
-	LND         LND     `yaml:"lnd"`
-	Postage     Postage `yaml:"postage"`
-	Peers       []Peer  `yaml:"peers"`
-	RelaySecret string  `yaml:"relay_secret"`
+	Name        string    `yaml:"name"`
+	ListenAddr  string    `yaml:"listen_addr"`
+	DataDir     string    `yaml:"data_dir"`
+	LND         LND       `yaml:"lnd"`
+	Postage     Postage   `yaml:"postage"`
+	Peers       []Peer    `yaml:"peers"`
+	RelaySecret string    `yaml:"relay_secret"`
+	Retention   Retention `yaml:"retention"`
 }
 
 const DefaultBlobMaxBytes = 10 * 1024 * 1024 // 10 MiB (PRECODING §B)
@@ -75,6 +84,13 @@ func ParseConfig(data []byte) (*Config, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
+	if c.Retention.GraceDays == 0 {
+		c.Retention.GraceDays = 7
+	}
+	if c.Retention.MaxDays == 0 {
+		c.Retention.MaxDays = 90
+	}
+
 	return c, nil
 }
 

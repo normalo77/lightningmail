@@ -486,6 +486,8 @@ func (s *Server) handleBlobGet(w http.ResponseWriter, r *http.Request) {
 	var sha32 [32]byte
 	copy(sha32[:], shaBytes)
 
+	defer s.ledger.MarkBlobDownloaded(acct.ID, sha32) // shortcut: ACL-pass = Abholversuch
+
 	ok, err := s.ledger.HasBlobAccess(acct.ID, sha32)
 	if err != nil {
 		http.Error(w, `{"error":"ledger"}`, 500)

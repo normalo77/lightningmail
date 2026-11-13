@@ -326,3 +326,11 @@ State-Doc (klartext nur fuer den Eigentümer): `read{msgid}`, `spam{senderhex12}
 `deleted{msgid}`, `drafts[{id,ts,to,subject,body,gone?}]`. Merge: Flags OR;
 Drafts LWW pro id mit Tombstone-Vorrang (gone schlaegt leben). Konflikt-Pfad:
 409 → pull → merge → einmaliger Retry.
+## 7b. Retention-Cleanup (M3)
+
+blob_refs.erweitert um `downloaded_at` (0=nie). Sweep (Start +60s, dann 24h,
+auch via `relayd -cleanup-once`): Loscht Blob-Datei + refs, wenn
+(a) ALLE Referenzen geladen und die letzte Erstladung aelter als
+retention.grace_days (Default 7), oder (b) die aelteste Referenz aelter als
+retention.max_days (Default 90). grace_days/max_days = -1 deaktiviert den
+Zweig; 0 bedeutet "nicht gesetzt" -> Default. Quota sinkt mit den refs.
