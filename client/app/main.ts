@@ -2,6 +2,8 @@
 import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef } from '../src/crypto';
 import { composeAndSend } from '../src/send';
 import { StateSync } from '../src/state';
+import { wrapKey, unwrapKey, isWrapped } from '../src/keywrap';
+let pendingWrap = '';
 
 
 // Buffer shim: noble-Bibliotheken referenzieren Node-APIs auch im Browser
@@ -79,9 +81,23 @@ async function login(pem: string) {
   const sig = authSign(priv, acct);
   const r = await fetch(base + '/v1/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ address: acct, pubkey_hex: toHex(pubFromPriv(priv)), sig: toHex(sig) }) });
-  if (!r.ok) { $('l-err').textContent = errText(r.status, await r.text()); return; }
+  if (!r.ok) {
+    $('l-err').textContent = r.status === 401
+      ? 'Konto-Name passt nicht zum geladenen Schlüssel (oder Key nicht registriert).'
+      : errText(r.status, await r.text());
+    return;
+  }
   token = ((await r.json()) as any).token;
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+  const kw = $('btn-keywrap'); if (kw) { kw.style.display = ''; kw.onclick = () => {
+    const p1 = prompt('Passphrase fuer die Key-Datei (min. 8 Zeichen):'); if (!p1) return;
+    if (p1 !== prompt('zur Kontrolle erneut eingeben:')) { alert('Passphrases stimmen nicht ueberein'); return; }
+    try {
+      const blob = new Blob([wrapKey(pemCache, p1)], { type: 'text/plain' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `lightningmail-${acct}.lmkey`; a.click();
+    } catch (e: any) { alert(e.message); }
+  }; }
   $('who').textContent = `${acct}@${base.slice(1)} · `;
   sync = new StateSync(base, priv, () => token, `lm_state_${base.slice(1)}_${acct}`);
   sync.cacheLoad();
@@ -278,7 +294,19 @@ async function renderCompose() {
   };
 }
 
-async function useKey(txt: string) { pemCache = txt; await login(txt); }
+async function useKey(txt: string) {
+  if (isWrapped(txt)) {
+    pendingWrap = txt;
+    $('l-passrow').style.display = '';
+    $('l-err').textContent = 'Verschluesselte Key-Datei — Passphrase eingeben.';
+    return;
+  }
+  pemCache = txt; await login(txt);
+}
+async function tryUnwrap() {
+  try { pemCache = unwrapKey(pendingWrap, ($('l-pass') as HTMLInputElement).value); await login(pemCache); }
+  catch (e: any) { $('l-err').textContent = '✗ ' + e.message; }
+}
 $('l-demo').onclick = async () => {
   const r = await fetch(`/keys/${$('l-acct').value.trim()}.key`);
   if (!r.ok) { $('l-err').textContent = 'Demo-Key nicht gefunden (' + $('l-acct').value.trim() + ')'; return; }
@@ -298,6 +326,7 @@ if ($('nav-sent')) $('nav-sent').onclick = () => { folder = 'out'; sel = -1; mar
 if ($('nav-dra')) $('nav-dra').onclick = () => { folder = 'dra'; sel = -1; mark(); render(); };
 $('nav-new').onclick = () => { folder = 'new'; draftId = ''; mark(); render(); };
 $('nav-out').onclick = () => location.reload();
+if ($('l-passbtn')) $('l-passbtn').onclick = tryUnwrap;
 function mark() {
   $('nav-in').classList.toggle('on', folder === 'in');
   $('nav-spam').classList.toggle('on', folder === 'spam');

@@ -41,7 +41,7 @@ form.compose textarea { min-height:160px }
 </style>
 </head>
 <body>
-<header><h1>⚡ lightningmail</h1><span id="who" class="meta"></span><span id="balance"></span></header>
+<header><h1>⚡ lightningmail</h1><span id="who" class="meta"></span><button id="btn-keywrap" style="display:none;font:inherit;font-size:12px;padding:3px 8px;border:1px solid var(--accent);background:none;color:var(--accent);cursor:pointer">🔐 Key verschlüsselt speichern</button> <span id="balance"></span></header>
 <div id="login" class="login">
   <label>Relay</label>
   <select id="l-relay"><option value="/relay-a">alpha (Portofino 8443)</option><option value="/relay-b">beta (9443)</option></select>
@@ -49,6 +49,10 @@ form.compose textarea { min-height:160px }
   <div class="row">
     <button id="l-demo">Demo-Schlüssel laden</button>
     <label style="margin:0;align-self:center">oder Datei: <input type="file" id="l-file" accept=".key,.pem" style="width:140px"></label>
+  </div>
+  <div class="row" id="l-passrow" style="display:none;align-items:center">
+    <input type="password" id="l-pass" placeholder="Passphrase" style="flex:1">
+    <button id="l-passbtn">Entschluesseln</button>
   </div>
   <div class="row"><button id="l-login" class="on" style="background:var(--accent);color:#fff">Anmelden</button></div>
   <p id="l-err" class="meta"></p>
