@@ -6,6 +6,7 @@ const $ = (id: string) => document.getElementById(id)!;
 let base = '/relay-b', token = '', priv: Uint8Array | null = null, acct = '';
 let msgs: { seq: number; subject: string; body: string; sender: string; ts: number; atts: { sha256: string; name: string }[] }[] = [];
 let sel = -1, folder: 'in' | 'spam' | 'new' = 'in';
+let pemCache = ''; // geladener Schluesseltext, damit 'Anmelden' erneut geht
 const spamKey = () => `lm_spam_${base.slice(1)}_${acct}`;
 const spamSet = (): Set<string> => new Set(JSON.parse(localStorage.getItem(spamKey()) || '[]'));
 const spamAdd = (s: string) => { const x = spamSet(); x.add(s); localStorage.setItem(spamKey(), JSON.stringify([...x])); };
@@ -111,14 +112,19 @@ async function renderCompose() {
   };
 }
 
+async function useKey(txt: string) { pemCache = txt; await login(txt); }
 $('l-demo').onclick = async () => {
   const r = await fetch(`/keys/${$('l-acct').value.trim()}.key`);
-  if (!r.ok) { $('l-err').textContent = 'Demo-Key nicht gefunden'; return; }
-  await login(await r.text());
+  if (!r.ok) { $('l-err').textContent = 'Demo-Key nicht gefunden (' + $('l-acct').value.trim() + ')'; return; }
+  await useKey(await r.text());
 };
 $('l-file').onchange = async (ev: Event) => {
   const f = (ev.target as any).files[0]; if (!f) return;
-  await login(await f.text());
+  await useKey(await f.text());
+};
+$('l-login').onclick = async () => {
+  if (!pemCache) { $('l-err').textContent = 'Erst Schluessel laden (Demo-Knopf oder Datei).'; return; }
+  await login(pemCache);
 };
 $('nav-in').onclick = () => { folder = 'in'; mark(); render(); };
 $('nav-spam').onclick = () => { folder = 'spam'; mark(); render(); };
