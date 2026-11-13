@@ -228,8 +228,16 @@ damit ein echtes „Postamt gehört mir"-Modell.
 
 ## 12. Realitäts-Check: was LUD-16 schon bewiesen hat
 ### 12.1 Lebende Vorarbeit (Stand 11/2026, GitHub verifiziert)
-- **LNemail** (lebt, 09/2026): Wegwerf-Mailbox gegen LN-Porto; LND/NWC-Backend,
-  SMTP/IMAP — Architekturschablone für Relay-M1. Porto geht an Plattform.
+- **LNemail** (lebt, Update 13.11.2026): Wegwerf-Mailbox gegen LN-Porto
+  (1000 sats/Jahr, Zufallsadresse + Bearer-Token); FastAPI/SQLite/Redis,
+  LND **und NWC** als Payment-Backends mit Fallback; echtes SMTP/IMAP ins
+  Legacy-Internet (Weg 1 als Produkt!); Senden ab 100 sats mit Burst-Pricing
+  (5er-Burst, Slot alle 12 min, Verdopplung ohne Deckel); WebAuthn-Passkeys
+  zur Token-Recovery (11/2026 — Konvergenz mit Etappe 6a); llms.txt +
+  SKILL.md = Agenten-Zielgruppe (vgl. §15); MIT. Porto geht an Plattform,
+  Identität = wegwerfbar. Dennoch: Validierung, dass LN-Porto-UX funktioniert
+  und Kleinstbeträge gezahlt werden. Idee zum Abschauen: Burst-Pricing als
+  Preisprofil-Variante, Agent-first-Doku.
 - **pay2email/pay2.email** (Casatta, lebt): „Invoice bezahlt → Mail zugestellt",
   CLN-Plugin; Beweis: Portopflicht ohne Empfänger-Guthaben verkauft sich
   bereits (Kontaktformular-Nische).
