@@ -314,3 +314,15 @@ Empfaenger-Relay holt bei Zustellung referenzierte Blobs per GET /v1/relay/blob/
 (X-Relay-Secret, peer.token) vom Sender-Relay, prueft sha256, legt lokal ab und
 registriert blob_ref fuer das Empfaenger-Konto (ACL). Spaegelfehler blockieren die
 Zustellung nicht (Log + Retry-Moeglichkeit M3). Beweis: make client-interop.
+## 7. State-Sync (M2.5)
+
+`GET /v1/state` (auth) → `{"version": int64, "state_b64": "..."}` — Blob ist
+client-seitig selbst verschluesselt (ECIES ans eigene Mailbox-Paar,
+`[eph33|sealed]`, base64 im JSON-Feld). `PUT /v1/state` mit
+`{"expect_version": N, "state_b64": ...}` → 200 `{"version": N+1}` oder
+409 `{"error":"version conflict","version": Ist}`. Groessenlimit 256 kB.
+
+State-Doc (klartext nur fuer den Eigentümer): `read{msgid}`, `spam{senderhex12}`,
+`deleted{msgid}`, `drafts[{id,ts,to,subject,body,gone?}]`. Merge: Flags OR;
+Drafts LWW pro id mit Tombstone-Vorrang (gone schlaegt leben). Konflikt-Pfad:
+409 → pull → merge → einmaliger Retry.

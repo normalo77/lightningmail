@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -49,6 +50,7 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/profile/", s.handleProfile)
 	mux.HandleFunc("/v1/blob", s.auth(s.handleBlobUpload))
 	mux.HandleFunc("/v1/blob/", s.auth(s.handleBlobGet))
+	mux.HandleFunc("/v1/state", s.auth(s.handleState))
 	mux.HandleFunc("/v1/relay/blob/", s.relayBlob)
 	mux.HandleFunc("/v1/account", s.handleAccount)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -407,6 +409,61 @@ func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- GET /v1/blob/{sha256} (Etappe 4a: ACL check) ---
+
+// handleState GET/PUT /v1/state — verschluesselter State-Slot pro Konto (M2.5).
+func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
+	account := r.Header.Get("X-Bmail-Account")
+	acct, err := s.ledger.GetAccount(account)
+	if err != nil {
+		http.Error(w, `{"error":"account not found"}`, 404)
+		return
+	}
+	switch r.Method {
+	case "GET":
+		v, blob, err := s.ledger.GetState(acct.ID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 500)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"version":   v,
+			"state_b64": base64.StdEncoding.EncodeToString(blob),
+		})
+	case "PUT":
+		var req struct {
+			ExpectVersion int64  `json:"expect_version"`
+			StateB64      string `json:"state_b64"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, `{"error":"bad json"}`, 400)
+			return
+		}
+		blob, err := base64.StdEncoding.DecodeString(req.StateB64)
+		if err != nil {
+			http.Error(w, `{"error":"bad state_b64"}`, 400)
+			return
+		}
+		if len(blob) > 256*1024 {
+			http.Error(w, `{"error":"state too large"}`, 413)
+			return
+		}
+		v, err := s.ledger.PutState(acct.ID, req.ExpectVersion, blob)
+		if errors.Is(err, ledger.ErrConflict) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(409)
+			json.NewEncoder(w).Encode(map[string]any{"error": "version conflict", "version": v})
+			return
+		}
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 500)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"version": v})
+	default:
+		http.Error(w, `{"error":"method not allowed"}`, 405)
+	}
+}
+
 func (s *Server) handleBlobGet(w http.ResponseWriter, r *http.Request) {
 	account := r.Header.Get("X-Bmail-Account")
 	hexSha := strings.TrimPrefix(r.URL.Path, "/v1/blob/")

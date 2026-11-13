@@ -352,6 +352,80 @@ func (l *Ledger) ListMessages(accountID int64, afterSeq int64, limit int) ([]Mes
 
 const tokenLifetime = 24 * 3600 // 24 hours
 
+// --- M2.5 State-Sync: ein verschluesselter Slot pro Konto, versioniert via CAS ---
+// shortcut: CREATE IF NOT EXISTS bei jedem Zugriff — Upgrade-Pfad statt
+// schemaVersion-Bump; aufruesten sobald ein echtes Migrationsschema existiert.
+
+func (l *Ledger) ensureState() error {
+	_, err := l.db.Exec(`CREATE TABLE IF NOT EXISTS state (
+		account_id INTEGER PRIMARY KEY,
+		version    INTEGER NOT NULL DEFAULT 0,
+		blob       BLOB,
+		updated_at INTEGER NOT NULL
+	)`)
+	return err
+}
+
+// GetState liefert Version und Blob (version 0, nil blob wenn leer).
+func (l *Ledger) GetState(accountID int64) (int64, []byte, error) {
+	if err := l.ensureState(); err != nil {
+		return 0, nil, err
+	}
+	var v int64
+	var blob []byte
+	err := l.db.QueryRow(`SELECT version, blob FROM state WHERE account_id=?`, accountID).Scan(&v, &blob)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil, nil
+	}
+	if err != nil {
+		return 0, nil, err
+	}
+	return v, blob, nil
+}
+
+// PutState schreibt den Blob nur bei passender erwarteter Version und
+// liefert (neueVersion, nil) bzw. (aktuelleVersion, ErrConflict).
+func (l *Ledger) PutState(accountID int64, expectVersion int64, blob []byte) (int64, error) {
+	if err := l.ensureState(); err != nil {
+		return 0, err
+	}
+	tx, err := l.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	var cur int64
+	err = tx.QueryRow(`SELECT version FROM state WHERE account_id=?`, accountID).Scan(&cur)
+	empty := errors.Is(err, sql.ErrNoRows)
+	if err != nil && !empty {
+		tx.Rollback()
+		return 0, err
+	}
+	if !empty && cur != expectVersion {
+		tx.Rollback()
+		return cur, ErrConflict
+	}
+	if empty && expectVersion != 0 {
+		tx.Rollback()
+		return 0, ErrConflict
+	}
+	next := expectVersion + 1
+	if empty {
+		_, err = tx.Exec(`INSERT INTO state (account_id, version, blob, updated_at) VALUES (?,?,?,?)`,
+			accountID, next, blob, now())
+	} else {
+		_, err = tx.Exec(`UPDATE state SET version=?, blob=?, updated_at=? WHERE account_id=?`,
+			next, blob, now(), accountID)
+	}
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return next, nil
+}
+
 func (l *Ledger) StoreToken(tokenHex, accountName string) error {
 	h := sha256.Sum256([]byte(tokenHex))
 	t := now()

@@ -1,6 +1,8 @@
 // main.ts — DOM-Leim für die lightningmail v0.1 PWA (M2c). Logik lebt in src/crypto + src/send.
 import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef } from '../src/crypto';
 import { composeAndSend } from '../src/send';
+import { StateSync } from '../src/state';
+
 
 // Buffer shim: noble-Bibliotheken referenzieren Node-APIs auch im Browser
 (globalThis as any).Buffer ??= class extends Uint8Array {
@@ -36,15 +38,18 @@ import { composeAndSend } from '../src/send';
 
 const $ = (id: string) => document.getElementById(id)!;
 let base = '/relay-b', token = '', priv: Uint8Array | null = null, acct = '';
-let msgs: { seq: number; subject: string; body: string; sender: string; ts: number; atts: { sha256: string; name: string }[] }[] = [];
-let sel = -1, folder: 'in' | 'spam' | 'out' | 'new' = 'in';
+let msgs: MsgRow[] = [];
+let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' = 'in';
 let pemCache = '';
+let sync: StateSync | null = null;
+let draftId = '';
 const spamKey = () => `lm_spam_${base.slice(1)}_${acct}`;
-const spamSet = (): Set<string> => new Set(JSON.parse(localStorage.getItem(spamKey()) || '[]'));
-const spamAdd = (s: string) => { const x = spamSet(); x.add(s); localStorage.setItem(spamKey(), JSON.stringify([...x])); };
-const spamDel = (s: string) => { const x = spamSet(); x.delete(s); localStorage.setItem(spamKey(), JSON.stringify([...x])); };
+const spamSet = (): Set<string> => sync ? new Set(Object.keys(sync.doc.spam)) : new Set(JSON.parse(localStorage.getItem(spamKey()) || '[]'));
+const spamAdd = (k: string) => { if (sync) sync.toggleSpam(k, true); else { const x = [...spamSet()]; x.push(k); localStorage.setItem(spamKey(), JSON.stringify(x)); } };
+const spamDel = (k: string) => { if (sync) sync.toggleSpam(k, false); else { const x = new Set(spamSet()); x.delete(k); localStorage.setItem(spamKey(), JSON.stringify([...x])); } };
 
 // Gesendet-Ordner (lokal, synchronisiert wird ab M2.5)
+type MsgRow = { seq: number; msgId: string; subject: string; body: string; sender: string; ts: number; atts: { sha256: string; name: string }[] };
 type SentRow = { ts: number; to: string; subject: string; msg_id: string; bytes: number };
 const sentKey = () => `lm_out_${base.slice(1)}_${acct}`;
 const sentList = (): SentRow[] => JSON.parse(localStorage.getItem(sentKey()) || '[]');
@@ -78,6 +83,10 @@ async function login(pem: string) {
   token = ((await r.json()) as any).token;
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
   $('who').textContent = `${acct}@${base.slice(1)} · `;
+  sync = new StateSync(base, priv, () => token, `lm_state_${base.slice(1)}_${acct}`);
+  sync.cacheLoad();
+  for (const k of JSON.parse(localStorage.getItem(spamKey()) || '[]')) sync.doc.spam[k] = 1;
+  try { await sync.pull(); } catch { /* ohne State-Slot laeuft die UI aus dem Cache */ }
   await refresh();
 }
 
@@ -102,27 +111,31 @@ async function refresh() {
       const p = JSON.parse(new TextDecoder().decode(pt));
       const atts = (p.attachments || []).map((a: any) => ({ sha256: a.sha256, name: a.name }));
       const refs = env[TAG.BlobRefs] ? Array.from({ length: blobCount(env[TAG.BlobRefs]) }, (_, i) => toHex(blobRef(env[TAG.BlobRefs]!, i))) : [];
-      msgs.push({ seq: m.seq, subject: p.subject, body: p.body, sender: toHex(env[TAG.SenderPubkey]).slice(0, 12), ts: m.received_at, atts: atts.length ? atts : refs.map((r, i) => ({ sha256: r, name: `anhang-${i + 1}` })) });
+      msgs.push({ seq: m.seq, msgId: toHex(env[TAG.MsgID]), subject: p.subject, body: p.body, sender: toHex(env[TAG.SenderPubkey]).slice(0, 12), ts: m.received_at, atts: atts.length ? atts : refs.map((r, i) => ({ sha256: r, name: `anhang-${i + 1}` })) });
     } catch (e: any) { (window as any).__decodeErr = String(e && e.stack || e); }
   }
   render();
+  const un = visible().filter(m => !(sync && sync.doc.read[m.msgId])).length;
+  $('nav-in').textContent = folder === 'in' && un ? `Posteingang (${un})` : 'Posteingang';
 }
 
 function visible() {
   const sp = spamSet();
-  return msgs.filter(m => folder === 'spam' ? sp.has(m.sender) : !sp.has(m.sender));
+  return msgs.filter(m => !(sync && sync.doc.deleted[m.msgId]))
+             .filter(m => folder === 'spam' ? sp.has(m.sender) : !sp.has(m.sender));
 }
 
 function render() {
   if (folder === 'new') { renderCompose(); $('list').innerHTML = ''; return; }
   if (folder === 'out') { renderSent(); return; }
+  if (folder == 'dra') { renderDrafts(); return; }
   const list = visible().slice().reverse();
   $('list').innerHTML = list.map(m => `<div class="row ${m.seq === sel ? 'sel' : ''}" data-seq="${m.seq}">
-    <div class="subj">${esc(m.subject)}</div>
+    <div class="subj" ${sync && sync.doc.read[m.msgId] ? 'style="font-weight:400;color:#8a8271"' : ''}>${esc(m.subject)}</div>
     <div class="meta">${esc(m.sender)}… · ${new Date(m.ts * 1000).toLocaleString('de')} ${m.atts.length ? '📎' : ''}</div></div>`).join('') ||
     '<div class="meta" style="padding:12px">— leer —</div>';
   document.querySelectorAll('#list .row').forEach(el =>
-    el.addEventListener('click', () => { sel = +el.getAttribute('data-seq')!; render(); renderDetail(); }));
+    el.addEventListener('click', () => { sel = +el.getAttribute('data-seq')!; const mm = msgs.find(x => x.seq === sel); if (mm && sync) { sync.markRead(mm.msgId); } render(); renderDetail(); }));
   if (sel >= 0 && list.some(m => m.seq === sel)) renderDetail(); else $('detail').innerHTML = '<p class="meta">Message wählen.</p>';
 }
 
@@ -140,6 +153,24 @@ function renderSent() {
   }));
 }
 
+function renderDrafts() {
+  const l = sync ? sync.liveDrafts().slice().reverse() : [];
+  $('list').innerHTML = l.map((d) => `<div class="row" data-did="${d.id}">
+    <div class="subj">${esc(d.subject || '(ohne Betreff)')}</div>
+    <div class="meta">→ ${esc(d.to || '?')} · ${new Date(d.ts * 1000).toLocaleString('de')}</div></div>`).join('') ||
+    '<div class="meta" style="padding:12px">— keine Entwürfe —</div>';
+  document.querySelectorAll('#list .row').forEach(el => el.addEventListener('click', () => {
+    const d = (sync?.liveDrafts() || []).find(x => x.id === el.getAttribute('data-did'));
+    if (!d) return;
+    draftId = d.id; folder = 'new'; mark(); render();
+    setTimeout(() => {
+      ($('c-to') as HTMLInputElement).value = d.to; ($('c-subj') as HTMLInputElement).value = d.subject;
+      ($('c-body') as HTMLTextAreaElement).value = d.body;
+    }, 0);
+  }));
+  $('detail').innerHTML = '<p class="meta">Entwurf anklicken zum Weiterbearbeiten — Entwürfe synchronisieren zwischen Geräten.</p>';
+}
+
 function esc(s: string) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!)); }
 
 function renderDetail() {
@@ -153,6 +184,7 @@ function renderDetail() {
     <div class="classify">Absender:
       <button id="cl-spam" class="${sp ? 'on' : ''}">${sp ? 'unerwünscht' : 'als unerwünscht markieren'}</button>
       ${sp ? '<button id="cl-un">zurück nach Posteingang</button>' : ''}
+      <button id="cl-del">löschen</button>
     </div></div>`;
   document.querySelectorAll('.attach').forEach(el => el.addEventListener('click', async () => {
     const r = await api(`/v1/blob/${el.getAttribute('data-sha')}`);
@@ -162,6 +194,7 @@ function renderDetail() {
   }));
   $('cl-spam').onclick = () => { sp ? spamDel(m.sender) : spamAdd(m.sender); render(); };
   if ($('cl-un')) $('cl-un').onclick = () => { spamDel(m.sender); render(); };
+  $('cl-del').onclick = () => { if (sync) { sync.markDeleted(m.msgId); sync.push().catch(() => {}); } sel = -1; render(); };
 }
 
 // Foto-Kompression: längste Kante 1600px, JPEG q0.82; wenn teurer als Original -> Original
@@ -190,7 +223,7 @@ async function renderCompose() {
     <input type="file" id="c-file" multiple>
     <label style="font-size:13px;color:var(--faint)"><input type="checkbox" id="c-orig"> Original senden (Fotos sonst auf 1600px JPEG komprimiert)</label>
     <div id="portofuss" class="meta">Empfänger wählen — Porto und Fingerprint erscheinen hier.</div>
-    <div><button type="submit">Senden</button> <span id="c-msg" class="meta"></span></div>
+    <div><button type="submit">Senden</button> <button type="button" id="c-save">Als Entwurf speichern</button> <span id="c-msg" class="meta"></span></div>
   </form></div>`;
 
   const lookup = async () => {
@@ -210,6 +243,12 @@ async function renderCompose() {
     if (fs.length) el.textContent = `${fs.length} Anhang: ` + fs.map(f => `${f.name} (${Math.round(f.size / 1024)} kB)`).join(', ');
   });
 
+  $('c-save').onclick = () => {
+    if (!sync) { $('c-msg').textContent = '✗ ohne Sync keine Entwürfe'; return; }
+    if (!draftId) draftId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); // randomUUID braucht Secure-Context, wir laufen LAN-http
+    sync.saveDraft({ id: draftId, to: $('c-to').value, subject: $('c-subj').value, body: $('c-body').value });
+    $('c-msg').textContent = '✓ Entwurf gespeichert (synchronisiert).';
+  };
   $('cform').onsubmit = async (ev) => {
     ev.preventDefault();
     if (!token || !priv) { $('c-msg').textContent = '✗ nicht angemeldet'; return; }
@@ -228,6 +267,7 @@ async function renderCompose() {
       const total = atts.reduce((a, x) => a + x.bytes.length, 0);
       const out = await composeAndSend(base, token, priv!, { to: $('c-to').value, subject: $('c-subj').value, body: $('c-body').value, attachments: atts });
       sentPush({ ts: Math.floor(Date.now() / 1000), to: $('c-to').value, subject: $('c-subj').value, msg_id: String(out.msg_id || ''), bytes: total });
+      if (draftId && sync) { sync.delDraft(draftId); draftId = ''; }
       $('c-msg').textContent = '✓ gesendet (' + (out.msg_id || '').slice(0, 10) + '…)';
       await refreshBalance();
     } catch (e: any) {
@@ -255,11 +295,13 @@ $('l-login').onclick = async () => {
 $('nav-in').onclick = () => { folder = 'in'; sel = -1; mark(); render(); };
 $('nav-spam').onclick = () => { folder = 'spam'; sel = -1; mark(); render(); };
 if ($('nav-sent')) $('nav-sent').onclick = () => { folder = 'out'; sel = -1; mark(); render(); };
-$('nav-new').onclick = () => { folder = 'new'; mark(); render(); };
+if ($('nav-dra')) $('nav-dra').onclick = () => { folder = 'dra'; sel = -1; mark(); render(); };
+$('nav-new').onclick = () => { folder = 'new'; draftId = ''; mark(); render(); };
 $('nav-out').onclick = () => location.reload();
 function mark() {
   $('nav-in').classList.toggle('on', folder === 'in');
   $('nav-spam').classList.toggle('on', folder === 'spam');
   if ($('nav-sent')) $('nav-sent').classList.toggle('on', folder === 'out');
+  if ($('nav-dra')) $('nav-dra').classList.toggle('on', folder === 'dra');
   $('nav-new').classList.toggle('on', folder === 'new');
 }
