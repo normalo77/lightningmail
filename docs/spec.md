@@ -334,3 +334,23 @@ auch via `relayd -cleanup-once`): Loscht Blob-Datei + refs, wenn
 retention.grace_days (Default 7), oder (b) die aelteste Referenz aelter als
 retention.max_days (Default 90). grace_days/max_days = -1 deaktiviert den
 Zweig; 0 bedeutet "nicht gesetzt" -> Default. Quota sinkt mit den refs.
+
+## 7c. Empfangsbestaetigung ✓/✓✓ (Etappe 6b, CONCEPT §23)
+
+WhatsApp-Semantik: ✓ = LN-Settle am Empfaenger-Relay (Send-Preimage, spec §4).
+✓✓ = Empfaenger-CLIENT hat die Nachricht abgerufen. Kein Gelesen-Status.
+
+Stempel: `GET /v1/inbox` (auth) decodiert die zurueckgegebenen Envelopes und
+schreibt (msg_id, account_id, sender_pub, ts) nach `receipts`
+(INSERT OR IGNORE = Dedup, PK(msg_id, account_id), mirrored-Flag). Frische
+Stempel gehen async als Batch an alle Peers: `POST /v1/relay/receipt`
+(X-Relay-Secret, Muster aus 6.4), Body `{"receipts":[{msg_id,sender_pub,ts}]}`
+(hex). Sender-im-gleichen-Relay wird direkt lokal verbucht. 60s-Ticker
+wiederholt fehlgeschlagene Mirrors (mirrored=0, Limit 200).
+
+Absender-Zuordnung: sha256(sender_pub) = recipientHash →
+LookupByRecipientHash → `receipts_in` (PK(msg_id, account_id), ts).
+Abfrage: `GET /v1/receipts` (auth) → `{"receipts":[{"msg_id":hex,"ts":int}]}`
+(Limit 1000). UI merged das gegen den lokalen Gesendet-Ordner (msg_id hex aus
+/v1/send) und rendert ✓ / ✓✓ + Abrufzeit. Immer an (v0.1); Opt-out pro Konto
+ist M3-Kandidat.

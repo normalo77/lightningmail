@@ -41,6 +41,7 @@ let pendingWrap = '';
 const $ = (id: string) => document.getElementById(id)!;
 let base = '/relay-b', token = '', priv: Uint8Array | null = null, acct = '';
 let msgs: MsgRow[] = [];
+let receipts: Record<string, number> = {}; // msg_id(hex) -> ✓✓-Zeitstempel (Etappe 6b)
 let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' = 'in';
 let pemCache = '';
 let sync: StateSync | null = null;
@@ -114,8 +115,17 @@ async function refreshBalance() {
   $('balance').textContent = `Guthaben: ${Math.floor((bal.balance_msat || 0) / 1000)} sats`;
 }
 
+// Etappe 6b: ✓✓-Receipts des eigenen Kontos laden (Gesendet-Ordner)
+async function fetchReceipts() {
+  try {
+    const r = await api('/v1/receipts');
+    if (r.ok) for (const x of (((await r.json()) as any).receipts || [])) receipts[x.msg_id] = x.ts;
+  } catch { /* Receipts sind Komfort, kein Fehlerfall */ }
+}
+
 async function refresh() {
   await refreshBalance();
+  await fetchReceipts();
   const ir = await api('/v1/inbox');
   if (!ir.ok) { msgs = []; $('list').innerHTML = `<div class="meta" style="padding:12px">${errText(ir.status)}</div>`; return; }
   const inbox = await ir.json() as any;
@@ -158,14 +168,20 @@ function render() {
 
 function renderSent() {
   const l = sentList();
+  const tick = (id: string) => receipts[id]
+    ? `<span style="color:var(--accent)" title="Empfänger hat abgerufen ${new Date(receipts[id] * 1000).toLocaleString('de')}">✓✓</span>`
+    : `<span title="zugestellt (Porto am Empfänger-Relay settled) — auf Empfänger-Abruf wartend">✓</span>`;
   $('list').innerHTML = l.map((s, i) => `<div class="row ${i === sel ? 'sel' : ''}" data-si="${i}">
     <div class="subj">${esc(s.subject)}</div>
-    <div class="meta">→ ${esc(s.to)} · ${new Date(s.ts * 1000).toLocaleString('de')} · ${(s.bytes / 1024).toFixed(0)} kB</div></div>`).join('') ||
+    <div class="meta">→ ${esc(s.to)} · ${new Date(s.ts * 1000).toLocaleString('de')} · ${(s.bytes / 1024).toFixed(0)} kB ${tick(s.msg_id)}</div></div>`).join('') ||
     '<div class="meta" style="padding:12px">— nichts gesendet —</div>';
   document.querySelectorAll('#list .row').forEach(el => el.addEventListener('click', () => {
     sel = +el.getAttribute('data-si')!; const s = sentList()[sel];
     $('detail').innerHTML = `<div class="card"><div class="subj" style="font-size:17px">${esc(s.subject)}</div>
       <div class="meta">An ${esc(s.to)} · ${new Date(s.ts * 1000).toLocaleString('de')}<br>msg_id ${esc(s.msg_id.slice(0, 16))}… · Porto bezahlt</div>
+      <p class="meta">${receipts[s.msg_id]
+        ? `✓✓ vom Empfänger abgerufen: ${new Date(receipts[s.msg_id] * 1000).toLocaleString('de')}`
+        : '✓ zugestellt (am Empfänger-Relay) — warte auf Abruf durch den Empfänger'}</p>
       <p class="meta">Der Text liegt nur beim Empfänger (und ab M2.5 im Sync). Gesendet-Ordner ist lokal.</p></div>`;
   }));
 }
@@ -428,7 +444,7 @@ async function passkeyRegister() {
 }
 $('nav-in').onclick = () => { folder = 'in'; sel = -1; mark(); render(); };
 $('nav-spam').onclick = () => { folder = 'spam'; sel = -1; mark(); render(); };
-if ($('nav-sent')) $('nav-sent').onclick = () => { folder = 'out'; sel = -1; mark(); render(); };
+if ($('nav-sent')) $('nav-sent').onclick = () => { folder = 'out'; sel = -1; mark(); fetchReceipts().then(() => render()); };
 if ($('nav-dra')) $('nav-dra').onclick = () => { folder = 'dra'; sel = -1; mark(); render(); };
 $('nav-new').onclick = () => { folder = 'new'; draftId = ''; mark(); render(); };
 $('nav-out').onclick = () => location.reload();

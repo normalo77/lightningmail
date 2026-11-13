@@ -7,4 +7,3 @@ test/e2e-home/
 client/app/dist/
 client/node_modules/
 client/app/public/keys/
-client/app/tls/

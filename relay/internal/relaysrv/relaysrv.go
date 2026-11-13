@@ -58,6 +58,8 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/blob/", s.auth(s.handleBlobGet))
 	mux.HandleFunc("/v1/state", s.auth(s.handleState))
 	mux.HandleFunc("/v1/relay/blob/", s.relayBlob)
+	mux.HandleFunc("/v1/receipts", s.auth(s.handleReceipts))
+	mux.HandleFunc("/v1/relay/receipt", s.relayReceipt)
 	mux.HandleFunc("/v1/account", s.handleAccount)
 	// Etappe 6: WebAuthn/Passkey (CONCEPT §21)
 	mux.HandleFunc("/v1/webauthn/register/begin", s.auth(s.handleWARegisterBegin))
@@ -70,6 +72,17 @@ func (s *Server) ListenAndServe() error {
 		w.WriteHeader(200)
 		w.Write([]byte(`{"ok":true}`))
 	})
+
+	// Etappe 6b: Retry-Ticker fuer Receipts, deren Peer-Mirror fehlschlug
+	go func() {
+		for range time.Tick(60 * time.Second) {
+			items, err := s.ledger.PendingReceipts(200)
+			if err != nil || len(items) == 0 {
+				continue
+			}
+			s.mirrorReceipts(items)
+		}
+	}()
 
 	log.Printf("relaysrv: listening on %s", s.cfg.ListenAddr)
 	return http.ListenAndServe(s.cfg.ListenAddr, mux)
@@ -287,6 +300,8 @@ func (s *Server) handleInbox(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 500)
 		return
 	}
+	// Etappe 6b: Client-Abruf = ✓✓ (Receipt-Stempel, async-Mirror an Peers)
+	s.stampInboxFetch(acct.ID, msgs)
 	type inboxMsg struct {
 		Seq         int64  `json:"seq"`
 		MsgID       string `json:"msg_id_b64"`

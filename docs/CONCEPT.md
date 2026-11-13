@@ -282,6 +282,9 @@ Porte-Beleg erfinden wir nicht neu, sondern nutzen LNURL (LUD-16/LUD-17):
 
 ## 14. Integration in bestehende Mail-Clients (Bridge-Modell)
 
+> Status 13.11.2026: auf Bernds Wunsch **zurückgestellt** — Fokus liegt auf
+> Weg 2 (bmail als Account-Identität, §20–22). Bridge bleibt v2-Option.
+
 Kein Plugin — Plugins (TB WebExtensions, Outlook Add-ins) können keine neuen
 Kontotypen anmelden. Vorbild Proton Mail Bridge: lokaler Daemon als
 IMAP/SMTP/JMAP-Server, synct mit bmail-Relay; Clients sehen normales Postfach.
@@ -399,3 +402,97 @@ Optional spätere Eur-Seite = Dienstleistungskauf, getrennt vom Relay.
 ## 19. Ein-Satz-Pitch
 
 „Deine Mails sind jetzt bares Geld wert — und die der anderen auch."
+
+## 20. Identity-Vision: ein Schlüssel, ein Transport, ein Speicher (13.11.2026)
+
+Bernd-Entscheidung 13.11.2026: Die SMTP-Eingangsbrücke (Weg 1) wird
+zurückgestellt — vorerst verzichtet niemand auf seinen Legacy-Mailclient
+(§14 bleibt v2-Option). Fokus = **Weg 2: bmail als Account-Identität.**
+Begründung: E-Mail ist allgegenwärtig, weil sie das Zentrum aller
+User-Accounts ist (Registrierung, Bestätigung, Passwort-Reset). bmail kann
+nur erfolgreich sein, wenn man damit Accounts erstellen kann.
+
+Vereinende Erkenntnis: Auth, Mail, Privacy, Spamschutz und riesige Anhänge
+sind nicht fünf Techniken, sondern ein Primitiv —
+**ein Schlüssel, ein Transport, ein Speicher**:
+
+- **Ein Schlüssel:** das secp256k1-Keypair ist zugleich Postfach-Adresse
+  (Mail), Identität (Auth via BIP340-Challenge) und Vertrauensanker
+  (E2E/Privacy). YubiKey/FIDO2 = Besitzfaktor dafür.
+- **Ein Transport:** Relay + Lightning-Porto. Authentifizierung ist schlicht
+  „eine Mail mit Challenge als Inhalt"; der OIDC-IdP ist der standardisierte
+  Wrapper, den Dienste verstehen. Spamschutz wirkt ökonomisch auf Mails,
+  Logins und Blob-Uploads gleichermaßen.
+- **Ein Speicher:** Blob-Store mit Content-Hash (läuft: 1 MB + Relay-Mirror,
+  Spec 6.4). Riesige Anhänge = gestückelte Blobs mit Byte-Porto; Transport
+  per HTTP-Fetch statt LN-Kanal — Größe nur durch Relay-Storage begrenzt,
+  Missbrauch durch Porto.
+
+Pitch-Erweiterung: **„Selbstbestimmte, bezahlbare Identität — Mail ist nur
+die erste Anwendung darauf."** Account-Erstellung, Passkey-Ersatz, File-Drop
+und Messaging hängen am selben Schlüssel und derselben Ökonomie.
+
+## 21. Etappe 6 — Identity: Directory, OIDC-IdP, WebAuthn
+
+Ziel: `name@relaydomain` wird zum Account-Anker, den Dienste nutzen können.
+
+- **Relay-Domain:** jede normale Registrar-Domain (.de ~1–3 €/Monat;
+  Konzept-Beispiele §4.1: `bernd@bmail.de`, `gisela@familie.koeln`).
+  Ein `_bmail._tcp`-TXT-Record (Ebene 1, §4.2) zeigt auf den Relay;
+  Zoneninhaber = Postamt-Inhaber. Optisch von E-Mail ununterscheidbar —
+  so gewollt (§4.1 „exakt E-Mail-Notation, nichts Neues zu lernen").
+  Gratis-Bonus: jede Adresse ist via LUD-16-Well-known zugleich eine echte
+  Lightning-Address, bestehende Wallets können sie besenden.
+- **Public Directory:** Relay-Well-known + DNS liefern den Mailbox-Pubkey;
+  BIP-353-kompatibler Marker (`name'pay@domain`) als zweite Entdeckungsebene.
+- **OIDC-IdP (Go, neben dem Relay):** „Sign in with bmail" für Dienste.
+  Login-Faktor = WebAuthn/Passkey (YubiKey; mehrere Authenticators pro
+  Identität sind Normalfall: primär + backup). Föderations-Beweis =
+  BIP340-Signatur des Mailbox-Keys (LMKEY1-Keystore) — NICHT der FIDO-Key
+  selbst (P-256 ≠ secp256k1, die Welten bleiben getrennt).
+- **Challenge/Response:** Dienst schickt Challenge an die Adresse, Nutzer
+  signiert, Dienst verifiziert via Directory — LNURL-auth-Muster mit
+  OIDC als Industrie-Wrapper.
+- **Ohne MX** bounct Legacy-SMTP an bmail-Adressen; Dienste mit reiner
+  Syntaxprüfung akzeptieren sie, Dienste mit MX-Check lehnen ab.
+  Billige Zwischenlösung (Entscheidung offen): MX-Dead-Drop, der nur einen
+  erklärenden Auto-Bounce liefert („diese Adresse spricht bmail") —
+  keine Brücke, kein Klartext-Zugriff.
+- **Offen:** Betreiber/Vertrauensrolle des IdP (pro Relay? zentral?);
+  YubiKey-Ebene B (OpenPGP-Applet, secp256k1, signiert ECDSA statt
+  BIP340) nur anfassen, falls echter Bedarf; Bernds YubiKey-Modelle
+  klären (FIDO2 + secp256k1 brauchen 5er-Serie).
+
+## 22. Etappe 7 — Chunked Blobs & Byte-Porto (riesige Anhänge)
+
+- Blobs >1 MB: Chunking client-seitig (1-MB-Scheiben, Content-Hashes pro
+  Chunk + Manifest-Hash); Envelope trägt das Manifest über die bestehende
+  `blob_refs`-Struktur (erweitert um size/chunks).
+- **Byte-Porto:** Storage-Preis pro Byte (ggf. pro Zeit) beim Upload —
+  Storage-Missbrauch und Spam laufen über dieselbe Ökonomie.
+- Delivery unverändert: HTTP-Fetch + Relay-Mirror (Spec 6.4);
+  Cleanup hängt am bestehenden `blob_refs.downloaded_at`-Pfad
+  (`relayd -cleanup-once`).
+
+## 23. Empfangsbestätigung ✓/✓✓ (Etappe 6b, 13.11.2026)
+
+Bernd-Entscheidung: WhatsApp-Semantik, ausdrücklich NICHT aufdringlich wie
+E-Mail-Lesebestätigungen. Immer an (v0.1), Stempel bei **Client-Abruf**.
+
+- **✓ gesendet:** Porto via Keysend am Empfänger-Relay settled — die
+  LN-Preimage ist die Quittung (spec §4). Weiß der Absender-Client sofort.
+- **✓✓ empfangen:** der Empfänger-CLIENT ruft die Nachricht ab (Inbox-Fetch).
+  Empfänger-Relay stempelt und spiegelt batchweise an die Peers;
+  Absender-Relay ordnet über sha256(sender_pub) = recipientHash zu.
+- **Kein Blau-Haken:** Gelesen-Status gibt es nicht. Opt-out pro Konto
+  (Policy/Preisprofil) ist ein M3-Kandidat.
+- **Privacy-Einordnung (Bernds Punkt bestätigt):** Das LN-Settle beweist nur
+  Relay-Eingang, nicht Client-Empfang — deshalb die ✓✓-Stufe erst bei Abruf.
+  Wer-mit-wem ist bei Textmails ohnehin für beide Relays und den LN-Pfad
+  sichtbar (Klartext-Tag 0x04 im Envelope); Receipts fügen als EINZIGEN neuen
+  Datenpunkt den Sync-Zeitpunkt des Empfängers hinzu. Echte
+  Metadaten-Minimierung liefert erst Etappe 5 (Onion-Routing zwischen Relays).
+- Umsetzung: spec.md §7c (Tabellen, Endpunkte, 60s-Retry-Ticker),
+  Tests: `go test ./internal/ledger -run Receipts`, `npx tsx test/receipts.mts`
+  (Cross-Relay-Kette inkl. Dedup).
+
