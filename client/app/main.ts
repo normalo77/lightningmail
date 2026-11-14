@@ -1,5 +1,5 @@
 // main.ts — DOM-Leim für die lightningmail v0.1 PWA (M2c). Logik lebt in src/crypto + src/send.
-import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef } from '../src/crypto';
+import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef, newPrivKey, sec1PEM } from '../src/crypto';
 import { composeAndSend } from '../src/send';
 import { StateSync } from '../src/state';
 import { wrapKey, unwrapKey, isWrapped, wrapKeyPRF, unwrapKeyPRF } from '../src/keywrap';
@@ -328,6 +328,26 @@ $('l-demo').onclick = async () => {
   const r = await fetch(`/keys/${$('l-acct').value.trim()}.key`);
   if (!r.ok) { $('l-err').textContent = 'Demo-Key nicht gefunden (' + $('l-acct').value.trim() + ')'; return; }
   await useKey(await r.text());
+};
+// --- Etappe 6c: Konto anlegen — Schluessel entsteht im Browser, der Server sieht nur den Pubkey ---
+$('l-signup').onclick = async () => {
+  $('l-err').textContent = '';
+  acct = ($('l-acct') as HTMLInputElement).value.trim(); base = ($('l-relay') as HTMLSelectElement).value;
+  if (!/^[a-z0-9][a-z0-9._-]{1,31}$/.test(acct)) { $('l-err').textContent = 'Kontoname: 2–32 Zeichen, klein, a-z 0-9 . _ -'; return; }
+  const k = newPrivKey(), pem = sec1PEM(k);
+  const r = await fetch(base + '/v1/account', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: acct, pubkey: toHex(pubFromPriv(k)) }) });
+  if (!r.ok) { $('l-err').textContent = r.status === 409 ? `Name „${acct}“ ist auf diesem Relay schon vergeben.` : errText(r.status, await r.text()); return; }
+  const p1 = prompt(`Konto „${acct}“ ist angelegt! Jetzt Passphrase für die Schlüsseldatei (min. 8 Zeichen).\n\nOhne diese Datei ist das Konto weg, falls der Passkey verloren geht.`);
+  if (!p1) { $('l-err').textContent = `Konto „${acct}“ existiert bereits OHNE Schlüsseldatei (Abbruch) — bitte anderen Namen nehmen.`; return; }
+  if (p1.length < 8 || p1 !== prompt('zur Kontrolle erneut eingeben:')) { $('l-err').textContent = 'Passphrase zu kurz oder nicht identisch — Konto existiert ohne Datei, anderer Name nötig.'; return; }
+  try {
+    const blob = new Blob([wrapKey(pem, p1)], { type: 'text/plain' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `lightningmail-${acct}.lmkey`; a.click();
+  } catch (e: any) { alert(e.message); return; }
+  alert('Schlüsseldatei gespeichert — bitte sicher verwahren (Passwort-Manager).');
+  pemCache = pem; await login(pem);
 };
 $('l-file').onchange = async (ev: Event) => {
   const f = (ev.target as any).files[0]; if (!f) return;

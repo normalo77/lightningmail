@@ -32,6 +32,18 @@ export function pubFromPriv(priv: Uint8Array): Uint8Array {
   return secp256k1.Point.BASE.multiply(bytesToNumber(priv)).toBytes(true);
 }
 
+// Etappe 6c: Konto-Erzeugung im Browser. Edelmetall: randScalar32 (noble 2.x hat kein
+// utils.randomPrivateKey und kein .CURVE — siehe Pitfall-Skill).
+export function newPrivKey(): Uint8Array { return randScalar32(); }
+
+// SEC1-PEM (OpenSSL-Format, OID secp256k1, ohne Public-Key-Anhang) — parseSec1PEM-kompatibel
+export function sec1PEM(priv: Uint8Array): string {
+  const body = [2, 1, 1, 4, 32, ...priv, 10, 6, 3, 0x2b, 0x81, 4, 0, 10];
+  const der = [0x30, body.length, ...body];
+  const s = btoa(String.fromCharCode(...der));
+  return `-----BEGIN EC PRIVATE KEY-----\n${s.match(/.{1,64}/g)!.join('\n')}\n-----END EC PRIVATE KEY-----\n`;
+}
+
 // Go: digest=HMAC(k=AuthKeyInfo,m=challenge); sig=Sign(priv,digest)= BIP340 über sha256(digest)
 export function authSign(priv: Uint8Array, account: string): Uint8Array {
   const challenge = u8(CHALLENGE_PREFIX + account);

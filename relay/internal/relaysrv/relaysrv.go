@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -328,6 +329,9 @@ func (s *Server) handleInbox(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- POST /v1/account (bootstrap/registration) ---
+// Etappe 6c: Namen hart validieren — Konto-Namen landen in URLs, Adressen und UI.
+var acctNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{1,31}$`)
+
 func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, `{"error":"method not allowed"}`, 405)
@@ -339,6 +343,10 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"bad request"}`, 400)
+		return
+	}
+	if !acctNameRe.MatchString(req.Name) {
+		http.Error(w, `{"error":"invalid name (2-32 Zeichen: a-z 0-9 . _ -)"}`, 400)
 		return
 	}
 	pubBytes, err := hex.DecodeString(req.Pubkey)
