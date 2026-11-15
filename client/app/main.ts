@@ -101,7 +101,7 @@ async function login(pem: string) {
       a.download = `lightningmail-${acct}.lmkey`; a.click();
     } catch (e: any) { alert(e.message); }
   }; }
-  $('who').textContent = `${acct}@${base.slice(1)} · `;
+  $('who').textContent = `${acct}@${base.startsWith('/') ? location.hostname : base.slice(1)} · `;
   sync = new StateSync(base, priv, () => token, `lm_state_${base.slice(1)}_${acct}`);
   sync.cacheLoad();
   for (const k of JSON.parse(localStorage.getItem(spamKey()) || '[]')) sync.doc.spam[k] = 1;

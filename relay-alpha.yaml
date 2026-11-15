@@ -18,7 +18,8 @@ peers:
 relay_secret: lm-relay-mirror-secret
 
 webauthn:
-  rp_id: "bmail.192-168-177-77.sslip.io"
+  rp_id: "lightningmail.app"
   rp_name: lightningmail
   origins:
+    - "https://lightningmail.app"
     - "https://bmail.192-168-177-77.sslip.io:5173"
