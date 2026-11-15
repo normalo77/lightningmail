@@ -600,3 +600,28 @@ Programm. Kernentscheidungen:
 - **Betrieb als Schalter:** zweite lnd (chain=litecoin) + litecoind ist eine
   Betriebs-Option pro Relay (~3 AT zusätzlich, Etappe K nach der Beta).
   Mailbox-Krypto und Envelope sind kettenblind — Client-seitig ändert nichts.
+
+## 27. Onboarding: Client-Wizard und Relay-Installer (Beschluss 15.11.2026)
+
+Getrennte Welten — der Client besitzt per Design keinen Node und keine
+Channels (Porto = Guthaben beim Relay, Schlüssel = ein secp256k1-Paar).
+
+**Etappe 6d — Client-Setup-Wizard (BAUEN, direkt nach Etappe B, vor externer
+Beta):**
+- 24-Wort-Recovery (BIP39): Seed im Browser erzeugt, Wortquiz zur
+  Bestaetigung, .lmkey-Passphrase-Datei optional statt Pflicht.
+- Währungsfrage: "Womit zahlst du Porto?" — Auswahl aus den vom Relay
+  besiedelten Währungen (§26).
+- Bestehendes bleibt: Adressgenerierung (6c), LMKEY1-Passwort.
+- Kein Scan, kein Channel, kein Node — das ist das Werbeversprechen.
+
+**Etappe O — Relay-Installer (NUR VORBEMERKT, Bau wenn Fremd-Betreiber
+ernst macht):**
+- One-Click via Docker-Compose: Domain, ACME-TLS, relayd, lnd, Chain-Backend.
+- Wizard-Frage Backend: Neutrino (~25-30 GB, QNAP-tauglich) | eigener
+  bitcoind (Vollknoten ~700 GB; PRUNED GEHT NICHT — lnd braucht Backfill) |
+  fremder Node.
+- Kanal-Autopilot: lnd-autopilot ist blind (beliebige Gegenstellen);
+  sinnvoll fuer bmail nur gezielt: Wizard-Frage "mit wem abrechnen?" +
+  Ein-Klick-Kanaele zu Relay-Partnern, Liquiditaet via Loop-out (Boltz).
+- Groessenordnung: Client-Wizard 1-2 AT, Relay-Wizard ~1 Woche + Pflege.
