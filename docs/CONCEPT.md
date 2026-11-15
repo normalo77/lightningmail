@@ -625,3 +625,25 @@ ernst macht):**
   sinnvoll fuer bmail nur gezielt: Wizard-Frage "mit wem abrechnen?" +
   Ein-Klick-Kanaele zu Relay-Partnern, Liquiditaet via Loop-out (Boltz).
 - Groessenordnung: Client-Wizard 1-2 AT, Relay-Wizard ~1 Woche + Pflege.
+
+## 28. Anmeldungs-Porto: "Mit bmail registrieren" (Etappe I, Beschluss 15.11.2026)
+
+Ein Dienst soll fuer eine Bestaetigungsmail nicht zahlen — die Richtung
+umzudrehen (Empfaenger zahlt whitelistet, Vorschlag 1) ist ABGELEHNT: sie
+bricht die Konstante "der Sender zahlt" und liesse das Opfer fuer seinen
+eigenen Spam zahlen.
+
+angenommen (Vorschlag 2, verfeinert):
+- Der USER zahlt einmalig die Willkommensgebuehr — das ist schlicht sein
+  Erstkontakt-Porto an den Dienst, dessen Preisprofil den Fremdp Reis um den
+  Willkommensfaktor (3-10) erhoeht. Gebuehr = Einnahme des Dienstes.
+- Die Bestaetigungsmail antwortet PORTOFREI im bestehenden
+  Konversationsfenster (§4.1). Der Dienst zahlt nie, er verdiente pro
+  Registrierung — der Adoptionssatz: bmail ist fuer Dienste keine
+  SMTP-Kostenzeile, sondern ein Mikro-Umsatzkanal.
+- Neu gebaut: Envelope-Tag 0x0A signup=1 (LM1), PWA-Cap "Mit bmail
+  registrieren" + Linkformat bmail://anmelden?an=dienst@domain&g=3;
+  Verrechnungskonto/Treuhand gibt es nicht — nimmt ein Dienst die Gebuehr
+  und antwortet nicht, hilft Spammarkierung + Reputation.
+- Einordnung: Etappe I, nach B, vor externer Beta (passt zur
+  Freunde-Runde mit echten Diensten).
