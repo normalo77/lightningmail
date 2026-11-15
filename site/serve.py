@@ -72,7 +72,8 @@ class H(SimpleHTTPRequestHandler):
             return self._static(DIST, rel, spa=os.path.join(DIST, "index.html"))
         if p.startswith("/keys/"):
             return self.send_error(404)  # Demo-Keys bleiben aus dem öffentlichen Pfad raus
-        return self._static(SITE, p, spa=os.path.join(SITE, "index.html"))
+        # Landing bis auf Weiteres offline (Bernd, 15.11.): files liegen weiter in site/
+        return self.send_error(404)
 
     do_GET = do_HEAD = do_POST = do_PUT = do_DELETE = do_OPTIONS = _route
 
