@@ -582,3 +582,21 @@ in lokaler Währung. Der Relay schreibt mit, aber er buchführt nicht.
   Kein neues Subsystem: es liest nur `GET /v1/statement`.
 - **Reihenfolge:** G1 Rate-Stempeln (fällt mit Etappe B zusammen, da entstehen
   die ersten Erlöse), G2 Statement-Endpunkte + Kette + UI-Knopf „Export".
+
+## 26. Multi-Währungs-Porto: BTC und LTC in einem Mail (Beschluss 15.11.2026, Bau in Etappe B / K)
+
+Porto wahlweise in BTC- oder LTC-Lightning — kein separates LTC-Mail, ein
+Programm. Kernentscheidungen:
+
+- **Preis ist wertdefiniert:** Empfänger taxieren in Cent, der Relay rechnet
+  per Tageskurs in die Währung. Sat-feste Preise wären das Spammer-Schlupfloch
+  (LTC-Sats ≈ 1/80 BTC-Sat). Der Kurs-Feed ist derselbe, den Etappe G
+  (Steuer-Log) fürs Rate-Stempeln braucht.
+- **Ledger ab Etappe B mit currency-Spalte** (Default btc). Buchungen je
+  Währung strikt getrennt — keine automatische Umrechnung, der Relay ist keine
+  Wechselstube. Endpoints nehmen ?cur=.
+- **Keine Mischpfade:** eine Zahlung braucht eine vom Empfänger-Relay
+  besiedelte Währung; das Preisprofil listet akzeptierte Währungen.
+- **Betrieb als Schalter:** zweite lnd (chain=litecoin) + litecoind ist eine
+  Betriebs-Option pro Relay (~3 AT zusätzlich, Etappe K nach der Beta).
+  Mailbox-Krypto und Envelope sind kettenblind — Client-seitig ändert nichts.
