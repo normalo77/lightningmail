@@ -323,9 +323,18 @@ client-seitig selbst verschluesselt (ECIES ans eigene Mailbox-Paar,
 409 `{"error":"version conflict","version": Ist}`. Groessenlimit 256 kB.
 
 State-Doc (klartext nur fuer den Eigentümer): `read{msgid}`, `spam{senderhex12}`,
-`deleted{msgid}`, `drafts[{id,ts,to,subject,body,gone?}]`. Merge: Flags OR;
+`deleted{msgid}`, `drafts[{id,ts,to,subject,body,gone?}]`,
+`contacts{id:{ts,gone?,name,given,org,title,url,cell,phone,fax,email,addr,lnaddr,pubkey,pgp,note}}`
+(Etappe A: privates Adressbuch, Felder ~vCard 4.0). Merge: Flags OR;
 Drafts LWW pro id mit Tombstone-Vorrang (gone schlaegt leben). Konflikt-Pfad:
 409 → pull → merge → einmaliger Retry.
+
+Grenzen & geplante Obergrenzen: Das 256-kB-Limit des State-Slots (PUT → 413)
+trägt ~500 Adressbucheinträge; bei Überlauf braucht es Sub-Tiles pro Kontakt
+statt einem Gesamt-Blob — bewusste Verschiebung, vor der Beta nicht nötig.
+Für das öffentliche Adressbuch (Etappe B) ist ein 429-Rate-Limit pro Antragendem
+auf einem rollierenden 24-h-Budget eingeplant, das vom Empfänger-Porto abgeht
+(harte Zahlen vor Live-Betrieb unmöglich — werden im Feldversuch kalibriert).
 ## 7b. Retention-Cleanup (M3)
 
 blob_refs.erweitert um `downloaded_at` (0=nie). Sweep (Start +60s, dann 24h,
