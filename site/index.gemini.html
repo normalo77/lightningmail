@@ -1,0 +1,1017 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lightningmail · E-Mail mit Lightning-Porto</title>
+<meta name="description" content="lightningmail: E-Mail mit Lightning-Porto. Senden kostet ein kleines Porto, das beim Empfänger ankommen soll. Konzept und ehrlicher Status eines MIT-lizenzierten Prototyps.">
+<meta name="theme-color" content="#f5f3ec">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cellipse cx='100' cy='100' rx='52' ry='46' fill='%23ffb38f'/%3E%3Cellipse cx='122' cy='92' rx='9' ry='9' fill='white'/%3E%3Ccircle cx='124' cy='93' r='4.6' fill='%23122338'/%3E%3Cellipse cx='81' cy='92' rx='15' ry='13' fill='%23122338'/%3E%3Cpath d='M52 64 Q100 28 148 64 Q100 48 52 64Z' fill='%23122338'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f5f3ec;
+  --surface: #e8e4d8;
+  --ink: #122338;
+  --muted: #4a5a6e;
+  --accent: #f4b71a;
+  --accent-ink: #122338;
+  --field-sun: #f6df8f;
+  --field-sky: #dcecf6;
+  --margin: clamp(1rem, 2.2vw, 2rem);
+  --gutter: clamp(1rem, 2vw, 2rem);
+  --section-gap: clamp(5rem, 11vw, 10rem);
+  --step-small: clamp(0.875rem, 0.84rem + 0.12vw, 0.95rem);
+  --step-body: clamp(1.0625rem, 1.02rem + 0.22vw, 1.1875rem);
+  --step-lead: clamp(1.25rem, 1.12rem + 0.55vw, 1.5625rem);
+  --step-head: clamp(2rem, 1.4rem + 2.6vw, 3.6rem);
+  --step-hero: clamp(2.6rem, 1.6rem + 4.4vw, 5.4rem);
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--step-body);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.028em;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+h1 { font-size: var(--step-hero); max-width: 15ch; }
+h2 { font-size: var(--step-head); max-width: 22ch; margin-bottom: 1.25rem; }
+h3 { font-size: var(--step-lead); line-height: 1.2; max-width: 28ch; margin-bottom: 0.5rem; }
+p { margin: 0 0 1.15rem; text-wrap: pretty; max-width: 65ch; }
+p:last-child { margin-bottom: 0; }
+
+a { color: var(--ink); text-underline-offset: 0.2em; }
+a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* Frame & Grid */
+.frame {
+  padding-inline: var(--margin);
+  max-width: 1680px;
+  margin-inline: auto;
+}
+.grid-12 {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gutter);
+  row-gap: var(--gutter);
+}
+
+/* Navigation */
+header.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.25rem var(--margin);
+  max-width: 1680px;
+  margin-inline: auto;
+}
+.brand-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: var(--step-lead);
+  letter-spacing: -0.02em;
+}
+.logo { width: 42px; height: 42px; flex: none; }
+nav {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+nav a {
+  text-decoration: none;
+  font-size: var(--step-small);
+  font-weight: 500;
+  padding: 0.4rem 0.2rem;
+}
+nav a:hover { text-decoration: underline; }
+.lang {
+  background: var(--surface);
+  color: var(--ink);
+  border: 0;
+  padding: 0.55rem 1rem;
+  font-family: inherit;
+  font-size: var(--step-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+.lang:hover { background: var(--accent); color: var(--accent-ink); }
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: var(--step-body);
+  padding: 0.9rem 1.6rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 0;
+  cursor: pointer;
+  transition: transform 0.16s ease-out, background-color 0.16s ease-out;
+}
+.btn:hover { background: #e5a80b; transform: translateY(-2px); }
+.btn.secondary {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+.btn.secondary:hover { background: #dcd6c6; }
+
+/* Sections & Colour Fields */
+section {
+  margin-top: var(--section-gap);
+}
+.field-block {
+  background: var(--surface);
+  padding-block: clamp(3.5rem, 7vw, 6.5rem);
+  margin-top: var(--section-gap);
+}
+.field-sky {
+  background: var(--field-sky);
+  padding-block: clamp(3.5rem, 7vw, 6.5rem);
+  margin-top: var(--section-gap);
+}
+
+/* Hero */
+.hero {
+  margin-top: clamp(1.5rem, 4vw, 3.5rem);
+  align-items: center;
+}
+.hero-copy {
+  grid-column: 1 / 8;
+}
+.hero-lead {
+  font-size: var(--step-lead);
+  margin-top: 1.75rem;
+  max-width: 56ch;
+}
+.cta-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 2.25rem;
+}
+.meta-note {
+  margin-top: 1.5rem;
+  font-size: var(--step-small);
+  color: var(--muted);
+}
+.hero-stamp {
+  grid-column: 8 / 13;
+  background: var(--field-sun);
+  padding: clamp(1.75rem, 3.5vw, 3rem);
+  position: relative;
+  clip-path: polygon(
+    0% 3%, 4% 0%, 8% 3%, 12% 0%, 16% 3%, 20% 0%, 24% 3%, 28% 0%, 32% 3%, 36% 0%, 40% 3%, 44% 0%, 48% 3%, 52% 0%, 56% 3%, 60% 0%, 64% 3%, 68% 0%, 72% 3%, 76% 0%, 80% 3%, 84% 0%, 88% 3%, 92% 0%, 96% 3%, 100% 0%,
+    97% 6%, 100% 12%, 97% 18%, 100% 24%, 97% 30%, 100% 36%, 97% 42%, 100% 48%, 97% 54%, 100% 60%, 97% 66%, 100% 72%, 97% 78%, 100% 84%, 97% 90%, 100% 96%, 97% 100%,
+    92% 97%, 88% 100%, 84% 97%, 80% 100%, 76% 97%, 72% 100%, 68% 97%, 64% 100%, 60% 97%, 56% 100%, 52% 97%, 48% 100%, 44% 97%, 40% 100%, 36% 97%, 32% 100%, 28% 97%, 24% 100%, 20% 97%, 16% 100%, 12% 97%, 8% 100%, 4% 97%, 0% 100%,
+    3% 94%, 0% 88%, 3% 82%, 0% 76%, 3% 70%, 0% 64%, 3% 58%, 0% 52%, 3% 46%, 0% 40%, 3% 34%, 0% 28%, 3% 22%, 0% 16%, 3% 10%, 0% 4%
+  );
+}
+.hero-stamp-inner {
+  background: var(--bg);
+  padding: clamp(1.25rem, 2.5vw, 2rem);
+}
+.hero-stamp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 700;
+  font-size: var(--step-small);
+  margin-bottom: 0.5rem;
+}
+.hero-stamp svg.big {
+  width: 100%;
+  max-width: 250px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Status Box (kept per spec, flat surface, no border/shadow) */
+.status {
+  margin-top: 2.5rem;
+  background: var(--field-sun);
+  color: var(--ink);
+  padding: 1.5rem 1.75rem;
+  font-size: var(--step-small);
+  max-width: 78ch;
+  border-left: 6px solid var(--ink);
+}
+.status b {
+  font-weight: 700;
+}
+
+/* Asymmetric Section Layouts */
+.col-head { grid-column: 1 / 5; }
+.col-body { grid-column: 5 / 13; }
+.col-left { grid-column: 1 / 7; }
+.col-right { grid-column: 7 / 13; }
+
+/* Idea Four Blocks (2x2 flat tone blocks, no cards/icons) */
+.four-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gutter);
+  margin-top: 3rem;
+}
+.tone-tile {
+  background: var(--surface);
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+}
+.tone-tile svg {
+  width: 48px;
+  height: 48px;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+/* Live interactive widget: Postage Stamp Desk */
+.frank-desk {
+  background: var(--bg);
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  margin-top: 2.5rem;
+}
+.frank-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1.25rem 0 1.5rem;
+}
+.mode-btn {
+  background: var(--surface);
+  color: var(--ink);
+  border: 0;
+  padding: 0.75rem 1.15rem;
+  font-family: inherit;
+  font-size: var(--step-small);
+  font-weight: 700;
+  cursor: pointer;
+}
+.mode-btn[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--bg);
+}
+.frank-readout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  background: var(--surface);
+  padding: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.readout-num {
+  font-size: var(--step-lead);
+  font-weight: 700;
+  display: block;
+  margin-top: 0.25rem;
+}
+.readout-label {
+  font-size: var(--step-small);
+  color: var(--muted);
+}
+.frank-verdict {
+  margin-top: 1rem;
+  font-size: var(--step-small);
+  font-weight: 600;
+}
+
+/* Doppelfunktion Trio */
+.trio-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gutter);
+  margin-top: 2.5rem;
+}
+.trio-item {
+  background: var(--surface);
+  padding: 1.75rem;
+}
+
+/* Ziele Ordered List */
+ol.ziele-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gutter);
+}
+ol.ziele-list li {
+  background: var(--bg);
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+}
+ol.ziele-list li strong {
+  display: block;
+  font-size: var(--step-lead);
+  margin-bottom: 0.5rem;
+}
+
+/* Bausteine Ledger Sheet */
+ul.baus {
+  list-style: none;
+  padding: 0;
+  margin: 2rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+ul.baus li {
+  background: var(--surface);
+  padding: 1.5rem 1.75rem;
+  font-size: var(--step-body);
+}
+ul.baus li b {
+  display: block;
+  font-size: var(--step-lead);
+  margin-bottom: 0.35rem;
+  color: var(--ink);
+}
+
+/* Tiers Table */
+table.tiers {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 2rem;
+  font-variant-numeric: tabular-nums;
+}
+table.tiers tr:nth-child(odd) td {
+  background: var(--surface);
+}
+table.tiers tr:nth-child(even) td {
+  background: #ece8dc;
+}
+table.tiers td {
+  padding: 1.25rem 1.5rem;
+  vertical-align: top;
+  font-size: var(--step-body);
+}
+table.tiers td:first-child {
+  font-weight: 700;
+  width: 240px;
+  color: var(--ink);
+}
+
+/* Footer */
+footer.close-stage {
+  margin-top: var(--section-gap);
+  background: var(--ink);
+  color: var(--bg);
+  padding: clamp(3.5rem, 7vw, 6rem) var(--margin);
+}
+.footer-inner {
+  max-width: 1680px;
+  margin-inline: auto;
+}
+.footer-mark {
+  font-size: clamp(2.8rem, 8vw, 7.5rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 0.92;
+  margin-bottom: 2.5rem;
+  color: var(--accent);
+}
+.footer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1.5rem;
+  font-size: var(--step-small);
+  color: var(--surface);
+}
+
+/* Language Toggle */
+html[lang="de"] .en-only { display: none !important; }
+html[lang="en"] .de-only { display: none !important; }
+
+/* Responsive (390px and 768px) */
+@media (max-width: 960px) {
+  header.top {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    padding: 1rem var(--margin);
+    row-gap: 0.6rem;
+  }
+  .brand-wrap { margin-right: auto; }
+  nav { order: 3; width: 100%; gap: 0.9rem 1.1rem; }
+  .hero-copy, .hero-stamp, .col-head, .col-body, .col-left, .col-right {
+    grid-column: 1 / -1;
+  }
+  .four-grid, .trio-strip, ol.ziele-list, ul.baus, .frank-readout {
+    grid-template-columns: 1fr;
+  }
+  table.tiers tr {
+    display: block;
+    margin-bottom: 0.75rem;
+  }
+  table.tiers td, table.tiers td:first-child {
+    display: block;
+    width: 100%;
+    padding: 0.85rem 1.25rem;
+  }
+  table.tiers td:first-child {
+    padding-bottom: 0.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="brand-wrap" href="#">
+    <svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><use href="#oktix"/></svg>
+    <span>lightningmail</span>
+  </a>
+  <nav aria-label="Primary">
+    <a href="#idee"><span class="de-only">Vorgeschichte</span><span class="en-only">Prehistory</span></a>
+    <a href="#kreislauf"><span class="de-only">Portokreislauf</span><span class="en-only">Postage cycle</span></a>
+    <a href="#doppelt"><span class="de-only">Anmeldung</span><span class="en-only">Sign-up</span></a>
+    <a href="#bausteine"><span class="de-only">Baukasten</span><span class="en-only">Toolbox</span></a>
+    <a href="#tiers">Tiers</a>
+    <a href="/app/">Webmail</a>
+    <button class="lang" id="langBtn" type="button" onclick="toggleLang()">English</button>
+  </nav>
+</header>
+
+<main>
+  <!-- HERO -->
+  <div class="frame">
+    <div class="grid-12 hero">
+      <div class="hero-copy">
+        <h1>
+          <span class="de-only">E-Mail mit eigenem&nbsp;Porto</span>
+          <span class="en-only">E-mail with its own&nbsp;postage</span>
+        </h1>
+        <p class="hero-lead">
+          <span class="de-only">Die Idee hinter lightningmail: Jede Nachricht kostet den Absender ein kleines Porto, das beim Empfänger ankommen soll. Fremde anschreiben kostet ein paar Cent, Spam rechnet sich nicht mehr, und wer sich gegenseitig schreibt, gleicht die Beträge untereinander aus. Diese Seite beschreibt das geplante Modell und zeigt bei jedem Schritt ehrlich, was der Code heute schon tut.</span>
+          <span class="en-only">The idea behind lightningmail: every message costs the sender a small postage meant to land with the recipient. Writing to strangers costs a few cents, spam stops paying off, and people who write back and forth cancel their costs out over time. This page explains the planned model and states plainly at every step what the code already does today.</span>
+        </p>
+        <div class="cta-row">
+          <a class="btn" href="#kreislauf"><span class="de-only">Portokreislauf ansehen</span><span class="en-only">See the postage cycle</span></a>
+          <a class="btn secondary" href="/app/">Webmail</a>
+        </div>
+        <p class="meta-note">
+          <span class="de-only">Konzept und Prototyp auf lightningmail.app · MIT-Lizenz · kein Tracking, keine Cookies, kein Dienstversprechen</span>
+          <span class="en-only">Concept and prototype on lightningmail.app · MIT licensed · no tracking, no cookies, no service promise</span>
+        </p>
+      </div>
+
+      <div class="hero-stamp">
+        <div class="hero-stamp-inner">
+          <div class="hero-stamp-head">
+            <span>LIGHTNINGMAIL POST</span>
+            <span>2&nbsp;ct / KEYSEND</span>
+          </div>
+          <svg class="big" viewBox="0 0 200 200" role="img" aria-label="Pirate octopus mascot">
+            <defs>
+              <symbol id="oktix" viewBox="0 0 200 200">
+                <g fill="none" stroke="#ff8a5c" stroke-width="13" stroke-linecap="round">
+                  <path d="M60 135 Q35 150 42 175"/>
+                  <path d="M80 142 Q70 168 52 182"/>
+                  <path d="M100 145 Q100 172 88 188"/>
+                  <path d="M120 142 Q132 170 148 182"/>
+                  <path d="M140 135 Q168 150 160 176"/>
+                </g>
+                <g fill="none" stroke="#ffc09f" stroke-width="5" stroke-linecap="round" opacity=".7">
+                  <path d="M60 135 Q35 150 42 175"/><path d="M100 145 Q100 172 88 188"/><path d="M140 135 Q168 150 160 176"/>
+                </g>
+                <g transform="rotate(-14 40 158)">
+                  <rect x="14" y="146" width="44" height="28" rx="5" fill="#fffdf5" stroke="#122338" stroke-width="2.5"/>
+                  <path d="M16 148 L36 162 L56 148" fill="none" stroke="#122338" stroke-width="2.5" stroke-linejoin="round"/>
+                </g>
+                <g transform="rotate(12 165 155)">
+                  <path d="M160 132 l-14 24 h11 l-6 24 20 -30 h-11 z" fill="#f4b71a" stroke="#122338" stroke-width="2.5" stroke-linejoin="round"/>
+                </g>
+                <ellipse cx="100" cy="98" rx="52" ry="46" fill="#ff9d73"/>
+                <ellipse cx="100" cy="92" rx="52" ry="40" fill="#ffb38f"/>
+                <path d="M52 62 Q100 26 148 62 Q120 50 100 52 Q80 50 52 62 Z" fill="#122338"/>
+                <path d="M56 60 Q100 30 144 60 L148 62 Q100 40 52 62 Z" fill="#233a54"/>
+                <circle cx="100" cy="46" r="4" fill="#f4b71a"/>
+                <path d="M93 44 l7 -6 7 6 -7 6z" fill="#fff"/>
+                <path d="M60 78 Q52 74 50 70" stroke="#122338" stroke-width="3" fill="none"/>
+                <ellipse cx="81" cy="90" rx="15" ry="13" fill="#122338"/>
+                <path d="M67 84 Q81 74 95 84" stroke="#122338" stroke-width="3.5" fill="none"/>
+                <circle cx="122" cy="90" r="9" fill="#fff"/>
+                <circle cx="124" cy="91" r="4.6" fill="#122338"/>
+                <circle cx="125.5" cy="89.5" r="1.6" fill="#fff"/>
+                <path d="M92 116 Q110 130 130 112" stroke="#122338" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <circle cx="136" cy="105" r="4.5" fill="#ff7f9e" opacity=".55"/>
+              </symbol>
+            </defs>
+            <use href="#oktix" width="200" height="200"/>
+          </svg>
+          <div class="hero-stamp-head" style="margin-top:0.5rem;margin-bottom:0">
+            <span>LM1 · ECIES</span>
+            <span>LIGHTNING.APP</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IDEE / VORGESCHICHTE -->
+  <section id="idee" class="frame">
+    <div class="grid-12">
+      <div class="col-head">
+        <h2>
+          <span class="de-only">Warum Hashcash 1997 liegen&nbsp;blieb</span>
+          <span class="en-only">Why Hashcash stalled in&nbsp;1997</span>
+        </h2>
+      </div>
+      <div class="col-body">
+        <p>
+          <span class="de-only">1997 schlug Adam Back ein Gegenmittel gegen Spam vor, das auf den ersten Blick bestechend simpel war: Jede E-Mail sollte den absendenden Rechner ein kleines Stück Rechenarbeit kosten. Ein paar Sekunden Prozessorzeit pro Brief tun einem einzelnen Menschen nicht weh, machen aber den Versand von Millionen Werbemails teuer. Mathematisch ging die Rechnung auf. Durchgesetzt hat sich Hashcash für E-Mail trotzdem nie.</span>
+          <span class="en-only">In 1997 Adam Back proposed a countermeasure against spam that looked disarmingly simple: every e-mail should cost the sending machine a small piece of computational work. A few seconds of CPU time per letter never hurts a single person, but makes sending millions of junk messages expensive. On paper the math worked. In practice, Hashcash never caught on for e-mail.</span>
+        </p>
+        <p>
+          <span class="de-only">Das lag an drei handfesten Hürden. Erstens gab es 1997 kein Zahlungsnetz für Centbeträge im Internet, weshalb Back überhaupt erst den Umweg über verbrannten Strom nehmen musste. Zweitens hatte niemand etwas von dieser Rechenarbeit: Der Absender verheizte Energie, aber der Empfänger bekam für den unerwünschten Brief keinen Pfennig. Ein Porto, das in der Luft verpufft, entschädigt niemanden. Drittens galt im frühen Web das ungeschriebene Gesetz, dass im Netz alles kostenlos sein muss.</span>
+          <span class="en-only">Three practical hurdles stood in the way. First, the internet of 1997 had no payment rail for fractions of a cent, which is why Back had to use burned electricity as a proxy in the first place. Second, that burned work helped nobody: the sender wasted power, yet the bothered recipient never saw a penny. Postage that evaporates into thin air compensates no one. Third, the early web ran on a single expectation: everything online had to be free.</span>
+        </p>
+        <p>
+          <span class="de-only">Seit 2018 löst das Lightning-Netzwerk genau diese Punkte. Zahlungen im Bereich einzelner Cents laufen in Sekunden durch, ohne Konto bei einem Zahlungsdienstleister, direkt adressierbar an ein Postfach. Aus dem verbrannten Rechenpfand von damals lässt sich damit echtes Porto bauen, das beim Gegenüber ankommt. lightningmail ist der Versuch, diese fehlende Briefmarke mit heutiger Technik nachzurüsten.</span>
+          <span class="en-only">Since 2018, the Lightning Network has solved those exact problems. Sub-cent payments settle in seconds without corporate accounts, addressed straight to a mailbox. That turns yesterday’s burned CPU cycles into real postage that can land with the other side. lightningmail is an attempt to retrofit the stamp the internet never got, using a network that exists today.</span>
+        </p>
+        <p>
+          <span class="de-only">Der nächste Verwandte fährt längst auf denselben Schienen: Sphinx schickt seit 2020 Ende-zu-Ende-verschlüsselte Nachrichten über Lightning-Routen, wobei jede Nachricht als Anhang einer Zahlung durch die Kanäle reitet und die Gebühren in Sat an die Route verteilt. lightningmail erfindet diesen Transport nicht, es benutzt ihn. Das Umfeld ist ein anderes: klassische Adressen nach dem Muster name@domain, Postfächer auf eigenen Relay-Servern, ein Preisprofil des Empfängers und ein Porto, das als Einnahme bei ihm ankommen soll. Wer reinen Chat über Channels will, nimmt Sphinx. Wer Post mit Briefmarken will, liest hier weiter.</span>
+          <span class="en-only">The closest relative already rides the same rails: since 2020 Sphinx has been sending end-to-end encrypted messages over Lightning routes, each message travelling as an attachment to a payment that tips the route in satoshis. lightningmail does not invent this transport; it uses it. The surroundings differ: classic name@domain addresses, mailboxes on self-run relay servers, a price profile on the recipient’s side and postage designed to arrive as their income. If you want pure chat over channels, use Sphinx. If you want mail with stamps, keep reading.</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="four-grid">
+      <div class="tone-tile">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <rect x="4" y="8" width="40" height="32" fill="#f4b71a"/>
+          <rect x="10" y="14" width="28" height="20" fill="#f5f3ec"/>
+          <path d="M16 24h16M24 18v12" stroke="#122338" stroke-width="3"/>
+        </svg>
+        <h3><span class="de-only">Frankieren statt filtern</span><span class="en-only">Stamp, don’t filter</span></h3>
+        <p><span class="de-only">Spamfilter sortieren den Müll erst im Nachhinein. Porto setzt vorher an: Einseitige Massenpost kostet ab dem ersten Brief echtes Geld.</span><span class="en-only">Spam filters sort the garbage after it arrives. Postage acts earlier: one-way bulk mail costs real money from the first message.</span></p>
+      </div>
+
+      <div class="tone-tile">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M8 20L24 8l16 12v20H8V20z" fill="#122338"/>
+          <rect x="18" y="26" width="12" height="14" fill="#f4b71a"/>
+        </svg>
+        <h3><span class="de-only">Postamt am eigenen Rechner</span><span class="en-only">Post office on your own box</span></h3>
+        <p><span class="de-only">Ein Relay ist ein einzelner Briefkasten-Server. DNS-Einträge zeigen, wo eine Adresse liegt, genau wie MX-Records bei klassischer E-Mail. Wem die Domain gehört, dem gehört das Postamt.</span><span class="en-only">A relay is a standalone mailbox server. DNS records point to where an address lives, just like MX records in classic e-mail. Owning the domain means owning the post office.</span></p>
+      </div>
+
+      <div class="tone-tile">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="16" cy="24" r="10" fill="#f4b71a"/>
+          <circle cx="16" cy="24" r="4" fill="#f5f3ec"/>
+          <rect x="24" y="21" width="18" height="6" fill="#122338"/>
+          <rect x="34" y="27" width="4" height="6" fill="#122338"/>
+        </svg>
+        <h3><span class="de-only">Adresse ist Schlüssel</span><span class="en-only">Address is key</span></h3>
+        <p><span class="de-only">Jedes Postfach besteht aus einem kryptografischen Schlüsselpaar. Es gibt kein Passwort und keine Rücksetz-SMS. Zieht man auf ein anderes Relay um, nimmt man den Schlüssel samt Adresse mit.</span><span class="en-only">Every mailbox is a cryptographic keypair. There is no password and no reset SMS. When you move to another relay, you take the key and the address with you.</span></p>
+      </div>
+
+      <div class="tone-tile">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <rect x="6" y="10" width="36" height="28" fill="#122338"/>
+          <rect x="10" y="16" width="28" height="18" fill="#f5f3ec"/>
+          <rect x="10" y="12" width="12" height="2" fill="#f4b71a"/>
+        </svg>
+        <h3><span class="de-only">Neunziger-Oberfläche ohne Ballast</span><span class="en-only">Nineties interface without bloat</span></h3>
+        <p><span class="de-only">Das Webmail orientiert sich an Mailprogrammen von 1995. Ein Postfach soll ein ruhiges Werkzeug sein, kein Werbekanal.</span><span class="en-only">The webmail follows mail clients from 1995. A mailbox should be a quiet tool, not an ad channel.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PORTOKREISLAUF -->
+  <section id="kreislauf" class="field-block">
+    <div class="frame">
+      <div class="grid-12">
+        <div class="col-left">
+          <h2>
+            <span class="de-only">Der Portokreislauf zwischen A, B und&nbsp;Spammer</span>
+            <span class="en-only">The postage cycle between A, B and&nbsp;spammer</span>
+          </h2>
+          <p>
+            <span class="de-only">Im Zielmodell schreibt <b>Absender A</b> eine Nachricht an <b>Empfänger B</b> und legt das Porto bei, das B in seinem Preisprofil für fremde Post verlangt, etwa zwei Cent. Dieser Betrag soll direkt auf dem Guthaben von B landen. Wer fremde Post sichtet, bekommt seine Aufmerksamkeit bezahlt.</span>
+            <span class="en-only">In the target model, <b>sender A</b> writes to <b>recipient B</b> and attaches the postage listed in B’s price profile for mail from strangers, say two cents. That amount is meant to land directly on B’s balance. Sifting through mail from strangers gets paid.</span>
+          </p>
+          <p>
+            <span class="de-only">Antwortet B, dreht sich der Zahlungsstrom um: Nun zahlt B das Porto an A zurück. Zwischen zwei Menschen, die sich regelmäßig schreiben, wandern dieselben Centbeträge hin und her und heben sich über die Zeit auf. Echtes Gespräch kostet unter dem Strich fast nichts; das Porto wirkt wie ein Pfand, das mit der Antwort zurückkehrt.</span>
+            <span class="en-only">When B replies, the payment flips: now B pays postage back to A. Between two people who correspond regularly, the same cents travel back and forth and cancel out over time. Real conversation costs next to nothing in the end; postage works like a deposit returned by the reply.</span>
+          </p>
+          <p>
+            <span class="de-only">Für <b>Spammer S</b> funktioniert dieser Rückweg nicht. Wer hunderttausend unerwünschte Briefe verschickt, zahlt hunderttausendmal Porto und bekommt keine Antwort zurück. Einseitige Massenpost bleibt auf den vollen Versandkosten sitzen.</span>
+            <span class="en-only">For <b>spammer S</b>, that return path never happens. Sending a hundred thousand unwanted letters means paying postage a hundred thousand times and getting zero replies back. One-way bulk mail eats the full cost.</span>
+          </p>
+        </div>
+
+        <div class="col-right">
+          <svg viewBox="0 0 460 320" style="width:100%;height:auto;display:block;background:#f5f3ec;padding:1.25rem" role="img" aria-label="Portokreislauf-Diagramm">
+            <rect x="24" y="44" width="116" height="84" fill="#122338"/>
+            <text x="82" y="84" text-anchor="middle" font-size="24" font-weight="700" fill="#f5f3ec">A</text>
+            <text x="82" y="106" text-anchor="middle" font-size="12" fill="#f6df8f">lightningmail.app</text>
+
+            <rect x="320" y="44" width="116" height="84" fill="#122338"/>
+            <text x="378" y="84" text-anchor="middle" font-size="24" font-weight="700" fill="#f5f3ec">B</text>
+            <text x="378" y="106" text-anchor="middle" font-size="12" fill="#f6df8f">beispiel.de</text>
+
+            <path d="M148 66 H308" stroke="#122338" stroke-width="4"/>
+            <polygon points="306,58 318,66 306,74" fill="#122338"/>
+            <text x="230" y="52" text-anchor="middle" font-size="13" font-weight="700" fill="#122338">
+              <tspan class="de-only">A zahlt 2 ct Porto</tspan>
+              <tspan class="en-only">A pays 2 ct postage</tspan>
+            </text>
+
+            <path d="M312 108 H152" stroke="#122338" stroke-width="4"/>
+            <polygon points="154,100 142,108 154,116" fill="#122338"/>
+            <text x="230" y="132" text-anchor="middle" font-size="13" font-weight="700" fill="#122338">
+              <tspan class="de-only">B antwortet (+2 ct zurück)</tspan>
+              <tspan class="en-only">B replies (+2 ct back)</tspan>
+            </text>
+
+            <rect x="24" y="212" width="116" height="72" fill="#f4b71a"/>
+            <text x="82" y="246" text-anchor="middle" font-size="20" font-weight="700" fill="#122338">S (Spam)</text>
+            <text x="82" y="266" text-anchor="middle" font-size="12" font-weight="600" fill="#122338">10.000 Briefe</text>
+
+            <path d="M148 248 H368 V140" fill="none" stroke="#122338" stroke-width="4" stroke-dasharray="8 6"/>
+            <polygon points="360,144 368,130 376,144" fill="#122338"/>
+            <text x="255" y="236" text-anchor="middle" font-size="13" font-weight="700" fill="#122338">
+              <tspan class="de-only">Zahlt jedes Mal · 0 Antworten</tspan>
+              <tspan class="en-only">Pays every time · 0 replies</tspan>
+            </text>
+            <text x="255" y="274" text-anchor="middle" font-size="13" fill="#4a5a6e">
+              <tspan class="de-only">Unter Bekannten im Zielmodell: netto ≈ 0 ct</tspan>
+              <tspan class="en-only">Between correspondents in target model: net ≈ 0 ct</tspan>
+            </text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- ONE LIVE INTERACTIVE ELEMENT: Honest Postage Calculator -->
+      <div class="frank-desk" data-ui="postage-desk">
+        <h3>
+          <span class="de-only">Rechenbeispiel am Frankiertisch: Wer zahlt was?</span>
+          <span class="en-only">Worked example at the stamping desk: who pays what?</span>
+        </h3>
+        <p style="font-size:var(--step-small);color:var(--muted)">
+          <span class="de-only">Wähle einen Fall aus, um den Unterschied zwischen dem heutigen Prototyp-Code und dem geplanten Ausbau (Etappen B &amp; I) an konkreten Beispielzahlen (2&nbsp;Cent Standardporto) zu sehen.</span>
+          <span class="en-only">Pick a case to compare what the prototype code books today against the planned stages B &amp; I using a worked 2-cent standard postage example.</span>
+        </p>
+        <div class="frank-controls" role="group" aria-label="Postage scenario">
+          <button type="button" class="mode-btn" id="mode-dialog" aria-pressed="true" onclick="setScenario('dialog')">
+            <span class="de-only">Briefwechsel (A ↔ B, je 5 Mails)</span>
+            <span class="en-only">Correspondence (A ↔ B, 5 mails each)</span>
+          </button>
+          <button type="button" class="mode-btn" id="mode-spam" aria-pressed="false" onclick="setScenario('spam')">
+            <span class="de-only">Massenversand (10.000 Mails, 0 Antworten)</span>
+            <span class="en-only">Bulk spam (10,000 mails, 0 replies)</span>
+          </button>
+          <button type="button" class="mode-btn" id="mode-signup" aria-pressed="false" onclick="setScenario('signup')">
+            <span class="de-only">Dienst-Anmeldung (1 Registrierung + Antwort)</span>
+            <span class="en-only">Service sign-up (1 registration + reply)</span>
+          </button>
+        </div>
+        <div class="frank-readout">
+          <div>
+            <span class="readout-label"><span class="de-only">Absender-Abbuchung</span><span class="en-only">Sender debit</span></span>
+            <span class="readout-num" id="out-sender">−10 ct (A) / −10 ct (B)</span>
+          </div>
+          <div>
+            <span class="readout-label"><span class="de-only">Heute im Code verbucht</span><span class="en-only">Booked in code today</span></span>
+            <span class="readout-num" id="out-today">20 ct an Relay-Betreiber</span>
+          </div>
+          <div>
+            <span class="readout-label"><span class="de-only">Geplant (Etappen B / I)</span><span class="en-only">Planned (stages B / I)</span></span>
+            <span class="readout-num" id="out-planned">Netto 0 ct für A und B</span>
+          </div>
+        </div>
+        <p class="frank-verdict" id="out-note">
+          <span class="de-only">Heute fließt jedes Porto per keysend an den Relay-Betreiber des Empfängers. Mit Etappe B landet es auf dem Empfängerkonto, sodass sich gegenseitige Briefe aufheben.</span>
+          <span class="en-only">Today every postage payment travels via keysend to the recipient’s relay operator. In stage B it credits the recipient account directly, so mutual letters cancel out.</span>
+        </p>
+      </div>
+
+      <div class="status">
+        <b><span class="de-only">Status heute:</span><span class="en-only">Status today:</span></b>
+        <span class="de-only">Der Absender wird am eigenen Relay abgebucht; die Porto-Zahlung wandert per keysend zum Relay des Empfängers und wird dort heute beim Betreiber verbucht. Die Gutschrift direkt auf das Empfängerkonto ist im Ledger vorbereitet, aber noch nicht eingeschaltet. Individuelle Preisprofile je Postfach (etwa günstigere Sätze für Kontakte) und das portofreie Konversationsfenster folgen in den Etappen B und I.</span>
+        <span class="en-only">The sender is debited at their own relay; the postage travels by keysend to the recipient’s relay and is booked with that operator today. Crediting the recipient’s account directly is prepared in the ledger but not switched on yet. Per-mailbox price profiles (such as cheaper contact rates) and the postage-free conversation window are planned for stages B and I.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOPPELFUNKTION -->
+  <section id="doppelt" class="frame">
+    <div class="grid-12">
+      <div class="col-head">
+        <h2>
+          <span class="de-only">Eine Adresse für Post und&nbsp;Anmeldung</span>
+          <span class="en-only">One address for mail and&nbsp;sign-up</span>
+        </h2>
+      </div>
+      <div class="col-body">
+        <p>
+          <span class="de-only"><b>Das heutige Problem bei Registrierungen:</b> Für Onlineshops, Banken oder Foren sind Bestätigungsmails ein reiner Kostenblock. Jede Registrierung löst eine E-Mail an eine unbekannte Adresse aus, oft ausgelöst von Bots, die nie Kunden werden. Deshalb drosseln Dienste ihren Mailversand, sperren ganze Domains oder weichen auf teure SMS-Codes aus. Die Kosten liegen auf der falschen Seite: Der Dienst bezahlt für einen Kontakt, den der Nutzer anstößt.</span>
+          <span class="en-only"><b>Today’s sign-up problem:</b> For online shops, banks or forums, confirmation e-mails are pure overhead. Every sign-up triggers a message to an unknown address, often submitted by bots that never become customers. Services react by throttling mail, blocking whole domains or switching to expensive SMS codes. The cost sits on the wrong side: the service pays for a relationship initiated by the user.</span>
+        </p>
+        <p>
+          <span class="de-only"><b>Die geplante Umkehrung bei lightningmail:</b> Wer sich bei einem Dienst registriert, schickt selbst die erste Nachricht und legt ein kleines Willkommensporto bei. Damit dreht sich die Rechnung um: Der Dienst zahlt nichts mehr für den Anmeldeversuch, sondern nimmt das Erstporto ein. Seine Bestätigungsmail geht im geplanten Konversationsfenster portofrei zurück. Später meldet sich der Nutzer direkt per kryptografischer Signatur seines Postfach-Schlüssels an, geprüft über das Relay, ganz ohne Passwort-Datenbank oder Passwort-Vergessen-Mail.</span>
+          <span class="en-only"><b>The planned reversal in lightningmail:</b> Whoever registers with a service sends the first message and attaches a small welcome postage. That flips the math: the service no longer pays for the sign-up attempt, it collects the initial postage. Its confirmation message returns postage-free inside the planned conversation window. Later, the user logs in with a cryptographic signature from their mailbox key, verified through the relay without a password database or reset mail.</span>
+        </p>
+        <p>
+          <span class="de-only">Derselbe Mechanismus bremst auch Schein-Dienste aus: Wer nur Willkommensporto kassiert und nie antwortet, fällt durch fehlende Gegenpost und Spam-Markierungen sofort auf.</span>
+          <span class="en-only">The same mechanism stops fake services: anyone collecting welcome fees without ever replying stands out immediately through missing return mail and spam flags.</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="four-grid">
+      <div class="tone-tile">
+        <h3><span class="de-only">Verschlüsselte Briefe und Anhänge</span><span class="en-only">Encrypted letters and attachments</span></h3>
+        <p>
+          <span class="de-only">Nachrichten zwischen Menschen und Maschinen sind Ende-zu-Ende-verschlüsselt. Anhänge liegen als content-addressierte Blobs vor: heute maximal 10&nbsp;MB pro Datei bei 100&nbsp;MB Postfach-Kontingent. Erst mit Etappe&nbsp;7 (Chunk-Upload und Byte-Porto) fällt dieses harte Limit, sodass große Dateien schlicht mehr Porto ans Relay kosten.</span>
+          <span class="en-only">Messages between humans and machines are end-to-end encrypted. Attachments are stored as content-addressed blobs: today capped at 10&nbsp;MB per file within a 100&nbsp;MB mailbox quota. Only with stage&nbsp;7 (chunked upload and byte-postage) does that hard limit drop, so large files simply cost more postage to the relay.</span>
+        </p>
+      </div>
+      <div class="tone-tile">
+        <h3><span class="de-only">Registrieren per Willkommensporto</span><span class="en-only">Sign-up via welcome postage</span></h3>
+        <p>
+          <span class="de-only">Im Zielmodell bestätigt der Nutzer seine Adresse, indem er beim Anmelden das Willkommensporto an den Dienst schickt; die Bestätigung läuft portofrei zurück. So trägt sich die Anmeldung selbst.</span>
+          <span class="en-only">In the target model, the user confirms their address by sending the welcome postage to the service at sign-up, and the confirmation returns postage-free. Registration pays for itself.</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="trio-strip">
+      <div class="trio-item">
+        <h3><span class="de-only">Bezahlte Newsletter</span><span class="en-only">Paid newsletters</span></h3>
+        <p><span class="de-only">Bei Mailinglisten kann das Porto der Abonnenten direkt als kleines Abo je Ausgabe dienen, ohne Plattformgebühr dazwischen.</span><span class="en-only">For mailing lists, subscriber postage can act directly as a micro-subscription per issue, with no platform taking a cut in between.</span></p>
+      </div>
+      <div class="trio-item">
+        <h3><span class="de-only">Post zwischen Maschinen</span><span class="en-only">Machine-to-machine mail</span></h3>
+        <p><span class="de-only">Wenn Skripte oder Agenten andere Dienste anfragen, zahlen sie pro Nachricht automatisch Porto. Auch automatische Anfragen haben damit ein Preisschild.</span><span class="en-only">When scripts or agents query other services, they attach postage automatically per message. Automated requests carry a price tag too.</span></p>
+      </div>
+      <div class="trio-item">
+        <h3><span class="de-only">Portokasse mit Steuer-Export</span><span class="en-only">Postage ledger with tax export</span></h3>
+        <p><span class="de-only">Jede Buchung erhält einen Zeitstempel samt Tageskurs in lokaler Währung und lässt sich als CSV mit Hashkette exportieren.</span><span class="en-only">Every ledger entry is stamped with the daily exchange rate in local currency and exports as a hash-chained CSV.</span></p>
+      </div>
+    </div>
+
+    <div class="status">
+      <b><span class="de-only">Status heute:</span><span class="en-only">Status today:</span></b>
+      <span class="de-only">Das Anmeldungs-Porto ist beschlossen (CONCEPT §28) und als Etappe&nbsp;I eingeplant: Envelope-Tag für Registrierungsanfragen, ein „Mit lightningmail registrieren“-Knopf für Dienste und ein eigener Willkommenspreis im Preisprofil. Gebaut ist davon noch nichts. Heute zahlt jede Nachricht das reguläre Relay-Porto, und Bestätigungsmails laufen wie gewohnt. Empfänger-Gutschrift und Preisprofile folgen in Etappe&nbsp;B.</span>
+      <span class="en-only">The sign-up postage is decided (CONCEPT §28) and planned as stage&nbsp;I: an envelope tag for sign-up requests, a “register with lightningmail” button for services, and a dedicated welcome rate in the price profile. None of that is built yet. Today every message pays standard relay postage, and confirmation mails work as usual. Recipient crediting and price profiles follow in stage&nbsp;B.</span>
+    </div>
+  </section>
+
+  <!-- ZIELE -->
+  <section id="ziele" class="field-sky">
+    <div class="frame">
+      <h2><span class="de-only">Worum es uns geht</span><span class="en-only">What we are building toward</span></h2>
+      <ol class="ziele-list">
+        <li>
+          <strong><span class="de-only">Spam verteuern, Gespräche freihalten</span><span class="en-only">Make spam expensive, keep conversation free</span></strong>
+          <span class="de-only">Unerwünschte Massenpost fließt nur in eine Richtung und kostet den Versender Geld. Erwünschte Korrespondenz pendelt zwischen denselben Leuten hin und her und gleicht sich im Zielmodell aus.</span>
+          <span class="en-only">Unwanted bulk mail flows one way and costs the sender money. Wanted correspondence swings back and forth between the same people and evens out in the target model.</span>
+        </li>
+        <li>
+          <strong><span class="de-only">Postfächer in eigener Hand</span><span class="en-only">Mailboxes in your own hands</span></strong>
+          <span class="de-only">Der Code steht unter MIT-Lizenz und lässt sich selbst hosten. Weil die Adresse am Schlüssel hängt, bleibt sie beim Wechsel des Relay-Betreibers erhalten.</span>
+          <span class="en-only">The code is MIT-licensed and self-hostable. Because the address is tied to your key, you keep it when moving to another relay operator.</span>
+        </li>
+        <li>
+          <strong><span class="de-only">Anmeldungen sollen sich rechnen</span><span class="en-only">Sign-ups should pay their way</span></strong>
+          <span class="de-only">Mit Etappe&nbsp;I wird die Bestätigungsmail bei der Registrierung von einer täglichen Kostenstelle zu einer kleinen Einnahme mit kryptografischem Nachweis.</span>
+          <span class="en-only">With stage&nbsp;I, sign-up confirmation mail turns from a daily cost center into a small, cryptographically verifiable payment.</span>
+        </li>
+        <li>
+          <strong><span class="de-only">Föderation statt Plattform</span><span class="en-only">Federation instead of a platform</span></strong>
+          <span class="de-only">Relays finden sich über DNS und sprechen per HTTPS miteinander. Wer eine eigene Domain hat, kann sein eigenes Postamt aufsetzen.</span>
+          <span class="en-only">Relays find each other via DNS and talk over HTTPS. Anyone with a domain can run their own post office.</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- BAUSTEINE -->
+  <section id="bausteine" class="frame">
+    <h2><span class="de-only">Der technische Baukasten</span><span class="en-only">The technical toolbox</span></h2>
+    <p style="color:var(--muted)">
+      <span class="de-only">Überschaubare Standardbauteile statt eigener Krypto-Experimente. Jedes Teil hat eine klar abgegrenzte Aufgabe im Relay.</span>
+      <span class="en-only">Straightforward standard components instead of custom crypto experiments. Each part has one clear job inside the relay.</span>
+    </p>
+    <ul class="baus">
+      <li>
+        <b>Go-Relay</b>
+        <span class="de-only">Ein einzelnes Binary mit SQLite-Datenbank übernimmt Posteingang, Porto-Abbuchung, Geräte-Synchronisation und Blob-Ablage.</span>
+        <span class="en-only">A single binary backed by SQLite handles inbox storage, postage debiting, device sync and blob storage.</span>
+      </li>
+      <li>
+        <b>LND &amp; Bitcoin Core</b>
+        <span class="de-only">Das Porto reist als Lightning-Zahlung per keysend direkt mit den Protokolldaten. Litecoin ist als zweiter Währungsschalter vorgesehen; Preise werden in Cent angegeben.</span>
+        <span class="en-only">Postage travels as a Lightning keysend payment carrying protocol metadata. Litecoin is planned as a second currency switch; prices stay denominated in cents.</span>
+      </li>
+      <li>
+        <b>Envelope LM1</b>
+        <span class="de-only">Verschlüsselt wird mit ECIES auf das Schlüsselpaar des Postfachs plus XChaCha20-Poly1305. Das Relay sieht Umschlag und Porto, aber nie den Inhalt.</span>
+        <span class="en-only">Messages use ECIES on the mailbox keypair plus XChaCha20-Poly1305. The relay sees the envelope and postage, never the body text.</span>
+      </li>
+      <li>
+        <b>SQLite-Portokasse</b>
+        <span class="de-only">Jedes Konto führt ein Buchungsjournal mit Währungsspalte (BTC/LTC), Tageskurs-Stempel in lokaler Währung und einem CSV-Export samt Hashkette.</span>
+        <span class="en-only">Every account keeps a ledger with a currency column (BTC/LTC), a daily local-currency rate stamp and a hash-chained CSV export.</span>
+      </li>
+      <li>
+        <b>Passkeys &amp; 24-Wort-Seed</b>
+        <span class="de-only">Im Alltag entsperrt man das Postfach per WebAuthn (Telefon oder YubiKey). Als Backup dienen 24 BIP39-Wörter oder optional eine passwortgeschützte LMKEY1-Datei.</span>
+        <span class="en-only">For daily use, WebAuthn (phone or YubiKey) unlocks the mailbox. Twenty-four BIP39 seed words or an optional passphrase-locked LMKEY1 file serve as backup.</span>
+      </li>
+      <li>
+        <b>DNS als Postregister</b>
+        <span class="de-only">Einträge unter <code>_bmail._tcp</code> verraten, welches Relay für eine Domain zuständig ist. Die reine Adressauflösung bleibt immer kostenlos; bezahlt wird erst der Abruf der Profilkarte.</span>
+        <span class="en-only">Records under <code>_bmail._tcp</code> announce which relay serves a domain. Address resolution itself always stays free; only fetching the profile card costs postage.</span>
+      </li>
+      <li>
+        <b>Cloudflare-Tunnel &amp; PWA</b>
+        <span class="de-only">Sauberes HTTPS ohne offene Router-Ports zu Hause. Das Webmail lässt sich als Web-App direkt auf den Startbildschirm legen.</span>
+        <span class="en-only">Clean HTTPS without opening router ports at home. The webmail installs straight to the home screen as a progressive web app.</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- TIERS -->
+  <section id="tiers" class="frame">
+    <h2><span class="de-only">Wer zahlt was: fünf Rollen im&nbsp;Netz</span><span class="en-only">Who pays what: five roles on the&nbsp;net</span></h2>
+    <table class="tiers">
+      <tbody>
+        <tr>
+          <td><span class="de-only">Gast / Reader</span><span class="en-only">Guest / reader</span></td>
+          <td><span class="de-only">Nutzt ein Postfach bei einem bestehenden Relay. Lesen ist kostenlos, eigene ausgehende Briefe zahlen das normale Porto. Dafür muss man nichts selbst installieren.</span><span class="en-only">Uses a mailbox on an existing relay. Reading is free, and outgoing letters pay the regular postage. Nothing to install.</span></td>
+        </tr>
+        <tr>
+          <td><span class="de-only">Briefeschreiber</span><span class="en-only">Letter writer</span></td>
+          <td><span class="de-only">Schreibt Fremde zum Standardporto von ein paar Cent an. Im geplanten Kreislauf (Etappe&nbsp;B) kommt das Geld mit der Antwort zurück, ergänzt um günstigere Tarife für bekannte Kontakte.</span><span class="en-only">Writes to strangers at the default postage of a few cents. In the planned cycle (stage&nbsp;B) the money returns with their reply, alongside cheaper rates for known contacts.</span></td>
+        </tr>
+        <tr>
+          <td><span class="de-only">Domain-Inhaber</span><span class="en-only">Domain holder</span></td>
+          <td><span class="de-only">Verbindet die eigene Domain mit einem Relay für Familien- oder Firmenadressen, eigene Preisprofile und Aliasse. Funktioniert wie klassische MX-Einträge, nur mit angeschlossener Portokasse.</span><span class="en-only">Connects their own domain to a relay for family or company addresses, custom price profiles and aliases. Works like classic MX records, with a postage book attached.</span></td>
+        </tr>
+        <tr>
+          <td><span class="de-only">Dienst</span><span class="en-only">Service</span></td>
+          <td><span class="de-only">Nimmt bei Neuanmeldungen das Willkommensporto ein, statt für Bestätigungsmails draufzuzahlen, und prüft Logins per Schlüsselsignatur (geplant als Etappe&nbsp;I).</span><span class="en-only">Collects welcome postage on new sign-ups instead of paying for confirmation mail, and verifies logins by key signature (planned as stage&nbsp;I).</span></td>
+        </tr>
+        <tr>
+          <td><span class="de-only">Relay-Betreiber</span><span class="en-only">Relay operator</span></td>
+          <td><span class="de-only">Betreibt das Postamt für sich und andere, leitet Briefe an Nachbar-Relays weiter, behält einen Portoanteil für den Betrieb ein und stellt Speicher sowie Bandbreite bereit.</span><span class="en-only">Runs the post office for themselves and others, peers with neighboring relays, keeps a postage share to cover operations, and provides storage and bandwidth.</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="meta-note">
+      <span class="de-only">Keine dieser Stufen ist Pflicht: Wer nur Post lesen will, braucht keinen eigenen Knoten. Wer einen Knoten betreibt, muss keine fremden Nutzer aufnehmen.</span>
+      <span class="en-only">None of these tiers is mandatory: you do not need a node just to read mail, and running a node does not force you to host strangers.</span>
+    </p>
+  </section>
+
+  <!-- STATUS -->
+  <section id="status" class="field-block">
+    <div class="frame">
+      <div class="grid-12">
+        <div class="col-head">
+          <h2>
+            <span class="de-only">Heutiger Stand auf lightningmail.app</span>
+            <span class="en-only">Current state on lightningmail.app</span>
+          </h2>
+        </div>
+        <div class="col-body">
+          <p>
+            <span class="de-only">Auf <b>lightningmail.app</b> läuft heute ein echtes Relay hinter einem eigenen Bitcoin-Vollknoten: Ende-zu-Ende-verschlüsselte Briefe, Anhänge bis 10&nbsp;MB, Porto-Abbuchung per Lightning, Synchronisation über mehrere Geräte, Adressbuch, Passkey-Login und offene Selbstregistrierung sind in Betrieb. Was davon bereits produktiver Code ist und was zu den nächsten Ausbau-Etappen gehört, markieren die gelben Statuskästen auf dieser Seite.</span>
+            <span class="en-only">A live relay backed by a dedicated Bitcoin full node runs today on <b>lightningmail.app</b>: end-to-end encrypted letters, attachments up to 10&nbsp;MB, Lightning postage debiting, multi-device sync, address book, passkey login and self-service registration are all working. The yellow status boxes on this page mark where today’s running code ends and the next planned stages begin.</span>
+          </p>
+          <p>
+            <span class="de-only">Das gesamte Projekt steht unter der MIT-Lizenz. Jeder darf den Code lesen, kopieren und auf eigener Hardware betreiben. Hinter der Domain steht ein privater Haushalt, keine Firma und kein Investor. Wer mitmachen möchte, legt sich ein Testpostfach an oder setzt gleich ein eigenes Relay auf.</span>
+            <span class="en-only">The entire project is MIT-licensed. Anyone may read, fork and run the code on their own hardware. The domain is operated by a private household, not a company or a venture fund. If you want to try it out, open a test mailbox or spin up a relay of your own.</span>
+          </p>
+          <div class="cta-row">
+            <a class="btn" href="/app/"><span class="de-only">Zum Webmail &amp; Anmelden</span><span class="en-only">Open Webmail &amp; Sign up</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="close-stage">
+  <div class="footer-inner">
+    <div class="footer-mark" aria-hidden="true">lightningmail</div>
+    <div class="footer-meta">
+      <span>lightningmail.app · MIT <span class="de-only">lizenziert</span><span class="en-only">licensed</span></span>
+      <span><span class="de-only">Kein Tracking. Keine Cookies. Nur Porto.</span><span class="en-only">No tracking. No cookies. Just postage.</span></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+let currentScenario = 'dialog';
+
+const SCENARIOS = {
+  dialog: {
+    de: {
+      sender: '−10 ct (A) / −10 ct (B)',
+      today: '20 ct an Relay-Betreiber',
+      planned: 'Netto 0 ct für A und B',
+      note: 'Heute fließt jedes Porto per keysend an den Relay-Betreiber des Empfängers. Mit Etappe B landet es auf dem Empfängerkonto, sodass sich gegenseitige Briefe aufheben.'
+    },
+    en: {
+      sender: '−10 ct (A) / −10 ct (B)',
+      today: '20 ct to relay operators',
+      planned: 'Net 0 ct for A and B',
+      note: 'Today every postage payment travels via keysend to the recipient’s relay operator. In stage B it credits the recipient account directly, so mutual letters cancel out.'
+    }
+  },
+  spam: {
+    de: {
+      sender: '−200,00 € (Spammer S)',
+      today: '200,00 € an Relay-Betreiber',
+      planned: '200,00 € an 10.000 Empfänger',
+      note: 'Schon im heutigen Code verliert der Spammer bei 10.000 Briefen zu je 2 Cent sofort 200 Euro, weil niemand antwortet. Mit Etappe B erhalten die Belästigten das Geld.'
+    },
+    en: {
+      sender: '−€200.00 (Spammer S)',
+      today: '€200.00 to relay operators',
+      planned: '€200.00 to 10,000 recipients',
+      note: 'Even in today’s code, sending 10,000 letters at 2 cents each costs the spammer €200 up front because nobody replies. With stage B, the recipients get the money.'
+    }
+  },
+  signup: {
+    de: {
+      sender: '−2 ct Willkommensporto (Nutzer)',
+      today: 'Reguläres Relay-Porto je Mail',
+      planned: '+2 ct beim Dienst · Antwort 0 ct',
+      note: 'Noch nicht gebaut (Etappe I, CONCEPT §28): Der Nutzer zahlt beim Registrieren das Willkommensporto an den Dienst, und die Bestätigungsmail kommt im Konversationsfenster portofrei zurück.'
+    },
+    en: {
+      sender: '−2 ct welcome postage (user)',
+      today: 'Standard relay postage per mail',
+      planned: '+2 ct to service · reply 0 ct',
+      note: 'Not built yet (stage I, CONCEPT §28): the user pays welcome postage to the service when registering, and the confirmation mail returns postage-free inside the conversation window.'
+    }
+  }
+};
+
+function renderScenario() {
+  const lang = document.documentElement.lang === 'en' ? 'en' : 'de';
+  const data = SCENARIOS[currentScenario][lang];
+  document.getElementById('out-sender').textContent = data.sender;
+  document.getElementById('out-today').textContent = data.today;
+  document.getElementById('out-planned').textContent = data.planned;
+  document.getElementById('out-note').textContent = data.note;
+}
+
+function setScenario(id) {
+  currentScenario = id;
+  ['dialog', 'spam', 'signup'].forEach(function(k) {
+    document.getElementById('mode-' + k).setAttribute('aria-pressed', k === id ? 'true' : 'false');
+  });
+  renderScenario();
+}
+
+function toggleLang() {
+  const next = document.documentElement.lang === 'de' ? 'en' : 'de';
+  document.documentElement.lang = next;
+  document.getElementById('langBtn').textContent = next === 'de' ? 'English' : 'Deutsch';
+  document.title = next === 'de'
+    ? 'lightningmail · E-Mail mit Lightning-Porto'
+    : 'lightningmail · e-mail with Lightning postage';
+  renderScenario();
+}
+</script>
+</body>
+</html>
