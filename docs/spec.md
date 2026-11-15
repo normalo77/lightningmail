@@ -324,9 +324,10 @@ client-seitig selbst verschluesselt (ECIES ans eigene Mailbox-Paar,
 
 State-Doc (klartext nur fuer den Eigentümer): `read{msgid}`, `spam{senderhex12}`,
 `deleted{msgid}`, `drafts[{id,ts,to,subject,body,gone?}]`,
-`contacts{id:{ts,gone?,name,given,org,title,url,cell,phone,fax,email,addr,lnaddr,pubkey,pgp,note}}`
+`contacts{id:{ts,gone?,name,given,org,title,url,cell,phone,fax,email,addr,lnaddr,btc,crypto,pubkey,pgp,note}}`
 (Etappe A: privates Adressbuch, Felder ~vCard 4.0). Merge: Flags OR;
-Drafts LWW pro id mit Tombstone-Vorrang (gone schlaegt leben). Konflikt-Pfad:
+Drafts und Contacts reines LWW pro id — Loeschen stempelt hoeheren ts, ein
+spaeter mit gleicher id angelegter Eintrag erwaehlt ihn. Konflikt-Pfad:
 409 → pull → merge → einmaliger Retry.
 
 Grenzen & geplante Obergrenzen: Das 256-kB-Limit des State-Slots (PUT → 413)

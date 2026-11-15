@@ -7,13 +7,13 @@ const ok = (cond: boolean, msg: string) => { console.log((cond ? "PASS " : "FAIL
 
 // --- Unit: Merge-Semantik ohne Server ---
 const c = (id: string, ts: number, over: Partial<Contact> = {}): Contact =>
-  ({ id, ts, name: "x", given: "", org: "", title: "", url: "", cell: "", phone: "", fax: "", email: "", addr: "", lnaddr: "", pubkey: "", pgp: "", note: "", ...over });
+  ({ id, ts, name: "x", given: "", org: "", title: "", url: "", cell: "", phone: "", fax: "", email: "", addr: "", lnaddr: "", btc: "", crypto: "", pubkey: "", pgp: "", note: "", ...over });
 const m1 = mergeDocs({ ...emptyDoc(), contacts: { a: c("a", 1, { name: "alt" }) } },
                      { ...emptyDoc(), contacts: { a: c("a", 2, { name: "neu" }) } });
 ok(m1.contacts.a.name === "neu", "LWW: hoeherer ts gewinnt");
-const m2 = mergeDocs({ ...emptyDoc(), contacts: { a: c("a", 9, { name: "lebendig" }) } },
+const m2 = mergeDocs({ ...emptyDoc(), contacts: { a: c("a", 9, { name: "neuer" }) } },
                      { ...emptyDoc(), contacts: { a: c("a", 1, { gone: 1 }) } });
-ok(m2.contacts.a.gone === 1, "Tombstein gewinnt auch gegenaelter ts");
+ok(m2.contacts.a.name === "neuer" && !m2.contacts.a.gone, "Re-Merge: aelterer Tombstein frisst kein frisches Leben");
 const m3 = mergeDocs({ ...emptyDoc(), contacts: { a: c("a", 1) } }, { ...emptyDoc(), contacts: { b: c("b", 1) } });
 ok(!!m3.contacts.a && !!m3.contacts.b, "Verschiedene ids ueberleben beide Seiten");
 

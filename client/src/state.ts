@@ -12,6 +12,7 @@ export type Contact = {
   name: string; given: string; org: string; title: string; url: string;
   cell: string; phone: string; fax: string; email: string; addr: string;
   lnaddr: string; pubkey: string; pgp: string; note: string;
+  btc: string; crypto: string; // BTC-Empfangsadresse, Rest frei ("LTC: ltc1...; XMR: 8...")
 };
 export type StateDoc = {
   read: Record<string, 1>;
@@ -37,19 +38,19 @@ export function mergeDocs(a: StateDoc, b: StateDoc): StateDoc {
     contacts: {},
   };
   const byId: Record<string, Draft> = {};
+  // LWW pro id; gleiche ts (Selbe-Sekunde-Zwei-Geraete) entscheidet der
+  // Tombstein. Spaeteres Re-Anlegen stempelt max(now,prev)+1 und gewinnt damit
+  // streng ueber jedem aelteren Grab. (gone-Vorrang UEBERALL war der 15.11.-Bug)
+  const wins = (d: { ts: number; gone?: 1 }, cur?: { ts: number; gone?: 1 }) =>
+    !cur || d.ts > cur.ts || (d.ts === cur.ts && !!d.gone && !cur.gone);
   for (const d of [...(a.drafts || []), ...(b.drafts || [])]) {
-    const cur = byId[d.id];
-    if (!cur) { byId[d.id] = d; continue; }
-    if (!!d.gone !== !!cur.gone) { if (d.gone) byId[d.id] = d; continue; } // Tombstein gewinnt
-    if (d.ts >= cur.ts) byId[d.id] = d;
+    if (wins(d, byId[d.id])) byId[d.id] = d;
   }
   out.drafts = Object.values(byId).sort((x, y) => x.ts - y.ts).slice(-30);
-  // contacts: gleiches Muster wie drafts, nur als Map (kein.slice — Adressbuch bleibt voll)
+  // contacts: Gleiches Muster wie drafts, nur als Map.
   for (const k of new Set([...Object.keys(a.contacts || {}), ...Object.keys(b.contacts || {})])) {
     const x = a.contacts?.[k], y = b.contacts?.[k];
-    out.contacts[k] = !x ? y! : !y ? x
-      : !!x.gone !== !!y.gone ? (x.gone ? x : y)
-      : (x.ts >= y.ts ? x : y);
+    out.contacts[k] = !x ? y! : !y ? x : (y.ts > x.ts || (y.ts === x.ts && !!y.gone && !x.gone) ? y : x);
   }
   return out;
 }
@@ -146,7 +147,7 @@ export class StateSync {
   delDraft(id: string) { this.saveDraft({ id, to: "", subject: "", body: "", gone: 1 }); }
   liveDrafts(): Draft[] { return this.doc.drafts.filter(d => !d.gone); }
   saveContact(c: { id: string } & Partial<Contact>) {
-    const prev = this.doc.contacts[c.id] || ({} as Contact);
+    const { gone: _alt, ...prev } = this.doc.contacts[c.id] || ({} as Contact); // lebendiger Save erweckt
     const ts = Math.max(Math.floor(Date.now() / 1000), prev.ts || 0) + 1;
     this.doc.contacts[c.id] = { ...prev, ...c, ts } as Contact;
     this.cacheWrite(); this.schedule();

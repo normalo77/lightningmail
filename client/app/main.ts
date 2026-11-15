@@ -244,6 +244,7 @@ const ABFIELDS: [keyof Contact, string][] = [
   ['name', 'Nachname'], ['given', 'Vorname'], ['org', 'Firma'], ['title', 'Position'],
   ['url', 'Webseite'], ['cell', 'Mobil'], ['phone', 'Festnetz'], ['fax', 'Fax'],
   ['email', 'E-Mail'], ['addr', 'Adresse'], ['lnaddr', 'Lightning-Adresse'],
+  ['btc', 'BTC-Adresse'], ['crypto', 'Andere Coins (frei)'],
   ['pubkey', 'Mailbox-Pubkey'], ['pgp', 'PGP-Key (optional)'], ['note', 'Notiz'],
 ];
 
@@ -323,6 +324,8 @@ function exportVcf(list: Contact[]) {
     line('TEL;CELL', c.cell) + line('TEL;WORK', c.phone) + line('TEL;FAX', c.fax) +
     line('EMAIL', c.email) + line('ADR;POSTAL', ';;;;;;' + (c.addr || '').replace(/\r?\n/g, ';')) +
     (c.lnaddr ? 'X-LIGHTNING:' + c.lnaddr + '\r\n' : '') +
+    (c.btc ? 'X-BTC:' + c.btc + '\r\n' : '') +
+    line('X-CRYPTO', c.crypto) +
     line('NOTE', c.note) + 'END:VCARD\r\n').join('');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([vcf], { type: 'text/vcard' }));
   a.download = 'adressbuch.vcf'; a.click();
