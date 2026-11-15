@@ -1,7 +1,7 @@
 // main.ts — DOM-Leim für die lightningmail v0.1 PWA (M2c). Logik lebt in src/crypto + src/send.
 import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef, newPrivKey, sec1PEM } from '../src/crypto';
 import { composeAndSend } from '../src/send';
-import { StateSync } from '../src/state';
+import { StateSync, type Contact } from '../src/state';
 import { wrapKey, unwrapKey, isWrapped, wrapKeyPRF, unwrapKeyPRF } from '../src/keywrap';
 let pendingWrap = '';
 
@@ -42,17 +42,18 @@ const $ = (id: string) => document.getElementById(id)!;
 let base = '/relay-b', token = '', priv: Uint8Array | null = null, acct = '';
 let msgs: MsgRow[] = [];
 let receipts: Record<string, number> = {}; // msg_id(hex) -> ✓✓-Zeitstempel (Etappe 6b)
-let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' = 'in';
+let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' | 'ab' = 'in';
 let pemCache = '';
 let sync: StateSync | null = null;
 let draftId = '';
+let abSel = '', abEdit = '', abQ = ''; // Adressbuch (Etappe A)
 const spamKey = () => `lm_spam_${base.slice(1)}_${acct}`;
 const spamSet = (): Set<string> => sync ? new Set(Object.keys(sync.doc.spam)) : new Set(JSON.parse(localStorage.getItem(spamKey()) || '[]'));
 const spamAdd = (k: string) => { if (sync) sync.toggleSpam(k, true); else { const x = [...spamSet()]; x.push(k); localStorage.setItem(spamKey(), JSON.stringify(x)); } };
 const spamDel = (k: string) => { if (sync) sync.toggleSpam(k, false); else { const x = new Set(spamSet()); x.delete(k); localStorage.setItem(spamKey(), JSON.stringify([...x])); } };
 
 // Gesendet-Ordner (lokal, synchronisiert wird ab M2.5)
-type MsgRow = { seq: number; msgId: string; subject: string; body: string; sender: string; ts: number; atts: { sha256: string; name: string }[] };
+type MsgRow = { seq: number; msgId: string; subject: string; body: string; sender: string; pub: string; ts: number; atts: { sha256: string; name: string }[] };
 type SentRow = { ts: number; to: string; subject: string; msg_id: string; bytes: number };
 const sentKey = () => `lm_out_${base.slice(1)}_${acct}`;
 const sentList = (): SentRow[] => JSON.parse(localStorage.getItem(sentKey()) || '[]');
@@ -138,7 +139,7 @@ async function refresh() {
       const p = JSON.parse(new TextDecoder().decode(pt));
       const atts = (p.attachments || []).map((a: any) => ({ sha256: a.sha256, name: a.name }));
       const refs = env[TAG.BlobRefs] ? Array.from({ length: blobCount(env[TAG.BlobRefs]) }, (_, i) => toHex(blobRef(env[TAG.BlobRefs]!, i))) : [];
-      msgs.push({ seq: m.seq, msgId: toHex(env[TAG.MsgID]), subject: p.subject, body: p.body, sender: toHex(env[TAG.SenderPubkey]).slice(0, 12), ts: m.received_at, atts: atts.length ? atts : refs.map((r, i) => ({ sha256: r, name: `anhang-${i + 1}` })) });
+      msgs.push({ seq: m.seq, msgId: toHex(env[TAG.MsgID]), subject: p.subject, body: p.body, sender: toHex(env[TAG.SenderPubkey]).slice(0, 12), pub: toHex(env[TAG.SenderPubkey]), ts: m.received_at, atts: atts.length ? atts : refs.map((r, i) => ({ sha256: r, name: `anhang-${i + 1}` })) });
     } catch (e: any) { (window as any).__decodeErr = String(e && e.stack || e); }
   }
   render();
@@ -154,6 +155,7 @@ function visible() {
 
 function render() {
   if (folder === 'new') { renderCompose(); $('list').innerHTML = ''; return; }
+  if (folder === 'ab') { renderAB(); return; }
   if (folder === 'out') { renderSent(); return; }
   if (folder == 'dra') { renderDrafts(); return; }
   const list = visible().slice().reverse();
@@ -209,15 +211,17 @@ function esc(s: string) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp
 function renderDetail() {
   const m = msgs.find(x => x.seq === sel)!;
   const sp = spamSet().has(m.sender);
+  const cn = contactFor(m.pub);
   $('detail').innerHTML = `<div class="card">
     <div class="subj" style="font-size:17px">${esc(m.subject)}</div>
-    <div class="meta">Von ${esc(m.sender)}… · ${new Date(m.ts * 1000).toLocaleString('de')}</div>
+    <div class="meta">Von ${cn ? esc(abLabel(cn)) : esc(m.sender) + '…'} · ${new Date(m.ts * 1000).toLocaleString('de')}</div>
     <pre style="white-space:pre-wrap;font:inherit;margin:14px 0">${esc(m.body)}</pre>
     ${m.atts.map(a => `<span class="attach" data-sha="${a.sha256}" data-name="${esc(a.name)}">↓ ${esc(a.name)}</span>`).join('')}
     <div class="classify">Absender:
       <button id="cl-spam" class="${sp ? 'on' : ''}">${sp ? 'unerwünscht' : 'als unerwünscht markieren'}</button>
       ${sp ? '<button id="cl-un">zurück nach Posteingang</button>' : ''}
       <button id="cl-del">löschen</button>
+      ${cn ? '' : '<button id="cl-ab">als Kontakt speichern</button>'}
     </div></div>`;
   document.querySelectorAll('.attach').forEach(el => el.addEventListener('click', async () => {
     const r = await api(`/v1/blob/${el.getAttribute('data-sha')}`);
@@ -227,7 +231,119 @@ function renderDetail() {
   }));
   $('cl-spam').onclick = () => { sp ? spamDel(m.sender) : spamAdd(m.sender); render(); };
   if ($('cl-un')) $('cl-un').onclick = () => { spamDel(m.sender); render(); };
+  if ($('cl-ab')) $('cl-ab').onclick = () => { abSeed = { pubkey: m.pub }; folder = 'ab'; abEdit = 'new'; abSel = ''; mark(); render(); };
   $('cl-del').onclick = () => { if (sync) { sync.markDeleted(m.msgId); sync.push().catch(() => {}); } sel = -1; render(); };
+}
+
+// --- Etappe A: Adressbuch (90er-Mailclient: Toolbar, Kontaktliste, Eigenschaften-Fenster) ---
+const abLabel = (c: Contact) => [c.name, c.given].filter(Boolean).join(", ") || c.lnaddr || c.email || "(ohne Namen)";
+const contactFor = (pub: string) => sync?.liveContacts().find(c => c.pubkey && c.pubkey === pub);
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6); // randomUUID braucht Secure-Context, wir laufen LAN-http
+let abSeed: Partial<Contact> = {};
+const ABFIELDS: [keyof Contact, string][] = [
+  ['name', 'Nachname'], ['given', 'Vorname'], ['org', 'Firma'], ['title', 'Position'],
+  ['url', 'Webseite'], ['cell', 'Mobil'], ['phone', 'Festnetz'], ['fax', 'Fax'],
+  ['email', 'E-Mail'], ['addr', 'Adresse'], ['lnaddr', 'Lightning-Adresse'],
+  ['pubkey', 'Mailbox-Pubkey'], ['pgp', 'PGP-Key (optional)'], ['note', 'Notiz'],
+];
+
+function renderAB() {
+  $('list').innerHTML = `<div class="abbar">
+      <button id="ab-new">Neu…</button><button id="ab-del">Entfernen</button><button id="ab-exp">Export…</button>
+      <input id="ab-q" placeholder="Suchen" value="${esc(abQ)}" style="flex:1;min-width:70px"></div>
+    <div id="abrows"></div>`;
+  const all = sync ? sync.liveContacts() : [];
+  const drawRows = () => {
+    const q = abQ.trim().toLowerCase();
+    const list = all
+      .filter(c => !q || [c.name, c.given, c.org, c.title, c.lnaddr, c.email, c.cell, c.phone].join(" ").toLowerCase().includes(q))
+      .sort((x, y) => abLabel(x).localeCompare(abLabel(y), "de"));
+    $('abrows').innerHTML = list.map(c => `<div class="row ${c.id === abSel ? 'sel' : ''}" data-cid="${c.id}">
+      <div class="subj">${esc(abLabel(c))}</div>
+      <div class="meta">${esc([c.org, c.lnaddr || c.email].filter(Boolean).join(" · "))}</div></div>`).join('') ||
+      '<div class="meta" style="padding:12px">— keine Kontakte —</div>';
+    document.querySelectorAll('#abrows .row').forEach(el => {
+      el.addEventListener('click', () => { abSel = el.getAttribute('data-cid')!; abEdit = ''; renderAB(); });
+      el.addEventListener('dblclick', () => { abSel = el.getAttribute('data-cid')!; abEdit = abSel; abSeed = {}; renderAB(); });
+    });
+  };
+  drawRows();
+  ($('ab-q') as HTMLInputElement).addEventListener('input', (ev) => { abQ = (ev.target as HTMLInputElement).value; drawRows(); });
+  $('ab-new').onclick = () => { abEdit = 'new'; abSel = ''; abSeed = {}; renderAB(); };
+  $('ab-del').onclick = () => {
+    const c = all.find(x => x.id === abSel); if (!c || !sync) return;
+    if (!confirm(`Kontakt „${abLabel(c)}“ aus dem Adressbuch entfernen?`)) return;
+    sync.delContact(c.id); abSel = ''; abEdit = ''; renderAB();
+  };
+  $('ab-exp').onclick = () => exportVcf(all);
+
+  if (abEdit) { renderABForm(); return; }
+  const c = all.find(x => x.id === abSel);
+  $('detail').innerHTML = c
+    ? `<div class="window" style="max-width:64ch"><div class="title-bar"><div class="title-bar-text">Eigenschaften — ${esc(abLabel(c))}</div></div>
+       <div class="window-body"><div class="abform">` +
+      ABFIELDS.filter(([k]) => String((c as any)[k] || '') !== '').map(([k, l]) =>
+        `<label>${l}</label><div style="white-space:pre-wrap;font-size:12px">${esc(String(c[k]))}</div>`).join('') +
+      `</div><p style="margin:10px 0 0"><button id="ab-prop">Eigenschaften…</button> <button id="ab-mail">Nachricht senden</button></p></div></div>`
+    : '<p class="meta">Kontakt auswählen — oder „Neu…“ klicken. Das Adressbuch synchronisiert zwischen deinen Geräten.</p>';
+  if (c && $('ab-prop')) $('ab-prop').onclick = () => { abEdit = c.id; abSeed = {}; renderAB(); };
+  if (c && $('ab-mail')) $('ab-mail').onclick = () => {
+    folder = 'new'; draftId = ''; mark(); render();
+    setTimeout(() => { ($('c-to') as HTMLInputElement).value = c.lnaddr || c.email; }, 0);
+  };
+}
+
+function renderABForm() {
+  const cur: Partial<Contact> = abEdit === 'new' ? { id: '', ...abSeed } : (sync?.doc.contacts[abEdit] || {});
+  const fld = (k: keyof Contact, l: string) => `<label>${l}</label>` +
+    (k === 'pgp' || k === 'addr' || k === 'note'
+      ? `<textarea id="abf-${k}" rows="3">${esc(String(cur[k] || ''))}</textarea>`
+      : `<input id="abf-${k}" value="${esc(String(cur[k] || ''))}">`);
+  $('detail').innerHTML = `<div class="window" style="max-width:64ch"><div class="title-bar"><div class="title-bar-text">${abEdit === 'new' ? 'Neuer Kontakt' : 'Kontakt bearbeiten'}</div></div>
+    <div class="window-body"><form id="ab-form" class="abform">${ABFIELDS.map(([k, l]) => fld(k, l)).join('')}
+    <div></div><div><button type="submit">OK</button> <button type="button" id="ab-cancel">Abbrechen</button></div>
+    </form></div></div>`;
+  $('ab-cancel').onclick = () => { abEdit = ''; abSeed = {}; renderAB(); };
+  $('ab-form').onsubmit = (ev) => {
+    ev.preventDefault();
+    if (!sync) { alert('Ohne Sync kein Adressbuch — neu anmelden.'); return; }
+    const id = abEdit === 'new' ? newId() : abEdit;
+    const patch: Record<string, string> = {};
+    for (const [k] of ABFIELDS) patch[k] = (document.getElementById('abf-' + k) as HTMLInputElement).value.trim();
+    sync.saveContact({ id, ...patch } as { id: string } & Partial<Contact>);
+    abEdit = ''; abSel = id; abSeed = {}; renderAB();
+  };
+}
+
+function exportVcf(list: Contact[]) {
+  const line = (k: string, v: string) => v ? `${k}:${v.replace(/\r?\n/g, '\\n')}\r\n` : '';
+  const vcf = list.map(c => 'BEGIN:VCARD\r\nVERSION:3.0\r\n' +
+    ((c.name || c.given) ? line('N', [c.name, c.given].join(';')) : '') + line('FN', abLabel(c)) +
+    line('ORG', c.org) + line('TITLE', c.title) + line('URL', c.url) +
+    line('TEL;CELL', c.cell) + line('TEL;WORK', c.phone) + line('TEL;FAX', c.fax) +
+    line('EMAIL', c.email) + line('ADR;POSTAL', ';;;;;;' + (c.addr || '').replace(/\r?\n/g, ';')) +
+    (c.lnaddr ? 'X-LIGHTNING:' + c.lnaddr + '\r\n' : '') +
+    line('NOTE', c.note) + 'END:VCARD\r\n').join('');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([vcf], { type: 'text/vcard' }));
+  a.download = 'adressbuch.vcf'; a.click();
+}
+
+function openPicker(cb: (addrs: string[]) => void) {
+  const all = (sync?.liveContacts() || []).filter(c => c.lnaddr || c.email)
+    .sort((x, y) => abLabel(x).localeCompare(abLabel(y), 'de'));
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;z-index:50';
+  ov.innerHTML = `<div class="window" style="width:430px;max-width:92vw"><div class="title-bar"><div class="title-bar-text">Adressbuch — Empfänger wählen</div></div>
+    <div class="window-body" style="padding:8px"><div style="max-height:300px;overflow:auto;background:#fff;border:2px inset #dfdfdf">` +
+    (all.length ? all.map(c => `<label style="display:block;padding:3px 6px;font-size:12px;font-weight:400"><input type="checkbox" value="${esc(c.lnaddr || c.email)}"> ${esc(abLabel(c))} <span class="meta">${esc(c.lnaddr || c.email)}</span></label>`).join('')
+      : '<div class="meta" style="padding:8px">Keine Adresse in den Kontakten — Adressbuch zuerst füllen.</div>') +
+    `</div><div style="margin-top:8px;text-align:right"><button id="pk-ok">OK</button> <button id="pk-x">Abbrechen</button></div></div></div>`;
+  document.body.appendChild(ov);
+  (ov.querySelector('#pk-x') as HTMLElement).onclick = () => ov.remove();
+  (ov.querySelector('#pk-ok') as HTMLElement).onclick = () => {
+    cb([...ov.querySelectorAll('input:checked')].map(x => (x as HTMLInputElement).value).filter(Boolean));
+    ov.remove();
+  };
 }
 
 // Foto-Kompression: längste Kante 1600px, JPEG q0.82; wenn teurer als Original -> Original
@@ -250,7 +366,7 @@ async function shrinkImage(file: File): Promise<{ bytes: Uint8Array; name: strin
 
 async function renderCompose() {
   $('detail').innerHTML = `<div class="card"><form class="compose" id="cform">
-    <input id="c-to" placeholder="An: name@domain" required>
+    <div style="display:flex;gap:6px"><input id="c-to" placeholder="An: name@domain" required style="flex:1"><button type="button" id="c-ab" title="Aus Adressbuch">📇</button></div>
     <input id="c-subj" placeholder="Betreff" required>
     <textarea id="c-body" placeholder="Nachricht…"></textarea>
     <input type="file" id="c-file" multiple>
@@ -270,6 +386,12 @@ async function renderCompose() {
       (fp.slice(0, 2) === '02' || fp.slice(0, 2) === '03' ? '' : ' · WARNUNG: seltsamer Key');
   };
   $('c-to').addEventListener('change', lookup);
+  $('c-ab').onclick = () => openPicker((addrs) => {
+    if (!addrs.length) return;
+    const el = $('c-to') as HTMLInputElement;
+    el.value = [el.value.trim(), ...addrs].filter(Boolean).join(', ');
+    el.dispatchEvent(new Event('change'));
+  });
   $('c-file').addEventListener('change', () => {
     const fs = [...($('c-file') as any).files] as File[];
     const el = $('portofuss') as HTMLElement;
@@ -467,6 +589,7 @@ $('nav-spam').onclick = () => { folder = 'spam'; sel = -1; mark(); render(); };
 if ($('nav-sent')) $('nav-sent').onclick = () => { folder = 'out'; sel = -1; mark(); fetchReceipts().then(() => render()); };
 if ($('nav-dra')) $('nav-dra').onclick = () => { folder = 'dra'; sel = -1; mark(); render(); };
 $('nav-new').onclick = () => { folder = 'new'; draftId = ''; mark(); render(); };
+$('nav-ab').onclick = () => { folder = 'ab'; sel = -1; abEdit = ''; mark(); render(); };
 $('nav-out').onclick = () => location.reload();
 if ($('l-passbtn')) $('l-passbtn').onclick = tryUnwrap;
 function mark() {
@@ -475,4 +598,5 @@ function mark() {
   if ($('nav-sent')) $('nav-sent').classList.toggle('on', folder === 'out');
   if ($('nav-dra')) $('nav-dra').classList.toggle('on', folder === 'dra');
   $('nav-new').classList.toggle('on', folder === 'new');
+  $('nav-ab').classList.toggle('on', folder === 'ab');
 }

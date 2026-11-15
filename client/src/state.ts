@@ -4,13 +4,23 @@
 import { encryptPayload, decryptPayload, toHex, fromHex, pubFromPriv } from "./crypto";
 
 export type Draft = { id: string; ts: number; to: string; subject: string; body: string; gone?: 1 };
+// Etappe A: privates Adressbuch. Feldnamen ~ vCard 4.0 (N/FN/ORG/TITLE/...).
+// shortcut: State-Slot cappt 256 kB (Relay) -> ~500 Kontakte; bei Überlauf
+// Einzelfeld-Subtiles noetig, nicht vor der Beta.
+export type Contact = {
+  id: string; ts: number; gone?: 1;
+  name: string; given: string; org: string; title: string; url: string;
+  cell: string; phone: string; fax: string; email: string; addr: string;
+  lnaddr: string; pubkey: string; pgp: string; note: string;
+};
 export type StateDoc = {
   read: Record<string, 1>;
   spam: Record<string, 1>;
   deleted: Record<string, 1>;
   drafts: Draft[];
+  contacts: Record<string, Contact>;
 };
-export const emptyDoc = (): StateDoc => ({ read: {}, spam: {}, deleted: {}, drafts: [] });
+export const emptyDoc = (): StateDoc => ({ read: {}, spam: {}, deleted: {}, drafts: [], contacts: {} });
 
 const cat = (a: Uint8Array, b: Uint8Array): Uint8Array => {
   const o = new Uint8Array(a.length + b.length); o.set(a, 0); o.set(b, a.length); return o;
@@ -24,6 +34,7 @@ export function mergeDocs(a: StateDoc, b: StateDoc): StateDoc {
     spam: { ...a.spam, ...b.spam },
     deleted: { ...a.deleted, ...b.deleted },
     drafts: [],
+    contacts: {},
   };
   const byId: Record<string, Draft> = {};
   for (const d of [...(a.drafts || []), ...(b.drafts || [])]) {
@@ -33,6 +44,13 @@ export function mergeDocs(a: StateDoc, b: StateDoc): StateDoc {
     if (d.ts >= cur.ts) byId[d.id] = d;
   }
   out.drafts = Object.values(byId).sort((x, y) => x.ts - y.ts).slice(-30);
+  // contacts: gleiches Muster wie drafts, nur als Map (kein.slice — Adressbuch bleibt voll)
+  for (const k of new Set([...Object.keys(a.contacts || {}), ...Object.keys(b.contacts || {})])) {
+    const x = a.contacts?.[k], y = b.contacts?.[k];
+    out.contacts[k] = !x ? y! : !y ? x
+      : !!x.gone !== !!y.gone ? (x.gone ? x : y)
+      : (x.ts >= y.ts ? x : y);
+  }
   return out;
 }
 
@@ -67,7 +85,7 @@ export class StateSync {
       const eph = b.slice(0, 33), sealed = b.slice(33);
       const pt = decryptPayload(this.priv, eph, sealed, new Uint8Array(0));
       const d = JSON.parse(new TextDecoder().decode(pt));
-      return { read: d.read || {}, spam: d.spam || {}, deleted: d.deleted || {}, drafts: d.drafts || [] };
+      return { read: d.read || {}, spam: d.spam || {}, deleted: d.deleted || {}, drafts: d.drafts || [], contacts: d.contacts || {} };
     } catch { return null; }
   }
 
@@ -127,4 +145,12 @@ export class StateSync {
   }
   delDraft(id: string) { this.saveDraft({ id, to: "", subject: "", body: "", gone: 1 }); }
   liveDrafts(): Draft[] { return this.doc.drafts.filter(d => !d.gone); }
+  saveContact(c: { id: string } & Partial<Contact>) {
+    const prev = this.doc.contacts[c.id] || ({} as Contact);
+    const ts = Math.max(Math.floor(Date.now() / 1000), prev.ts || 0) + 1;
+    this.doc.contacts[c.id] = { ...prev, ...c, ts } as Contact;
+    this.cacheWrite(); this.schedule();
+  }
+  delContact(id: string) { this.saveContact({ id, gone: 1 }); }
+  liveContacts(): Contact[] { return Object.values(this.doc.contacts).filter(c => !c.gone); }
 }
