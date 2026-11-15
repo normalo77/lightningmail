@@ -556,3 +556,26 @@ Brief als am Marktplatz.
 Status: Idee, nicht eingeplant. Wenn je gebaut, dann erst nach Etappe 6/7
 und nur Variante 1 (geschlossen, bezahlt).
 
+
+## 25. Steuer-Log: local currency für jede Bewegung (15.11.2026, Beschluss — Bau mit Etappe B/G)
+
+Sobald User oder Betreiber relevante Summen verdienen (Karten-Erlöse, Fees,
+Porto-Rückerstattungen), braucht der Steuerpflichtige einen belastbaren Nachweis
+in lokaler Währung. Der Relay schreibt mit, aber er buchführt nicht.
+
+- **Rate beim Zufluss:** jede neue Ledger-Zeile erhält `eur_cent + rate_ts +
+  rate_src` (Feed: Tageskurs BSi/Binance EUR-Paar — Entscheidung offen).
+  Nachträgliches Raten alter Zeilen ist unredlich; Regtest-Müll bleibt
+  ungeratet und wird als Testdaten markiert.
+- **Zwei Sichten:** Konto-Statement für den User (Einnahmen: Karten, Erstattungen;
+  Ausgaben: Porto) und Betreiber-Statement (Porto-Einnahmen, Karten-Fees,
+  Auszahlungen). On-chain-/Routing-Gebühren kennt der Relay nicht — Hinweis im
+  Export, dass LND-Reports die Ergänzung sind.
+- **Export:** `GET /v1/statement?from&to&fmt=csv` (auth, eigenes Konto) +
+  Admin-Pendant für den Betreiber. Zeilen hash-verkettet (Monatsanfang = Anker),
+  damit der Stapel bei der Prüfung nicht umfallen kann.
+- **Bewusste Grenzen:** keine Doppelbuchhaltung, keine USt-Logik, kein
+  Elster-Export — Fakten liefern, der Mensch bucht. Format-Frage offen:
+  reines CSV oder DATEV-Chiffren (Bernd).
+- **Reihenfolge:** G1 Rate-Stempeln (fällt mit Etappe B zusammen, da entstehen
+  die ersten Erlöse), G2 Statement-Endpunkte + Kette + UI-Knopf „Export".
