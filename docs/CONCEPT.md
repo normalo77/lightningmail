@@ -564,9 +564,9 @@ Porto-Rückerstattungen), braucht der Steuerpflichtige einen belastbaren Nachwei
 in lokaler Währung. Der Relay schreibt mit, aber er buchführt nicht.
 
 - **Rate beim Zufluss:** jede neue Ledger-Zeile erhält `eur_cent + rate_ts +
-  rate_src` (Feed: Tageskurs BSi/Binance EUR-Paar — Entscheidung offen).
-  Nachträgliches Raten alter Zeilen ist unredlich; Regtest-Müll bleibt
-  ungeratet und wird als Testdaten markiert.
+  rate_src` — entschieden: **Tageskurs** (BSi/Binance EUR-Paar, ein Abruf pro
+  Tag, manuelles Nachsetzen als Fallback). Nachträgliches Raten alter Zeilen
+  ist unredlich; Regtest-Müll bleibt ungeratet und wird als Testdaten markiert.
 - **Zwei Sichten:** Konto-Statement für den User (Einnahmen: Karten, Erstattungen;
   Ausgaben: Porto) und Betreiber-Statement (Porto-Einnahmen, Karten-Fees,
   Auszahlungen). On-chain-/Routing-Gebühren kennt der Relay nicht — Hinweis im
@@ -575,7 +575,10 @@ in lokaler Währung. Der Relay schreibt mit, aber er buchführt nicht.
   Admin-Pendant für den Betreiber. Zeilen hash-verkettet (Monatsanfang = Anker),
   damit der Stapel bei der Prüfung nicht umfallen kann.
 - **Bewusste Grenzen:** keine Doppelbuchhaltung, keine USt-Logik, kein
-  Elster-Export — Fakten liefern, der Mensch bucht. Format-Frage offen:
-  reines CSV oder DATEV-Chiffren (Bernd).
+  Elster-Export — Fakten liefern, der Mensch bucht. Format entschieden: **reines
+  CSV** (DATEV-Chiffren nicht nötig, Bernd 15.11.).
+- **UI (G3):** Menüpunkt „Umsätze" in PWA/Clients — übersichtliche Liste
+  Einnahmen/Ausgaben pro Monat (EUR-Spalte aus dem Statement, plus CSV-Knopf).
+  Kein neues Subsystem: es liest nur `GET /v1/statement`.
 - **Reihenfolge:** G1 Rate-Stempeln (fällt mit Etappe B zusammen, da entstehen
   die ersten Erlöse), G2 Statement-Endpunkte + Kette + UI-Knopf „Export".
