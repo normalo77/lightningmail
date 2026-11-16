@@ -44,6 +44,24 @@ form.compose textarea { min-height:160px }
 .abform input, .abform textarea, .abform select { width:100% }
 .tabrow { display:flex; gap:4px; margin-bottom:8px }
 @media (max-width:860px){ nav{width:64px} #list{width:200px} }
+/* Handy: Win95-Layout gestapelt (Nav = Toolbar, Liste oben, Detail unten), Touch ≥44px */
+@media (max-width:600px){
+  header { flex-wrap:wrap }
+  .login { margin:16px 8px; max-width:none }
+  .login .row { flex-wrap:wrap }
+  .login button { min-height:44px; flex:1 1 auto }
+  .login input, .login select { min-height:40px }
+  .login input[type=file] { width:100% }
+  main { flex-direction:column; min-height:0 }
+  nav { width:100%; display:flex; gap:2px; padding:4px; overflow-x:auto; border-right:none; border-bottom:1px solid #808080 }
+  nav button { width:auto; min-height:44px; white-space:nowrap }
+  #list { width:100%; max-height:38vh; border-right:none; border-bottom:1px solid #808080 }
+  #list .row { padding:10px }
+  #detail { min-height:40vh }
+  form.compose button, .classify button { min-height:44px }
+  header button { min-height:40px }
+  form.compose input, .abform input, .abform select, input[type=file] { min-height:40px }
+}
 </style>
 </head>
 <body>
