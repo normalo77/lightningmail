@@ -70,6 +70,8 @@ class H(SimpleHTTPRequestHandler):
         if p == "/app" or p.startswith("/app/"):
             rel = p[4:] or "/"
             return self._static(DIST, rel, spa=os.path.join(DIST, "index.html"))
+        if p in ("/impressum", "/impressum.html", "/imprint"):
+            return self._static(SITE, "impressum.html")
         if p.startswith("/keys/"):
             return self.send_error(404)  # Demo-Keys bleiben aus dem öffentlichen Pfad raus
         # Landing bis auf Weiteres offline (Bernd, 15.11.): files liegen weiter in site/

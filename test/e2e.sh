@@ -45,12 +45,15 @@ cd relay && go build -o /dev/null ./... && cd "$REPO"
 # 3. Clean state
 rm -rf /tmp/bmail-alpha /tmp/bmail-beta "$HOME_B"
 mkdir -p "$HOME_B"
+# Prod-Configs zeigen nach /var/lib/bmail — e2e laeuft auf abgeleiteten /tmp-Configs
+sed "s|data_dir: /var/lib/bmail/|data_dir: /tmp/bmail-|" "$REPO/relay-alpha.yaml" > /tmp/relay-alpha-e2e.yaml
+sed "s|data_dir: /var/lib/bmail/|data_dir: /tmp/bmail-|" "$REPO/relay-beta.yaml" > /tmp/relay-beta-e2e.yaml
 
 # 4. Start relays
 note "Starting relays..."
-cd relay && go run ./cmd/relayd/ -config "$REPO/relay-alpha.yaml" -addr 127.0.0.1:8443 > /tmp/relayd-alpha.log 2>&1 &
+cd relay && go run ./cmd/relayd/ -config /tmp/relay-alpha-e2e.yaml -addr 127.0.0.1:8443 > /tmp/relayd-alpha.log 2>&1 &
 ALPHA_PID=$!; cd "$REPO"
-cd relay && go run ./cmd/relayd/ -config "$REPO/relay-beta.yaml" -addr 127.0.0.1:9443 > /tmp/relayd-beta.log 2>&1 &
+cd relay && go run ./cmd/relayd/ -config /tmp/relay-beta-e2e.yaml -addr 127.0.0.1:9443 > /tmp/relayd-beta.log 2>&1 &
 BETA_PID=$!; cd "$REPO"
 
 cleanup() { kill $ALPHA_PID 2>/dev/null || true; kill $BETA_PID 2>/dev/null || true; }
@@ -207,7 +210,7 @@ kill $ALPHA_PID 2>/dev/null || true
 sleep 2
 
 # Restart alpha relay
-cd relay && go run ./cmd/relayd/ -config "$REPO/relay-alpha.yaml" -addr 127.0.0.1:8443 > /tmp/relayd-alpha.log 2>&1 &
+cd relay && go run ./cmd/relayd/ -config /tmp/relay-alpha-e2e.yaml -addr 127.0.0.1:8443 > /tmp/relayd-alpha.log 2>&1 &
 ALPHA_PID=$!; cd "$REPO"
 trap "kill $ALPHA_PID 2>/dev/null || true; kill $BETA_PID 2>/dev/null || true" EXIT
 
