@@ -471,19 +471,22 @@ $('l-signup').onclick = async () => {
   $('l-err').textContent = '';
   acct = ($('l-acct') as HTMLInputElement).value.trim(); base = ($('l-relay') as HTMLSelectElement).value;
   if (!/^[a-z0-9][a-z0-9._-]{1,31}$/.test(acct)) { $('l-err').textContent = 'Kontoname: 2–32 Zeichen, klein, a-z 0-9 . _ -'; return; }
+  // Passphrase VOR der Konto-Anlage sichern: bei Abbruch entsteht sonst ein Waisen-Konto,
+  // dessen Schluessel nur fluechtig im Speicher lag (17.11. real passiert).
+  const p1 = prompt(`Passphrase für die Schlüsseldatei von „${acct}" (min. 8 Zeichen).\n\nOhne diese Datei ist das Konto unwiederbringlich verloren.`);
+  if (!p1) { $('l-err').textContent = 'Abgebrochen — es wurde kein Konto angelegt.'; return; }
+  if (p1.length < 8) { $('l-err').textContent = 'Passphrase zu kurz (min. 8 Zeichen) — es wurde kein Konto angelegt.'; return; }
+  if (p1 !== prompt('zur Kontrolle erneut eingeben:')) { $('l-err').textContent = 'Passphrasen nicht identisch — es wurde kein Konto angelegt.'; return; }
   const k = newPrivKey(), pem = sec1PEM(k);
   const r = await fetch(base + '/v1/account', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: acct, pubkey: toHex(pubFromPriv(k)) }) });
   if (!r.ok) { $('l-err').textContent = r.status === 409 ? `Name „${acct}“ ist auf diesem Relay schon vergeben.` : errText(r.status, await r.text()); return; }
-  const p1 = prompt(`Konto „${acct}“ ist angelegt! Jetzt Passphrase für die Schlüsseldatei (min. 8 Zeichen).\n\nOhne diese Datei ist das Konto weg, falls der Passkey verloren geht.`);
-  if (!p1) { $('l-err').textContent = `Konto „${acct}“ existiert bereits OHNE Schlüsseldatei (Abbruch) — bitte anderen Namen nehmen.`; return; }
-  if (p1.length < 8 || p1 !== prompt('zur Kontrolle erneut eingeben:')) { $('l-err').textContent = 'Passphrase zu kurz oder nicht identisch — Konto existiert ohne Datei, anderer Name nötig.'; return; }
   try {
     const blob = new Blob([wrapKey(pem, p1)], { type: 'text/plain' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `lightningmail-${acct}.lmkey`; a.click();
-  } catch (e: any) { alert(e.message); return; }
-  alert('Schlüsseldatei gespeichert — bitte sicher verwahren (Passwort-Manager).');
+    alert('Schlüsseldatei gespeichert — bitte sicher verwahren (Passwort-Manager).\nFalls sie nicht im Download-Ordner liegt: nach dem Anmelden oben „🔐 Key verschlüsselt speichern" nutzen.');
+  } catch { /* ohne Datei trotzdem einloggen: Schluessel bleibt per Auto-Login + 🔐-Knopf erreichbar */ }
   pemCache = pem; await login(pem);
 };
 $('l-file').onchange = async (ev: Event) => {
