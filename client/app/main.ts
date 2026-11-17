@@ -480,7 +480,12 @@ $('l-signup').onclick = async () => {
   const k = newPrivKey(), pem = sec1PEM(k);
   const r = await fetch(base + '/v1/account', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: acct, pubkey: toHex(pubFromPriv(k)) }) });
-  if (!r.ok) { $('l-err').textContent = r.status === 409 ? `Name „${acct}“ ist auf diesem Relay schon vergeben.` : errText(r.status, await r.text()); return; }
+  if (!r.ok) {
+    const t = await r.text();
+    $('l-err').textContent = /reserv/i.test(t) ? `„${acct}" ist ein reservierter Name (Service-/Impressumsadresse).`
+      : r.status === 409 ? `Name „${acct}“ ist auf diesem Relay schon vergeben.` : errText(r.status, t);
+    return;
+  }
   try {
     const blob = new Blob([wrapKey(pem, p1)], { type: 'text/plain' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);

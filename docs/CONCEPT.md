@@ -115,6 +115,10 @@ damit ein echtes „Postamt gehört mir"-Modell.
    Namensschema (lowercase, NFKC; SMTPUTF8/IDN erlaubt, ASCII bevorzugt),
    Aliase, Gruppen, Catchall; Subdomain-Delegation (@abteilung.firma) durch
    eigenen Record. Legacy-Fallback: Attribut `smtp-fallback` je Postfach.
+   Betreiberdomains reservieren Service-Namen (admin, postmaster, abuse, info, …):
+   hart im Relay gesperrt (seit 17.11.), damit eine Adresse nicht gleichzeitig als
+   SMTP-Umleitung und als lightningmail-Konto existiert — Kollisionsfreiheit, bis
+   die Bridge beide Welten unter Relay-Regie vereint (§14).
    Existenz-Oracle gegen Enumerierung: keine Antwort vor Zahlung; tote
    Adressen → Dead-Mail-Porto in Relay-Pool (Refund-Alternative offen).
 3. **Key-Bindung** — Mailbox-Key im Verzeichnis, Standard TOFU wie 4.1;

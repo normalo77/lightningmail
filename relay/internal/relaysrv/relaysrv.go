@@ -332,6 +332,16 @@ func (s *Server) handleInbox(w http.ResponseWriter, r *http.Request) {
 // Etappe 6c: Namen hart validieren — Konto-Namen landen in URLs, Adressen und UI.
 var acctNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{1,31}$`)
 
+// Reservierte Namen: gehoeren auf der Betreiberdomain der SMTP-/Service-Welt
+// (Impressum, Email-Routing) — sonst kollidiert z.B. admin@ mit zwei Postfaechern.
+// Vereinigung beider Welten kommt erst mit dem Bridge/smtp-fallback (CONCEPT §4.2/§14).
+var reservedNames = map[string]bool{
+	"admin": true, "postmaster": true, "hostmaster": true, "webmaster": true,
+	"abuse": true, "root": true, "info": true, "support": true, "hello": true,
+	"contact": true, "impressum": true, "datenschutz": true, "privacy": true,
+	"security": true, "mail": true, "mailer-daemon": true, "noreply": true, "no-reply": true,
+}
+
 func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, `{"error":"method not allowed"}`, 405)
@@ -347,6 +357,10 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	if !acctNameRe.MatchString(req.Name) {
 		http.Error(w, `{"error":"invalid name (2-32 Zeichen: a-z 0-9 . _ -)"}`, 400)
+		return
+	}
+	if reservedNames[req.Name] {
+		http.Error(w, `{"error":"name reserviert (Service-/Impressumsadresse)"}`, 409)
 		return
 	}
 	pubBytes, err := hex.DecodeString(req.Pubkey)
