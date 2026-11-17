@@ -44,6 +44,16 @@ let msgs: MsgRow[] = [];
 let receipts: Record<string, number> = {}; // msg_id(hex) -> ✓✓-Zeitstempel (Etappe 6b)
 let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' | 'ab' = 'in';
 let pemCache = '';
+// Auto-Login: erfolgreicher Login merkt sich Schluessel+Konto+Relay im Geraetespeicher
+// (unverschluesselt, nur App-Sandbox; APK hat allowBackup=false). "Vergessen" loescht es,
+// Abmelden setzt lm_noauto, damit Reload/401-Handler nicht sofort wieder einloggen.
+const AUTO_KEY = 'lm_autologin', NOAUTO_KEY = 'lm_noauto';
+const loadAuto = (): { acct: string; base: string; pem: string } | null => {
+  try {
+    const v = JSON.parse(localStorage.getItem(AUTO_KEY) || 'null');
+    return v && typeof v.pem === 'string' && v.pem && v.acct && v.base ? v : null;
+  } catch { return null; }
+};
 let sync: StateSync | null = null;
 let draftId = '';
 let abSel = '', abEdit = '', abQ = ''; // Adressbuch (Etappe A)
@@ -90,6 +100,8 @@ async function login(pem: string) {
     return;
   }
   token = ((await r.json()) as any).token;
+  localStorage.setItem(AUTO_KEY, JSON.stringify({ acct, base, pem }));
+  localStorage.removeItem(NOAUTO_KEY);
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
   const bp = $('btn-passkey'); if (bp && passkeyAvailable()) { bp.style.display = ''; bp.onclick = passkeyRegister; }
   const kw = $('btn-keywrap'); if (kw) { kw.style.display = ''; kw.onclick = () => {
@@ -476,6 +488,9 @@ $('l-signup').onclick = async () => {
 };
 $('l-file').onchange = async (ev: Event) => {
   const f = (ev.target as any).files[0]; if (!f) return;
+  // Kontoname aus Dateinamen: lightningmail-<acct>.lmkey bzw. <acct>.key/.pem
+  const m = /^(?:lightningmail-)?([a-z0-9][a-z0-9._-]{1,31})\.(?:lmkey|key|pem)$/i.exec(f.name);
+  if (m) ($('l-acct') as HTMLInputElement).value = m[1].toLowerCase();
   await useKey(await f.text());
 };
 $('l-login').onclick = async () => {
@@ -593,7 +608,7 @@ if ($('nav-sent')) $('nav-sent').onclick = () => { folder = 'out'; sel = -1; mar
 if ($('nav-dra')) $('nav-dra').onclick = () => { folder = 'dra'; sel = -1; mark(); render(); };
 $('nav-new').onclick = () => { folder = 'new'; draftId = ''; mark(); render(); };
 $('nav-ab').onclick = () => { folder = 'ab'; sel = -1; abEdit = ''; mark(); render(); };
-$('nav-out').onclick = () => location.reload();
+$('nav-out').onclick = () => { localStorage.setItem(NOAUTO_KEY, '1'); location.reload(); };
 if ($('l-passbtn')) $('l-passbtn').onclick = tryUnwrap;
 function mark() {
   $('nav-in').classList.toggle('on', folder === 'in');
@@ -602,4 +617,27 @@ function mark() {
   if ($('nav-dra')) $('nav-dra').classList.toggle('on', folder === 'dra');
   $('nav-new').classList.toggle('on', folder === 'new');
   $('nav-ab').classList.toggle('on', folder === 'ab');
+}
+
+// Start: gespeicherten Schluessel wiederladen. Ohne explizites Abmelden (lm_noauto)
+// loggt die App sofort ein; sonst zeigt der Login die Ein-Klick-Zeile "Weiter als …".
+const autoSaved = loadAuto();
+if (autoSaved) {
+  ($('l-acct') as HTMLInputElement).value = autoSaved.acct;
+  ($('l-relay') as HTMLSelectElement).value = autoSaved.base;
+  const q = $('l-quick'); q.style.display = '';
+  ($('l-quickgo') as HTMLButtonElement).textContent = `► Weiter als ${autoSaved.acct}`;
+  $('l-quickgo').onclick = () => {
+    pemCache = autoSaved.pem;
+    login(autoSaved.pem).catch((e: any) => { $('l-err').textContent = '✗ ' + String(e?.message || e).slice(0, 120); });
+  };
+  $('l-forget').onclick = () => {
+    localStorage.removeItem(AUTO_KEY);
+    q.style.display = 'none';
+    $('l-err').textContent = 'Gespeicherter Schluessel geloescht — Datei oder Demo-Key noetig.';
+  };
+  if (!localStorage.getItem(NOAUTO_KEY)) {
+    pemCache = autoSaved.pem;
+    login(autoSaved.pem).catch((e: any) => { $('l-err').textContent = 'Auto-Login fehlgeschlagen: ' + String(e?.message || e).slice(0, 120); });
+  }
 }

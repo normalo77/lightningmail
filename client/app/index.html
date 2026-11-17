@@ -69,6 +69,10 @@ form.compose textarea { min-height:160px }
 <div id="login" class="login window">
   <div class="title-bar"><div class="title-bar-text">lightningmail — Anmelden</div></div>
   <div class="window-body">
+  <div class="row" id="l-quick" style="display:none">
+    <button id="l-quickgo" style="flex:2"></button>
+    <button id="l-forget" title="Gespeicherten Schlüssel von diesem Gerät löschen">🗑 Vergessen</button>
+  </div>
   <label>Relay</label>
   <select id="l-relay"><option value="/relay-a">alpha (Portofino 8443)</option><option value="/relay-b">beta (9443)</option></select>
   <label>Konto</label><input id="l-acct" value="alice">
