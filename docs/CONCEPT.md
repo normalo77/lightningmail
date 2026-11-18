@@ -651,3 +651,69 @@ angenommen (Vorschlag 2, verfeinert):
   und antwortet nicht, hilft Spammarkierung + Reputation.
 - Einordnung: Etappe I, nach B, vor externer Beta (passt zur
   Freunde-Runde mit echten Diensten).
+- Invoice-Abwicklung der Willkommensgebuehr: §29 (BTCPay, Beschluss 18.11.).
+
+## 29. Service-Registrierung in der Praxis: Parallelbetrieb + Invoice-Schicht (Beschluss 18.11.2026)
+
+Bernds Anforderung: lightningmail soll an etablierte Registrierungs-Prozesse
+moeglichst nahtlos anbinden und PARALLEL zur E-Mail-Welt nutzbar sein —
+keine Entweder-oder-Entscheidung fuer Dienste oder Nutzer.
+
+**Wie Registrierung bei Diensten heute hinter den Kulissen laeuft** (vier Muster):
+1. **E-Mail + Passwort:** Dienst speichert Passwort-Hash, schickt Bestaetigungsmail
+   mit Token-Link (SMTP-Roundtrip). Die Adresse ist Identitaetsanker UND
+   Recovery-Kanal (Passwort-Reset, Benachrichtigungen).
+2. **OAuth2/OIDC-Foederation:** „Sign in with Google/Apple/GitHub" — Redirect,
+   Authorization-Code, ID-Token (JWT mit email/sub-Claim). Der IdP verbuergt die
+   verifizierte Adresse; der Dienst speichert kein Passwort.
+3. **Magic-Link/Passwordless:** Ein Token-Link per Mail ist Verifikation und
+   Login in einem (Slack/Notion-Muster).
+4. **Passkeys/WebAuthn:** Adresse = Username, Passkey = Credential; kein
+   Mail-Roundtrip mehr zur Anmeldung, aber weiterhin fuer Recovery.
+Allen gemeinsam: die Adresse muss (a) Erreichbarkeitschecks bestehen
+(Syntax → MX → Zustellbarkeit) und (b) als Rueckkanaal funktionieren.
+
+**Anbindung von lightningmail an alle vier Muster — ohne Umbau beim Dienst:**
+- **Syntax:** Adresse ist exakte E-Mail-Notation (§4.1) — Dienste mit reiner
+  Syntaxpruefung akzeptieren sie sofort, heute schon.
+- **SMTP:** MX fuer lightningmail.app existiert (Cloudflare). Ohne Bridge
+  wuerden Bestaetigungsmails an Nutzeradressen bouncen → Zwischenstufe
+  **MX-Dead-Drop** (§21, hiermit beschlossen): Auto-Bounce mit Erklaerung
+  „diese Adresse spricht lightningmail" statt stillem Bounce, plus Hinweis
+  auf den nativen Weg. Voller Parallelbetrieb kommt mit der Bridge (§14, v2):
+  SMTP rein/raus in dieselbe Mailbox, beide Kanaele in einer UI.
+- **OIDC:** „Sign in with lightningmail" (§21) ist der nahtlose Weg fuer
+  Neuanbindungen — Standard-OIDC-Bibliothek beim Dienst, kein
+  Lightning-Wissen noetig; Foederations-Beweis = BIP340-Signatur des
+  Mailbox-Keys, Challenge/Response ueber das Directory (§4.2 Ebene 3).
+- **Zahlung:** LUD-16/BIP-353 (§4.1/§12) — jede Adresse ist direkt ein
+  Lightning-Zahlungsziel, Wallets koennen sie ohne Registrierung besenden.
+
+**Parallelbetriebs-Prinzip:** eine Adresse, mehrere Kanaele. Ein Dienst, der
+nur SMTP spricht, einer, der nur OIDC spricht, und einer, der nativ lightningmail
+nutzt (§28), erreichen dieselbe Mailbox. Nativer Weg ist Zusatz, nie Ersatz;
+kein Kanal darf einen anderen blockieren.
+
+**Invoice-Schicht fuer Anmeldegebuehren: BTCPay Server (Bernd-Vorschlag 18.11.)**
+- Warum nicht direkt LND/§13: Ein Dienst will fuer die Willkommensgebuehr eine
+  echte Rechnung — Fiat-Denominierung (Gebuehr deckt seine Bestätigungsmail-
+  Kosten, Preis in EUR → Invoice in Sats zum Kurs), Buchhaltung fuer das
+  Steuer-Log (§25), Refunds, Zahlungs-Erinnerungen. BTCPay liefert das
+  komplett; Selbstbau waere ein zweites Buchhaltungssystem.
+- **Multi-Store-Modell:** eine BTCPay-Instanz, EIN STORE PRO DIENST (je eigener
+  On-Chain-Wallet + eigener Lightning-Anbindung moeglich). Relay-Betreiber
+  koennen gehostete Stores anbieten — analog zum Relay-Hosting (§21 offene
+  Betreiberrolle wird damit teilweise beantwortet: Invoice-Hosting ≠ IdP-Hosting).
+- **Flow:** Registrierungs-Brief (§28, Tag 0x0A) → Dienst legt per Greenfield-API
+  eine Invoice an (Betrag, Ablauf = Konversationsfenster) → Antwort-Brief traegt
+  Bolt11/Payment-Link → BTCPay-Webhook `InvoiceSettled` → Dienst schickt
+  portofreie Bestaetigung (✓✓, §23) im Konversationsfenster → Registrierung gilt.
+  Invoice abgelaufen → Erinnerungs-Brief (Dead-Man, §5).
+- **Abgrenzung zu §13:** User↔User-Porto bleibt LNURL/keysend direkt
+  (Mikro-Cents, kein Custodian, keine Buchhaltung). BTCPay kommt nur auf die
+  Dienste-Seite, wo Rechnungen noetig sind —spaeter ggf. auch Byte-Porto-
+  Rechnungen (§22) fuer Firmenkunden.
+- **Homelab/PoC (offen, nicht gebaut):** BTCPay an lnd-main (LND-REST, CT113) +
+  NBXplorer → bitcoind (.75, nach IBD); PoC zuerst auf dem Regtest-Stack CT113.
+  Bedarf ~1–2 GB RAM → eigener kleiner CT. Reihenfolge: erst Etappe B (Directory),
+  dann IdP/§28, Invoice-Schicht mit Etappe I.
