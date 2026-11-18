@@ -80,8 +80,9 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/webauthn/credentials", s.auth(s.handleWAList))
 	mux.HandleFunc("/v1/webauthn/credentials/delete", s.auth(s.handleWADelete))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		w.Write([]byte(`{"ok":true}`))
+		// currencies: §26 — Etappe B besiedelt nur btc; ab Etappe K aus der Config.
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true,"currencies":["btc"]}`))
 	})
 
 	// Etappe 6b: Retry-Ticker fuer Receipts, deren Peer-Mirror fehlschlug

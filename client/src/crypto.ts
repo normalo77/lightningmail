@@ -73,13 +73,17 @@ export function decryptPayload(priv: Uint8Array, ephPub: Uint8Array, sealed: Uin
 
 // ed25519-artige scope-sichere Zufalls-Skalare (noble v2 hat kein randomPrivateKey)
 const _N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+// Etappe 6d: auch fuer die deterministische Seed-Ableitung (bip39.ts) genutzt
+export function validScalar(b: Uint8Array): boolean {
+  let x = 0n;
+  for (const y of b) x = (x << 8n) | BigInt(y);
+  return x > 0n && x < _N;
+}
 function randScalar32(): Uint8Array {
   for (;;) {
     const b = new Uint8Array(32);
     globalThis.crypto.getRandomValues(b);
-    let x = 0n;
-    for (const y of b) x = (x << 8n) | BigInt(y);
-    if (x > 0n && x < _N) return b;
+    if (validScalar(b)) return b;
   }
 }
 

@@ -1,5 +1,6 @@
 // main.ts — DOM-Leim für die lightningmail v0.1 PWA (M2c). Logik lebt in src/crypto + src/send.
-import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef, newPrivKey, sec1PEM } from '../src/crypto';
+import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef, sec1PEM } from '../src/crypto';
+import { newMnemonic, checkMnemonic, keyFromMnemonic, quizPositions, quizOptions } from '../src/bip39';
 import { composeAndSend } from '../src/send';
 import { StateSync, type Contact } from '../src/state';
 import { wrapKey, unwrapKey, isWrapped, wrapKeyPRF, unwrapKeyPRF } from '../src/keywrap';
@@ -598,34 +599,159 @@ $('l-demo').onclick = async () => {
   if (!r.ok) { $('l-err').textContent = 'Demo-Key nicht gefunden (' + $('l-acct').value.trim() + ')'; return; }
   await useKey(await r.text());
 };
-// --- Etappe 6c: Konto anlegen — Schluessel entsteht im Browser, der Server sieht nur den Pubkey ---
-$('l-signup').onclick = async () => {
-  $('l-err').textContent = '';
-  acct = ($('l-acct') as HTMLInputElement).value.trim(); base = ($('l-relay') as HTMLSelectElement).value;
-  if (!/^[a-z0-9][a-z0-9._-]{1,31}$/.test(acct)) { $('l-err').textContent = 'Kontoname: 2–32 Zeichen, klein, a-z 0-9 . _ -'; return; }
-  // Passphrase VOR der Konto-Anlage sichern: bei Abbruch entsteht sonst ein Waisen-Konto,
-  // dessen Schluessel nur fluechtig im Speicher lag (17.11. real passiert).
-  const p1 = prompt(`Passphrase für die Schlüsseldatei von „${acct}" (min. 8 Zeichen).\n\nOhne diese Datei ist das Konto unwiederbringlich verloren.`);
-  if (!p1) { $('l-err').textContent = 'Abgebrochen — es wurde kein Konto angelegt.'; return; }
-  if (p1.length < 8) { $('l-err').textContent = 'Passphrase zu kurz (min. 8 Zeichen) — es wurde kein Konto angelegt.'; return; }
-  if (p1 !== prompt('zur Kontrolle erneut eingeben:')) { $('l-err').textContent = 'Passphrasen nicht identisch — es wurde kein Konto angelegt.'; return; }
-  const k = newPrivKey(), pem = sec1PEM(k);
-  const r = await fetch(base + '/v1/account', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: acct, pubkey: toHex(pubFromPriv(k)) }) });
-  if (!r.ok) {
-    const t = await r.text();
-    $('l-err').textContent = /reserv/i.test(t) ? `„${acct}" ist ein reservierter Name (Service-/Impressumsadresse).`
-      : r.status === 409 ? `Name „${acct}“ ist auf diesem Relay schon vergeben.` : errText(r.status, t);
-    return;
-  }
-  try {
-    const blob = new Blob([wrapKey(pem, p1)], { type: 'text/plain' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `lightningmail-${acct}.lmkey`; a.click();
-    alert('Schlüsseldatei gespeichert — bitte sicher verwahren (Passwort-Manager).\nFalls sie nicht im Download-Ordner liegt: nach dem Anmelden oben „🔐 Key verschlüsselt speichern" nutzen.');
-  } catch { /* ohne Datei trotzdem einloggen: Schluessel bleibt per Auto-Login + 🔐-Knopf erreichbar */ }
-  pemCache = pem; await login(pem);
+// --- Etappe 6d (§27): Setup-Wizard — 24-Wort-Recovery (BIP39), Schluessel im Browser,
+// Wortquiz als Backup-Beweis, .lmkey-Datei OPTIONAL (Wörter sind das Haupt-Backup).
+// Reihenfolge behält die ecd07eb-Lektion: Backup exists VOR der Konto-Anlage → kein Waisen-Konto.
+const wizOverlay = (title: string, width = 560): { body: HTMLElement; close: () => void } => {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:60;overflow:auto;padding:10px';
+  ov.innerHTML = `<div class="window" style="width:${width}px;max-width:96vw;max-height:96vh;overflow:auto"><div class="title-bar"><div class="title-bar-text">${esc(title)}</div></div>
+    <div class="window-body" id="wiz-body" style="padding:10px"></div></div>`;
+  document.body.appendChild(ov);
+  return { body: ov.querySelector('#wiz-body') as HTMLElement, close: () => ov.remove() };
 };
+const ERRROW = `<p id="w-err" class="meta" style="color:#8b0000"></p>`;
+
+async function openWizard() {
+  base = ($('l-relay') as HTMLSelectElement).value; // vor Login ist base noch der Default
+  // §27-Währungsfrage: Relay sagt via /health, was es besiedelt (heute: nur btc)
+  let currencies: string[] = ['btc'];
+  try { currencies = (await (await fetch(base + '/health')).json()).currencies || currencies; } catch { /* Default btc */ }
+  const mn = newMnemonic();
+  const { body, close } = wizOverlay('Neues Konto — Einrichtung');
+  const setErr = (t: string) => { const e = $('w-err'); if (e) e.textContent = t; };
+  const wireCancel = () => { $('w-x').onclick = close; };
+
+  // Schritt 1: Name + Währung
+  const relaySel = ($('l-relay') as HTMLSelectElement).value;
+  const relayName = relaySel.startsWith('/') ? location.hostname + relaySel : relaySel;
+  body.innerHTML = `<p class="meta">Schritt 1/4 — Konto &amp; Währung</p>
+    <label>Kontoname (klein, a-z 0-9 . _ -, 2–32 Zeichen)</label><input id="w-name" value="${esc(($('l-acct') as HTMLInputElement).value.trim())}">
+    <label>Relay</label><input value="${esc(relayName)}" disabled>
+    <p class="meta">Womit zahlst du Porto? ${currencies.map(c => '⚡ ' + c.toUpperCase()).join(' · ')}
+    — heute zahlt alles in Bitcoin-Lightning; die echte Auswahl (BTC/LTC, §26) kommt, wenn dein Relay mehrere Währungen besiedelt.</p>
+    ${ERRROW}<div class="row"><button id="w-next">Weiter</button><button id="w-x">Abbrechen</button></div>`;
+  wireCancel();
+  $('w-next').onclick = () => {
+    const nm = ($('w-name') as HTMLInputElement).value.trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9._-]{1,31}$/.test(nm)) { setErr('Kontoname: 2–32 Zeichen, klein, a-z 0-9 . _ -'); return; }
+    ($('l-acct') as HTMLInputElement).value = nm;
+    stepWords();
+  };
+
+  // Schritt 2: die 24 Wörter
+  function stepWords() {
+    const words = mn.split(' ');
+    body.innerHTML = `<p class="meta">Schritt 2/4 — Deine 24 Wörter (BIP39, englische Standardliste)</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px 8px;background:#fff;border:2px inset #dfdfdf;padding:8px;font-size:12px">
+        ${words.map((w, i) => `<span><b style="color:#8a8271">${i + 1}.</b> ${esc(w)}</span>`).join('')}</div>
+      <p class="meta" style="color:#8b0000">⚠ Jetzt offline auf Papier notieren. Wer diese Wörter hat, kann dein Konto jederzeit übernehmen — kein Screenshot, keine Cloud, niemandem vorlesen.</p>
+      <div class="row"><button id="w-copy" type="button">Kopieren</button></div>
+      <label style="font-weight:400"><input type="checkbox" id="w-noted" style="width:auto"> Ich habe die 24 Wörter offline notiert</label>
+      ${ERRROW}<div class="row"><button id="w-next" disabled>Weiter</button><button id="w-x">Abbrechen</button></div>`;
+    wireCancel();
+    $('w-copy').onclick = async () => {
+      try { await navigator.clipboard.writeText(mn); $('w-copy').textContent = '✓ kopiert — Zwischenablage danach leeren!'; }
+      catch { setErr('Kopieren nicht erlaubt — Wörter manuell abschreiben.'); }
+    };
+    ($('w-noted') as HTMLInputElement).onchange = (ev) => { ($('w-next') as HTMLButtonElement).disabled = !(ev.target as HTMLInputElement).checked; };
+    $('w-next').onclick = stepQuiz;
+  }
+
+  // Schritt 3: Wortquiz — Backup-Beweis
+  function stepQuiz() {
+    const words = mn.split(' ');
+    const qs = quizPositions(mn, 3);
+    let done = 0;
+    body.innerHTML = `<p class="meta">Schritt 3/4 — Zur Kontrolle: was hast du notiert?</p>
+      ${qs.map((p, qi) => `<p style="margin:8px 0 4px">Wort <b>#${p + 1}</b>?</p>
+        <div class="row" id="wq-${qi}">${quizOptions(mn, p).map(o => `<button type="button" data-w="${esc(o)}">${esc(o)}</button>`).join('')}</div>`).join('')}
+      ${ERRROW}<div class="row"><button id="w-next" disabled>Weiter</button><button id="w-x">Abbrechen</button></div>`;
+    wireCancel();
+    qs.forEach((p, qi) => {
+      document.querySelectorAll(`#wq-${qi} button`).forEach(btn => {
+        btn.addEventListener('click', () => {
+          const b = btn as HTMLElement;
+          if (b.dataset.done) return;
+          if (b.getAttribute('data-w') === words[p]) {
+            b.dataset.done = '1';
+            b.style.background = '#98fb98';
+            document.querySelectorAll(`#wq-${qi} button`).forEach(x => { (x as HTMLButtonElement).disabled = true; });
+            if (++done === qs.length) ($('w-next') as HTMLButtonElement).disabled = false;
+          } else {
+            b.style.background = '#ffb6c1';
+            setErr('Falsches Wort — schau auf deinen Zettel.');
+          }
+        });
+      });
+    });
+    $('w-next').onclick = stepKeyfile;
+  }
+
+  // Schritt 4: .lmkey-Datei optional, dann Konto-Anlage + Auto-Login
+  function stepKeyfile() {
+    const nm = ($('l-acct') as HTMLInputElement).value.trim();
+    const pem = sec1PEM(keyFromMnemonic(mn));
+    body.innerHTML = `<p class="meta">Schritt 4/4 — Schlüsseldatei (optional)</p>
+      <p class="meta">Deine 24 Wörter sind das Haupt-Backup — Recovery geht jederzeit. Zusätzlich kannst du eine verschlüsselte .lmkey-Datei speichern: Login per Datei statt Wörter-Tippen. (Später auch über 🔐 im App-Kopf möglich.)</p>
+      <input type="password" id="w-p1" placeholder="Passphrase (min. 8 Zeichen)">
+      <input type="password" id="w-p2" placeholder="zur Kontrolle erneut">
+      ${ERRROW}
+      <div class="row"><button id="w-save" type="button">💾 Datei speichern &amp; anlegen</button>
+        <button id="w-skip" type="button">Überspringen — nur Wörter</button>
+        <button id="w-x">Abbrechen</button></div>`;
+    wireCancel();
+    $('w-save').onclick = async () => {
+      const p1 = ($('w-p1') as HTMLInputElement).value;
+      if (p1.length < 8) { setErr('Passphrase zu kurz (min. 8 Zeichen).'); return; }
+      if (p1 !== ($('w-p2') as HTMLInputElement).value) { setErr('Passphrasen stimmen nicht überein.'); return; }
+      try {
+        const blob = new Blob([wrapKey(pem, p1)], { type: 'text/plain' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = `lightningmail-${nm}.lmkey`; a.click();
+      } catch { setErr('Download fehlgeschlagen — Datei später über 🔐 möglich. Konto wird angelegt.'); }
+      await create();
+    };
+    $('w-skip').onclick = () => create();
+    async function create() {
+      setErr('lege Konto an…');
+      const r = await fetch(base + '/v1/account', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nm, pubkey: toHex(pubFromPriv(parseSec1PEM(pem))) }) });
+      if (!r.ok) {
+        const t = await r.text();
+        setErr(/reserv/i.test(t) ? `„${nm}" ist ein reservierter Name (Service-/Impressumsadresse).`
+          : r.status === 409 ? `Name „${nm}“ ist auf diesem Relay schon vergeben.` : errText(r.status, t));
+        return;
+      }
+      pemCache = pem; close();
+      await login(pem);
+    }
+  }
+}
+
+// Recovery: 24 Wörter → Key-Ableitung im Browser → Login (Server sieht nur den Pubkey)
+function openRestore() {
+  const { body, close } = wizOverlay('Konto wiederherstellen — 24 Wörter', 480);
+  body.innerHTML = `<p class="meta">Backup-Wörter eingeben — der Schlüssel wird hier im Browser abgeleitet. Kontoname muss zum Relay-Konto passen.</p>
+    <label>Kontoname</label><input id="r-name" value="${esc(($('l-acct') as HTMLInputElement).value.trim())}">
+    <label>24 Wörter (BIP39)</label><textarea id="r-words" rows="4" style="width:100%"></textarea>
+    ${ERRROW}
+    <div class="row"><button id="r-go">Wiederherstellen</button><button id="w-x">Abbrechen</button></div>`;
+  $('w-x').onclick = close;
+  $('r-go').onclick = async () => {
+    const nm = ($('r-name') as HTMLInputElement).value.trim().toLowerCase();
+    const mn = checkMnemonic(($('r-words') as HTMLTextAreaElement).value);
+    if (!mn) { $('w-err').textContent = 'Wörter ungültig — 24 BIP39-Wörter erwartet (Checksumme passt nicht).'; return; }
+    if (!/^[a-z0-9][a-z0-9._-]{1,31}$/.test(nm)) { $('w-err').textContent = 'Kontoname ungültig.'; return; }
+    const pem = sec1PEM(keyFromMnemonic(mn));
+    ($('l-acct') as HTMLInputElement).value = nm;
+    pemCache = pem; close();
+    await login(pem);
+    if (!token) $('l-err').textContent = 'Wiederherstellung fehlgeschlagen — passen Name und Wörter zu einem Konto auf diesem Relay?';
+  };
+}
+$('l-signup').onclick = openWizard;
+if ($('l-words')) $('l-words').onclick = openRestore;
 $('l-file').onchange = async (ev: Event) => {
   const f = (ev.target as any).files[0]; if (!f) return;
   // Kontoname aus Dateinamen: lightningmail-<acct>.lmkey bzw. <acct>.key/.pem
