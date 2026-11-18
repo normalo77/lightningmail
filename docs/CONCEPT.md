@@ -717,3 +717,35 @@ kein Kanal darf einen anderen blockieren.
   NBXplorer → bitcoind (.75, nach IBD); PoC zuerst auf dem Regtest-Stack CT113.
   Bedarf ~1–2 GB RAM → eigener kleiner CT. Reihenfolge: erst Etappe B (Directory),
   dann IdP/§28, Invoice-Schicht mit Etappe I.
+
+### 29.1 Drei-Programm-Modell (Bernd, 18.11.2026)
+
+Das Oekosystem besteht aus drei Programmen:
+1. **Relay** (relayd, Go) — das Postamt: Mailboxen, Porto/LN, Directory,
+   spaeter OIDC-IdP (§21). Geteilte Infrastruktur des Relay-Betreibers.
+2. **Client** (PWA/APK) — die Oberflaeche fuer Menschen. Die E2E-/Geld-Logik
+   liegt bereits als Bibliothek in `client/src/` (crypto, send, state,
+   keywrap), unabhaengig vom DOM-Leim `main.ts`.
+3. **Service-Registrierungs-Plugin** — ein HEADLESS CLIENT: wie ein Client,
+   nur ohne UI und ohne Menschen davor. Der Dienst braucht KEIN eigenes
+   Relay — nur ein Postfach auf einem Relay seiner Wahl (wie man heute
+   einen Mail-Provider waehlt) und seinen eigenen Schluessel.
+
+Das Plugin = Wiederverwendung der Client-Bibliothek + drei Adapter:
+- **Registrierungs-State-Machine:** Brief mit Tag 0x0A empfangen →
+  Invoice via BTCPay-Greenfield-API anlegen → Webhook `InvoiceSettled`
+  abwarten → portofreie Bestaetigung (✓✓) im Konversationsfenster.
+- **Service-Backend-Anbindung:** Webhook/REST rein und raus — jeder Stack
+  (PHP, Node, Django, …) kann sich einklinken, ohne Lightning zu verstehen.
+- **Key-Haltung:** LMKEY1-Datei/Env beim Dienst; E2E bleibt unveraehrt —
+  der Relay sieht nie Klartext, das Plugin ist kein Vertrauensanker.
+
+Form: TS-Bibliothek + duenner Referenz-Daemon (webhook-faehig, ein Postfach,
+ein Prozess); Go-Variante spaeter nur bei Bedarf. Derselbe Headless-Kern
+traegt spaeter auch die MCP-Agenten-Post (§15) und den Bridge-Daemon (§14) —
+das „dritte Programm" ist also generell ein Client-Kern mit Adaptern, die
+Registrierung ist nur der erste Anwendungsfall.
+
+Voraussetzungen im Relay (noch offen; Reihenfolge wie §29: erst B, dann I):
+Envelope-Tag 0x0A, Konversationsfenster mit Portofreiheit im Relay (Status:
+Baustelle), Directory-Aufloesung (§21), Webhook-Zustaellgarantien.
