@@ -3,6 +3,7 @@
 // Money is stored as integer msat; writes use optimistic locking on the
 // account.version column (spec §8.2), never balance-UPDATE-without-check.
 // v3 (Etappe 4a): persistent auth tokens, blob ACL, storage quota.
+// v4 (Etappe B): txlog currency + Steuer-Stempel (§25/§26), Kinds card_out/card_in.
 package ledger
 
 import (
@@ -20,7 +21,7 @@ import (
 //go:embed schema.sql
 var schemaFS embed.FS
 
-const schemaVersion = 3
+const schemaVersion = 4
 
 type Kind string
 
@@ -30,6 +31,8 @@ const (
 	KindTopup      Kind = "topup"
 	KindWithdraw   Kind = "withdraw"
 	KindFee        Kind = "fee"
+	KindCardOut    Kind = "card_out" // Etappe B: Profilkarten-Kauf (Kaeufer-Seite)
+	KindCardIn     Kind = "card_in"  // Etappe B: Karten-Erloes (Kontakt-Seite)
 )
 
 var (
@@ -63,6 +66,13 @@ type Tx struct {
 	Kind      Kind
 	Ref       string
 	CreatedAt int64
+	// Etappe B (§25/§26): Waehrung + Steuer-Stempel. RateSrc=="" = ungeratet
+	// (z. B. Regtest ohne Kurs — CONCEPT §25: kein nachtraegliches Raten).
+	Currency     string
+	EurMicro     int64
+	RateTs       int64
+	RateSrc      string
+	RateMEurBtc  int64
 }
 
 func Open(path string) (*Ledger, error) {
@@ -96,6 +106,9 @@ func (l *Ledger) migrate() error {
 	if v > schemaVersion {
 		return fmt.Errorf("ledger: unsupported schema version %d (max %d)", v, schemaVersion)
 	}
+	if v == 3 {
+		return l.migrate3to4()
+	}
 	if v != 0 {
 		return fmt.Errorf("ledger: unsupported schema version %d", v)
 	}
@@ -114,6 +127,46 @@ func (l *Ledger) migrate() error {
 	if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version=%d", schemaVersion)); err != nil {
 		tx.Rollback()
 		return err
+	}
+	return tx.Commit()
+}
+
+// migrate3to4 (Etappe B, §25/§26): txlog bekommt currency + Steuer-Stempel und
+// das kind-CHECK nimmt card_out/card_in auf. SQLite kann kein CHECK-ALTER →
+// Tabelle neu bauen, Zeilen bleiben erhalten (ids/created_at stabil).
+// DDL muss exakt schema.sql entsprechen (dort fuer frische DBs).
+func (l *Ledger) migrate3to4() error {
+	tx, err := l.db.Begin()
+	if err != nil {
+		return err
+	}
+	stmts := []string{
+		`ALTER TABLE txlog RENAME TO txlog_v3`,
+		`CREATE TABLE txlog (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL REFERENCES account(id),
+  delta_msat INTEGER NOT NULL,
+  kind       TEXT    NOT NULL CHECK (kind IN
+             ('postage_out','postage_in','topup','withdraw','fee','card_out','card_in')),
+  ref        TEXT,
+  currency   TEXT    NOT NULL DEFAULT 'btc',
+  eur_micro  INTEGER,
+  rate_ts    INTEGER,
+  rate_src   TEXT,
+  rate_meur_per_btc INTEGER,
+  created_at INTEGER NOT NULL
+)`,
+		`INSERT INTO txlog (id, account_id, delta_msat, kind, ref, created_at)
+   SELECT id, account_id, delta_msat, kind, ref, created_at FROM txlog_v3`,
+		`DROP TABLE txlog_v3`,
+		`CREATE INDEX txlog_account_idx ON txlog(account_id, id)`,
+		`PRAGMA user_version=4`,
+	}
+	for _, s := range stmts {
+		if _, err := tx.Exec(s); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("ledger: migrate v3->v4: %w", err)
+		}
 	}
 	return tx.Commit()
 }
@@ -183,9 +236,34 @@ func (l *Ledger) Balance(name string) (int64, error) {
 	return a.BalanceMsat, nil
 }
 
+// RateStamp = Steuer-Stempel (§25 G1): Kurs-Snapshot zum Buchungszeitpunkt.
+// Geld in µEUR als Integer statt eur_cent-Float: Porto waere in ganzen Cent 0
+// (Präzisionsverlust); CSV-Export rechnet um. eur_micro = msat*MEurPerBtc/1e8.
+type RateStamp struct {
+	MEurPerBtc int64  // EUR pro BTC × 1000
+	Ts         int64  // Kurs-Abrufzeitpunkt (unix)
+	Src        string // "manual" | Feed-Host
+}
+
+func (r *RateStamp) EurMicro(msat int64) int64 {
+	if r == nil || r.MEurPerBtc <= 0 {
+		return 0
+	}
+	return msat * r.MEurPerBtc / 100000000
+}
+
 func (l *Ledger) ApplyDelta(name string, deltaMsat int64, kind Kind, ref string) error {
+	return l.ApplyDeltaMeta(name, deltaMsat, kind, ref, "btc", nil)
+}
+
+// ApplyDeltaMeta bucht mit Waehrung (§26) + optionalem Kursstempel (§25).
+// rate==nil → Spalten NULL ("ungeratet", z. B. Regtest ohne Kurs).
+func (l *Ledger) ApplyDeltaMeta(name string, deltaMsat int64, kind Kind, ref, currency string, rate *RateStamp) error {
 	if !validKind(kind) {
 		return fmt.Errorf("%w: %s", ErrInvalidKind, kind)
+	}
+	if currency == "" {
+		currency = "btc"
 	}
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		var id, bal, ver int64
@@ -218,9 +296,15 @@ func (l *Ledger) ApplyDelta(name string, deltaMsat int64, kind Kind, ref string)
 			time.Sleep(time.Duration(attempt) * time.Millisecond / 4)
 			continue
 		}
+		var eurMicro, rateTs, rateMEur any
+		var rateSrc any
+		if rate != nil && rate.MEurPerBtc > 0 {
+			eurMicro, rateTs, rateSrc, rateMEur = rate.EurMicro(deltaMsat), rate.Ts, rate.Src, rate.MEurPerBtc
+		}
 		if _, err := tx.Exec(
-			`INSERT INTO txlog (account_id, delta_msat, kind, ref, created_at) VALUES (?,?,?,?,?)`,
-			id, deltaMsat, string(kind), ref, t); err != nil {
+			`INSERT INTO txlog (account_id, delta_msat, kind, ref, currency, eur_micro, rate_ts, rate_src, rate_meur_per_btc, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+			id, deltaMsat, string(kind), ref, currency, eurMicro, rateTs, rateSrc, rateMEur, t); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -237,7 +321,9 @@ func (l *Ledger) History(name string, limit int) ([]Tx, error) {
 		limit = 50
 	}
 	rows, err := l.db.Query(
-		`SELECT t.id, t.account_id, t.delta_msat, t.kind, COALESCE(t.ref,''), t.created_at
+		`SELECT t.id, t.account_id, t.delta_msat, t.kind, COALESCE(t.ref,''), t.created_at,
+        COALESCE(t.currency,'btc'), COALESCE(t.eur_micro,0), COALESCE(t.rate_ts,0),
+        COALESCE(t.rate_src,''), COALESCE(t.rate_meur_per_btc,0)
      FROM txlog t JOIN account a ON a.id=t.account_id
      WHERE a.name=? ORDER BY t.id DESC LIMIT ?`, name, limit)
 	if err != nil {
@@ -247,7 +333,8 @@ func (l *Ledger) History(name string, limit int) ([]Tx, error) {
 	var out []Tx
 	for rows.Next() {
 		var tx Tx
-		if err := rows.Scan(&tx.ID, &tx.AccountID, &tx.DeltaMsat, &tx.Kind, &tx.Ref, &tx.CreatedAt); err != nil {
+		if err := rows.Scan(&tx.ID, &tx.AccountID, &tx.DeltaMsat, &tx.Kind, &tx.Ref, &tx.CreatedAt,
+			&tx.Currency, &tx.EurMicro, &tx.RateTs, &tx.RateSrc, &tx.RateMEurBtc); err != nil {
 			return nil, err
 		}
 		out = append(out, tx)
@@ -517,7 +604,7 @@ func (l *Ledger) CheckQuota(name string, additionalBytes int64) error {
 
 func validKind(k Kind) bool {
 	switch k {
-	case KindPostageOut, KindPostageIn, KindTopup, KindWithdraw, KindFee:
+	case KindPostageOut, KindPostageIn, KindTopup, KindWithdraw, KindFee, KindCardOut, KindCardIn:
 		return true
 	}
 	return false

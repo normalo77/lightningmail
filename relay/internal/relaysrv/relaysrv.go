@@ -27,6 +27,7 @@ import (
 	"github.com/lightningmail/relay/internal/ledger"
 	"github.com/lightningmail/relay/internal/lnclient"
 	"github.com/lightningmail/relay/internal/postage"
+	"github.com/lightningmail/relay/internal/rates"
 )
 
 type Server struct {
@@ -35,14 +36,22 @@ type Server struct {
 	ln      *lnclient.Client
 	postage *postage.Service
 
+	// Etappe B: Directory — Kurs-Feed (§25/§26) + 429-Budget anonyme Lesen.
+	rateFeed *rates.Feed
+	pubLim   *pubLimit
+
 	// Etappe 6: fluechtige WebAuthn-Zeremonie-Sessions (shortcut:
 	// In-Memory, single-process; bei Multi-Instanz-Relay externalisieren).
 	waMu       sync.Mutex
 	waSessions map[string]waSessionEntry
 }
 
-func New(cfg *config.Config, l *ledger.Ledger, ln *lnclient.Client, p *postage.Service) *Server {
-	return &Server{cfg: cfg, ledger: l, ln: ln, postage: p, waSessions: map[string]waSessionEntry{}}
+// New: feed wird vom Caller gebaut und gestartet (relayd teilt ihn mit dem
+// LN-Ingest — Steuerstempel §25 gilt fuer ALLE Zufloesse, nicht nur Karten).
+func New(cfg *config.Config, l *ledger.Ledger, ln *lnclient.Client, p *postage.Service, feed *rates.Feed) *Server {
+	return &Server{cfg: cfg, ledger: l, ln: ln, postage: p, waSessions: map[string]waSessionEntry{},
+		rateFeed: feed,
+		pubLim:   newPubLimit(cfg.Directory.PublicRPM)}
 }
 
 func (s *Server) ListenAndServe() error {
@@ -54,7 +63,8 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/balance", s.auth(s.handleBalance))
 	mux.HandleFunc("/v1/send", s.auth(s.handleSend))
 	mux.HandleFunc("/v1/inbox", s.auth(s.handleInbox))
-	mux.HandleFunc("/v1/profile/", s.handleProfile)
+	mux.HandleFunc("/v1/profile", s.auth(s.handleMyProfile)) // Etappe B: PUT/DELETE eigene Karte
+	mux.HandleFunc("/v1/profile/", s.handleProfile)           // Lookups + /card (directory.go)
 	mux.HandleFunc("/v1/blob", s.auth(s.handleBlobUpload))
 	mux.HandleFunc("/v1/blob/", s.auth(s.handleBlobGet))
 	mux.HandleFunc("/v1/state", s.auth(s.handleState))
@@ -172,13 +182,16 @@ func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 
 // --- GET /v1/balance ---
 func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
+	if !curOK(w, r) { // §26: Etappe B kennt nur btc
+		return
+	}
 	account := r.Header.Get("X-Bmail-Account")
 	bal, err := s.ledger.Balance(account)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 500)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]int64{"balance_msat": bal})
+	json.NewEncoder(w).Encode(map[string]any{"balance_msat": bal, "currency": "btc"})
 }
 
 // --- POST /v1/send ---
@@ -380,25 +393,7 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- GET /v1/profile/{addr} ---
-func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
-	addr := strings.TrimPrefix(r.URL.Path, "/v1/profile/")
-	if addr == "" {
-		http.Error(w, `{"error":"address required"}`, 400)
-		return
-	}
-	acct, err := s.ledger.GetAccount(addr)
-	if err != nil {
-		http.Error(w, `{"error":"not found"}`, 404)
-		return
-	}
-	json.NewEncoder(w).Encode(map[string]any{
-		"address":      acct.Name,
-		"pubkey":       hex.EncodeToString(acct.MailboxPubkey),
-		"foreign_sats": s.postage.ForeignSats(),
-		"contact_sats": s.cfg.Postage.ContactSats,
-	})
-}
+// --- GET /v1/profile/{addr}: siehe directory.go (Etappe B) ---
 
 // --- POST /v1/blob (attachment upload, spec §6.3, Etappe 4a: quota + ACL) ---
 func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {

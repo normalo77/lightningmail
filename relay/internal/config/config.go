@@ -59,6 +59,28 @@ type WebAuthn struct {
 	Origins []string `yaml:"origins"`
 }
 
+// Directory (Etappe B, CONCEPT §21/§25/§26): oeffentliches Adressbuch mit
+// bezahlten Profilkarten. Preise in Milli-EUR (25 = 2,5 ct), wertdefiniert:
+// der Relay rechnet per Tageskurs in sats um. Konvention wie Retention:
+// 0 = nicht gesetzt → Default; -1 = deaktiviert (Fee 0 / Limiter aus).
+// Kurs: manual_eur_per_btc > 0 gewinnt (Regtest, rate_src="manual"), sonst
+// rate_url (24h-Cache); beides leer = ungeratet → kein Kartenkauf moeglich.
+type Directory struct {
+	ServerFeeMEur    int64   `yaml:"server_fee_meur"`
+	DefaultPriceMEur int64   `yaml:"default_price_meur"`
+	ManualEurPerBtc  float64 `yaml:"manual_eur_per_btc"`
+	RateURL          string  `yaml:"rate_url"`
+	PublicRPM        int     `yaml:"public_rpm"`
+}
+
+const (
+	DefaultServerFeeMEur    = int64(25) // 2,5 ct Betreiber-Fee pro Kartenkauf
+	DefaultCardPriceMEur    = int64(25) // 2,5 ct Default-Kontaktpreis
+	DefaultDirectoryRPM     = 30        // 429-Budget anonyme Directory-Lesen pro IP
+	MaxCardPriceMEur        = int64(100000)
+	MaxCardBytes            = 8192
+)
+
 type Config struct {
 	Name        string    `yaml:"name"`
 	ListenAddr  string    `yaml:"listen_addr"`
@@ -69,6 +91,7 @@ type Config struct {
 	RelaySecret string    `yaml:"relay_secret"`
 	Retention   Retention `yaml:"retention"`
 	WebAuthn    WebAuthn  `yaml:"webauthn"`
+	Directory   Directory `yaml:"directory"`
 }
 
 const DefaultBlobMaxBytes = 10 * 1024 * 1024 // 10 MiB (PRECODING §B)
@@ -98,6 +121,20 @@ func ParseConfig(data []byte) (*Config, error) {
 	}
 	if c.Retention.MaxDays == 0 {
 		c.Retention.MaxDays = 90
+	}
+	// Directory-Defaults (0 = nicht gesetzt; -1 = deaktiviert → 0)
+	if c.Directory.ServerFeeMEur == 0 {
+		c.Directory.ServerFeeMEur = DefaultServerFeeMEur
+	} else if c.Directory.ServerFeeMEur == -1 {
+		c.Directory.ServerFeeMEur = 0
+	}
+	if c.Directory.DefaultPriceMEur == 0 {
+		c.Directory.DefaultPriceMEur = DefaultCardPriceMEur
+	} else if c.Directory.DefaultPriceMEur == -1 {
+		c.Directory.DefaultPriceMEur = 0
+	}
+	if c.Directory.PublicRPM == 0 {
+		c.Directory.PublicRPM = DefaultDirectoryRPM
 	}
 
 	return c, nil
@@ -130,6 +167,18 @@ func (c *Config) Validate() error {
 	}
 	if c.Postage.BlobMaxBytes <= 0 {
 		errs = append(errs, "postage.blob_max_bytes must be > 0")
+	}
+	if c.Directory.ServerFeeMEur < -1 {
+		errs = append(errs, "directory.server_fee_meur must be >= -1")
+	}
+	if c.Directory.DefaultPriceMEur < -1 || c.Directory.DefaultPriceMEur > MaxCardPriceMEur {
+		errs = append(errs, "directory.default_price_meur must be in [-1,100000]")
+	}
+	if c.Directory.PublicRPM < -1 {
+		errs = append(errs, "directory.public_rpm must be >= -1")
+	}
+	if c.Directory.ManualEurPerBtc < 0 {
+		errs = append(errs, "directory.manual_eur_per_btc must be >= 0")
 	}
 
 	names := map[string]bool{c.Name: true}

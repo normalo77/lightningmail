@@ -1,6 +1,5 @@
 // contacts-test.mts — Etappe A: privates Adressbuch im State-Slot (Sync, LWW, Tombstein).
-import { readFileSync } from "node:fs";
-import { parseSec1PEM, pubFromPriv, authSign, toHex } from "../src/crypto";
+import { newPrivKey, pubFromPriv, authSign, toHex } from "../src/crypto";
 import { StateSync, mergeDocs, emptyDoc, type Contact } from "../src/state";
 
 const ok = (cond: boolean, msg: string) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!cond) process.exitCode = 1; };
@@ -18,10 +17,17 @@ const m3 = mergeDocs({ ...emptyDoc(), contacts: { a: c("a", 1) } }, { ...emptyDo
 ok(!!m3.contacts.a && !!m3.contacts.b, "Verschiedene ids ueberleben beide Seiten");
 
 // --- Integration: zwei Geraete, echtes Relay ---
-const base = "http://127.0.0.1:8443";
-const priv = parseSec1PEM(readFileSync("/root/lightningmail/test/e2e-home/bernd/bernd.key", "utf8"));
+const base = process.env.RELAY || "http://127.0.0.1:8443";
+// Selbst-provisioniertes Einweg-Konto: der e2e-home/bernd-Key passt seit dem
+// Browser-Signup (17.11.) nicht mehr zum Prod-bernd.
+const priv = newPrivKey();
+const acct = "cts" + Date.now().toString(36);
+const cr = await fetch(base + "/v1/account", { method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ name: acct, pubkey: toHex(pubFromPriv(priv)) }) });
+if (!cr.ok) throw new Error("account " + cr.status);
 const t0 = await (await fetch(base + "/v1/auth", { method: "POST", headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ address: "bernd", pubkey_hex: toHex(pubFromPriv(priv)), sig: toHex(authSign(priv, "bernd")) }) })).json() as any;
+  body: JSON.stringify({ address: acct, pubkey_hex: toHex(pubFromPriv(priv)), sig: toHex(authSign(priv, acct)) }) })).json() as any;
+if (!t0.token) throw new Error("auth fehlgeschlagen");
 const A = new StateSync(base, priv, () => t0.token, "testCa");
 const B = new StateSync(base, priv, () => t0.token, "testCb");
 await A.pull(); await B.pull();

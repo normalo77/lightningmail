@@ -364,3 +364,64 @@ Abfrage: `GET /v1/receipts` (auth) → `{"receipts":[{"msg_id":hex,"ts":int}]}`
 (Limit 1000). UI merged das gegen den lokalen Gesendet-Ordner (msg_id hex aus
 /v1/send) und rendert ✓ / ✓✓ + Abrufzeit. Immer an (v0.1); Opt-out pro Konto
 ist M3-Kandidat.
+
+## 7d. Directory — öffentliche Profilkarten (Etappe B, CONCEPT §21, Beschluss 15.11.2026)
+
+Ökonomik: Key-Auflösung gratis, Profilkarte bezahlt (Split Server-Fee +
+Kontaktpreis, Default 2,5 + 2,5 ct). Preise wertdefiniert in Milli-EUR
+(§26) — der Relay rechnet per Tageskurs (§25-Feed: `directory.rate_url`,
+24-h-Cache; `directory.manual_eur_per_btc` gewinnt, Testdaten-Kennzeichnung
+`rate_src="manual"`) in msat um, aufgerundet. Ohne Kurs kein Kauf (503) —
+ein erfundener Preis wäre schlechter als keiner. Bezahlung pro
+`card_hash = hex(sha256(exakte Karten-Bytes))` = Dedup: dieselbe Karte
+kostet pro Käufer einmal; Karten-Update → neuer Hash → neuer Kauf.
+
+Karte = clientseitig gefilterte Projektion der Adressbuch-Felder (Etappe A),
+kanonisch: nur nichtleere String-Felder, feste Schlüsselreihenfolge,
+`JSON.stringify` → Bytes. Signatur = BIP340 über sha256(Bytes) mit dem
+Mailbox-Key. Der Server speichert EXAKT diese Bytes (kein Re-Serialisieren)
+und verifiziert bei PUT; Käufer verifizieren beim Empfang erneut.
+
+Endpoints:
+- `PUT /v1/profile` (auth): `{"card_b64","sig","consent":{"v":"gdpr1","ts","fields","purpose":"directory"},"price_meur"?}`.
+  Prüfungen: Karte ≤ 8192 B, JSON-Objekt aus Stringfeldern, Feldnamen
+  `^[a-z][a-z0-9_]{0,31}$` (≤ 32), `consent.fields` == Kartenfelder exakt,
+  Signatur gegen `account.mailbox_pubkey` (403 beiMismatch), Preis
+  0…100000 mEUR (0 = Gratis-Karte, `price_meur` fehlt = Config-Default).
+  Consent-Historie append-only (`consent_log`). Antwort: `{card_hash,price_meur}`.
+- `DELETE /v1/profile` (auth): DSGVO-Löschung — Karte + Consent-Historie weg
+  (Löschrecht schlägt Audit), idempotent. `card_purchases` bleiben
+  (Finanzfakten des Käufers, §25: keine nachträgliche Buchungs-Kosmetik).
+- `GET /v1/profile/{addr}` (anonym): wie bisher (address, pubkey,
+  foreign_sats, contact_sats) + `has_card,card_hash,price_meur,fee_meur,
+  total_meur[,total_msat,rate][,purchased]`. Niemals Karteninhalt.
+  Anonyme Aufrufe laufen pro IP in ein 429-Budget (`directory.public_rpm`,
+  Default 30/min, Token-Bucket; -1 = aus; CF-Connecting-IP vor RemoteAddr).
+  `{addr}` darf `name@domain` sein — aufgelöst wird der Local Part
+  (Föderation via `_bmail._tcp`-DNS = Client-Aufgabe, folgt).
+- `GET /v1/profile/{addr}/card` (auth): gekauft (PK `buyer,card_hash`) oder
+  eigene Karte → 200 `{address,pubkey,card_b64,sig,card_hash,consent,
+  price_meur,purchased}`; ungekauft → 402 Preisangebot `{total_meur,
+  seller_meur,fee_meur,total_msat,rate,card_hash}`; Karte gelöscht und
+  Käufer hatte je von diesem Kontakt gekauft → 410 (Achtungs-Note,
+  Beschluss), sonst 404.
+- `POST /v1/profile/{addr}/card` (auth): Kauf. Atomar in EINER Transaktion:
+  `INSERT OR IGNORE card_purchases` (RowsAffected=0 → Dedup, `fresh:false`,
+  kein Geld) → Käufer-Debit `card_out` → Kontakt-Kredit `card_in`.
+  Split: `paid=ceil(total_meur·1e11/rate)`, `seller=ceil(price·1e11/rate)`,
+  `fee=paid−seller`. Guthaben zu niedrig → 402 (Angebot wiederholt).
+  Gratis-Karte (total=0) → 200 ohne Buchung. `?cur=` nur `btc` (§26),
+  sonst 400 — keine Mischpfade.
+
+Steuer-Log G1 (§25) fällt hier mit: `txlog` (schema v4, Migration v3→v4
+baut die Tabelle wegen des kind-CHECKs neu, Zeilen bleiben) trägt
+`currency` (Default 'btc') + `eur_micro` (µEUR-Integer statt eur_cent-Float:
+Porto wäre in ganzen Cent 0) + `rate_ts` + `rate_src` + `rate_meur_per_btc`
+auf JEDER Zeile, solange ein Kurs da ist; ohne Kurs NULL = ungeratet
+(Regtest-Müll bleibt ungeratet, §25). Neue Kinds: `card_out`/`card_in`.
+Kurs-Feed: ein Abruf pro Tag (Binance/BSi-Format `{"price":"…"}`,
+Plausibilitätsgrenze 1e9), manueller Config-Kurs als Fallback/Test.
+
+Tests: `go test ./internal/ledger/ -run 'Profile|BuyCard|RateStamp|Migrate3to4'`,
+`npx tsx test/directory.mts` (PUT-Validierung, 403 Fremdsig, 402→Kauf→Dedup,
+Split, Steuerstempel, DELETE→410/404, 429-Burst; Guthaben via SQLite-Recipe).

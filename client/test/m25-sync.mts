@@ -1,13 +1,19 @@
 // m25-sync.mts — Headless-Beweis: zwei Geraete, ein Konto, ein State-Slot.
-import { readFileSync } from "node:fs";
-import { parseSec1PEM, pubFromPriv, authSign, toHex } from "../src/crypto";
+import { newPrivKey, pubFromPriv, authSign, toHex } from "../src/crypto";
 import { StateSync } from "../src/state";
 
-const base = "http://127.0.0.1:8443";
-const priv = parseSec1PEM(readFileSync("/root/lightningmail/test/e2e-home/bernd/bernd.key", "utf8"));
+const base = process.env.RELAY || "http://127.0.0.1:8443";
+// Selbst-provisioniertes Einweg-Konto: der e2e-home/bernd-Key passt seit dem
+// Browser-Signup (17.11.) nicht mehr zum Prod-bernd — Tests duerfen nicht von
+// echten Konten abhaengen.
+const priv = newPrivKey();
+const acct = "m25" + Date.now().toString(36);
+const cr = await fetch(base + "/v1/account", { method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ name: acct, pubkey: toHex(pubFromPriv(priv)) }) });
+if (!cr.ok) throw new Error("account " + cr.status);
 async function tok(): Promise<string> {
   const r = await fetch(base + "/v1/auth", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address: "bernd", pubkey_hex: toHex(pubFromPriv(priv)), sig: toHex(authSign(priv, "bernd")) }) });
+    body: JSON.stringify({ address: acct, pubkey_hex: toHex(pubFromPriv(priv)), sig: toHex(authSign(priv, acct)) }) });
   if (!r.ok) throw new Error("auth " + r.status);
   return ((await r.json()) as any).token as string;
 }

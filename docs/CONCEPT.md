@@ -474,6 +474,15 @@ Ziel: `name@relaydomain` wird zum Account-Anker, den Dienste nutzen können.
   YubiKey-Ebene B (OpenPGP-Applet, secp256k1, signiert ECDSA statt
   BIP340) nur anfassen, falls echter Bedarf; Bernds YubiKey-Modelle
   klären (FIDO2 + secp256k1 brauchen 5er-Serie).
+- **Status Etappe B (18.11.2026): Directory GEBAUT** — spec §7d: signierte
+  Profilkarten (PUT/DELETE /v1/profile, gdpr1-Consent append-only,
+  DSGVO-Löschung), Kartenkauf 402→POST mit Split Server-Fee+Kontaktpreis
+  (Default 2,5+2,5 ct, wertdefiniert, Dedup pro card_hash), 429-Budget für
+  anonyme Lookups, Steuer-Log G1 (eur_micro/rate_ts/rate_src auf jeder
+  txlog-Zeile, schema v4) und currency-Spalte (§26) fallen mit. Kauf ist
+  relay-lokal; Cross-Relay-Kartenkauf (Keysend-Mirror à la Receipts) und
+  DNS-Föderation der Suche folgen. OIDC-IdP bleibt offen (Reihenfolge §29:
+  B → IdP/§28).
 
 ## 22. Etappe 7 — Chunked Blobs & Byte-Porto (riesige Anhänge)
 

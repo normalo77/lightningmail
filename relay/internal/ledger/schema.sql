@@ -1,5 +1,6 @@
--- bmail relay ledger, schema v3 (docs/spec.md §8.1, Etappe 4a).
--- v3 adds: quota_bytes, auth_tokens table, blob_refs table.
+-- bmail relay ledger, schema v4 (docs/spec.md §8.1, Etappe B).
+-- v3 (Etappe 4a): quota_bytes, auth_tokens, blob_refs.
+-- v4 (Etappe B): txlog currency + Steuer-Stempel (§25/§26), Kinds card_out/card_in.
 
 CREATE TABLE account (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,8 +19,13 @@ CREATE TABLE txlog (
   account_id INTEGER NOT NULL REFERENCES account(id),
   delta_msat INTEGER NOT NULL,
   kind       TEXT    NOT NULL CHECK (kind IN
-             ('postage_out','postage_in','topup','withdraw','fee')),
+             ('postage_out','postage_in','topup','withdraw','fee','card_out','card_in')),
   ref        TEXT,
+  currency   TEXT    NOT NULL DEFAULT 'btc',
+  eur_micro  INTEGER,                    -- µEUR zum Zufluss-Zeitpunkt; NULL = ungeratet
+  rate_ts    INTEGER,
+  rate_src   TEXT,                       -- 'manual' | Feed-Host
+  rate_meur_per_btc INTEGER,             -- Kurs-Snapshot: EUR/BTC × 1000
   created_at INTEGER NOT NULL
 );
 

@@ -19,6 +19,7 @@ import (
 	"github.com/lightningmail/relay/internal/ledger"
 	"github.com/lightningmail/relay/internal/lnclient"
 	"github.com/lightningmail/relay/internal/postage"
+	"github.com/lightningmail/relay/internal/rates"
 	"github.com/lightningmail/relay/internal/relaysrv"
 )
 
@@ -67,7 +68,11 @@ func main() {
 	})
 
 	p := postage.New(cfg)
-	srv := relaysrv.New(cfg, l, ln, p)
+	// Etappe B: EIN Kurs-Feed fuer HTTP-Server UND LN-Ingest (§25: jeder
+	// Zufluss wird zum Tageskurs gestempelt; ohne Kurs bleibt er ungeratet).
+	feed := rates.NewFeed(cfg.Directory.RateURL, cfg.Directory.ManualEurPerBtc)
+	go feed.Start()
+	srv := relaysrv.New(cfg, l, ln, p, feed)
 
 	// M3 Retention: Sweep 60s nach Start und dann taeglich; -cleanup-once fuer Tests.
 	sweep := func() {
@@ -140,7 +145,14 @@ func main() {
 			if !inserted {
 				continue // Duplikat-Event: Portokasse NICHT doppelt fuellen
 			}
-			if err2 := l.CreditRecipient(acct.Name, update.AmtPaid*1000, hex.EncodeToString(env.MsgID[:])); err2 != nil {
+			creditRef := hex.EncodeToString(env.MsgID[:])
+			// §25 G1: Zufluss mit Tageskurs stempeln, wenn der Feed einen hat
+			if snap, ok := feed.Current(); ok {
+				err2 = l.ApplyDeltaMeta(acct.Name, update.AmtPaid*1000, ledger.KindPostageIn, creditRef, "btc", &snap)
+			} else {
+				err2 = l.CreditRecipient(acct.Name, update.AmtPaid*1000, creditRef)
+			}
+			if err2 != nil {
 				log.Printf("incoming: credit error for %s: %v", acct.Name, err2)
 			}
 			log.Printf("incoming: msg stored for %s seq=%d amt=%d", acct.Name, seq, update.AmtPaid)

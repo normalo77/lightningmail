@@ -23,3 +23,14 @@ webauthn:
   origins:
     - "https://lightningmail.app"
     - "https://bmail.192-168-177-77.sslip.io:5173"
+
+# Etappe B: Directory (CONCEPT §21/§25/§26) — bezahlte Profilkarten.
+# Preise in Milli-EUR (25 = 2,5 ct), wertdefiniert: Relay rechnet per Kurs in sats.
+# Regtest-Betrieb: manueller Testkurs (rate_src="manual", Testdaten-Kennzeichnung
+# gemaess §25). Mainnet: manual_eur_per_btc loeschen, rate_url setzen (Tageskurs,
+# z.B. https://api.binance.com/api/v3/ticker/price?symbol=BTCEUR).
+directory:
+  server_fee_meur: 25
+  default_price_meur: 25
+  manual_eur_per_btc: 50000
+  public_rpm: 30

@@ -52,8 +52,9 @@ export function authSign(priv: Uint8Array, account: string): Uint8Array {
 }
 
 // Verify einer BIP340-Signatur über sha256(msg) — mirror Go Verify()
+// (Go ParsePubKey frisst 33B-komprimiert UND 32B-x-only; noble nur 32B → normalisieren)
 export function verifySchnorr(pub33: Uint8Array, msg: Uint8Array, sig64: Uint8Array): boolean {
-  try { return schnorr.verify(sig64, sha256(msg), pub33); } catch { return false; }
+  try { return schnorr.verify(sig64, sha256(msg), pub33.length === 33 ? pub33.slice(1) : pub33); } catch { return false; }
 }
 
 function ecdhX(priv: Uint8Array, pubCompressed: Uint8Array): Uint8Array {
