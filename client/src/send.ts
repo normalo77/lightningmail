@@ -3,6 +3,7 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { schnorr } from '@noble/curves/secp256k1.js';
 import { toHex, fromHex, pubFromPriv, encryptPayload, TAG, u8 } from './crypto';
+import { CHUNK, MAX_REFS, needsChunking, splitChunks, manifestBytes, type Manifest } from './chunks';
 
 const rnd = (n: number): Uint8Array => {
   const b = new Uint8Array(n);
@@ -53,6 +54,7 @@ export function encodeEnvelope(e: EnvBuild, includeSig: boolean): Uint8Array {
 export interface ComposeOpts {
   to: string; subject: string; body: string;
   attachments?: { name: string; bytes: Uint8Array }[];
+  onProgress?: (msg: string) => void; // Etappe 7: Scheiben-Fortschritt
 }
 
 // kompletter Pfad: blob-uploads, profil, verschluesseln, signieren, POST /v1/send
@@ -60,17 +62,34 @@ export async function composeAndSend(
   base: string, token: string, priv: Uint8Array, opts: ComposeOpts
 ): Promise<{ msg_id: string }> {
   const blobRefs: Uint8Array[] = [];
-  const attList: { sha256: string; name: string; size: number }[] = [];
+  const attList: { sha256: string; name: string; size: number; chunked?: boolean; chunks?: number }[] = [];
+  const auth = { Authorization: `Bearer ${token}` };
+  const upload = async (bytes: Uint8Array, what: string): Promise<string> => {
+    const r = await fetch(`${base}/v1/blob`, { method: 'POST', headers: auth, body: bytes as BodyInit });
+    if (!r.ok) throw new Error(`blob upload ${what}: ${r.status} ${await r.text()}`);
+    return ((await r.json()) as any).sha256_hex;
+  };
   for (const a of opts.attachments ?? []) {
-    const r = await fetch(`${base}/v1/blob`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: a.bytes as BodyInit,
-    });
-    if (!r.ok) throw new Error(`blob upload ${a.name}: ${r.status} ${await r.text()}`);
-    const j = await r.json() as any;
-    blobRefs.push(fromHex(j.sha256_hex));
-    attList.push({ sha256: j.sha256_hex, name: a.name, size: a.bytes.length });
+    if (needsChunking(a.bytes.length)) {
+      // Etappe 7 (§22): 1-MiB-Scheiben + Manifest, alle Hashes ins Envelope (ACL/Mirror)
+      const total = Math.ceil(a.bytes.length / CHUNK);
+      const hashes: string[] = [];
+      let i = 0;
+      for (const chunk of splitChunks(a.bytes)) {
+        opts.onProgress?.(`Anhang „${a.name}": Scheibe ${++i}/${total}…`);
+        hashes.push(await upload(chunk, `${a.name} #${i}`));
+      }
+      const man: Manifest = { v: 1, size: a.bytes.length, chunks: hashes };
+      opts.onProgress?.(`Anhang „${a.name}": Manifest…`);
+      const msha = await upload(manifestBytes(man), `${a.name} Manifest`);
+      for (const hh of [...hashes, msha]) blobRefs.push(fromHex(hh));
+      attList.push({ sha256: msha, name: a.name, size: a.bytes.length, chunked: true, chunks: hashes.length });
+    } else {
+      const sha = await upload(a.bytes, a.name);
+      blobRefs.push(fromHex(sha));
+      attList.push({ sha256: sha, name: a.name, size: a.bytes.length });
+    }
+    if (blobRefs.length > MAX_REFS) throw new Error('Zu viele Anhang-Scheiben für einen Brief (max. 255 Referenzen ≈ 254 MB) — Datei verkleinern.');
   }
 
   const recip = opts.to.split('@')[0];

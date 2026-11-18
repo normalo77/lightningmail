@@ -204,7 +204,7 @@ func TestBlobACLAndQuota(t *testing.T) {
 	sha[31] = 0xCD
 
 	// Register blob ref
-	if err := l.RegisterBlobRef(a.ID, sha, 1024); err != nil {
+	if _, err := l.RegisterBlobRef(a.ID, sha, 1024); err != nil {
 		t.Fatal(err)
 	}
 

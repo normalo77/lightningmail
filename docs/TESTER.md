@@ -21,6 +21,10 @@ Bis dahin nur im LAN: https://bmail.192-168-177-77.sslip.io:5173 (Self-signed-Wa
    die Suchzeile (🌐 Directory-Zeile, exakter Treffer): Schlüssel gratis, Karte kostet
    (2,5 ct Betreiber + dein Preis) — einmal pro Karteninhalt, Update = neue Karte.
    Löschen entfernt Karte + Einwilligung serverseitig komplett.
+8. **Riesige Anhänge (Etappe 7):** Dateien über 1 MiB werden automatisch in Scheiben
+   verschickt (📦 im Anhang-Namen) — Grenze ist jetzt die Konto-Quota (100 MB), nicht mehr
+   10 MB pro Datei. Kostet Byte-Porto: 1 ct pro MiB (Schätzung erscheint beim Dateiauswahl);
+   Guthaben zu niedrig → 402, es wird nichts hochgeladen.
 
 ## Was Tester sehen werden / Soll so
 - ✓ = Porto settled, ✓✓ = Empfänger hat abgerufen. Kein Gelesen-Häkchen.

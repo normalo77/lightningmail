@@ -1,6 +1,7 @@
 // main.ts — DOM-Leim für die lightningmail v0.1 PWA (M2c). Logik lebt in src/crypto + src/send.
 import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef, sec1PEM } from '../src/crypto';
 import { newMnemonic, checkMnemonic, keyFromMnemonic, quizPositions, quizOptions } from '../src/bip39';
+import { parseManifest, reassemble } from '../src/chunks';
 import { composeAndSend } from '../src/send';
 import { StateSync, type Contact } from '../src/state';
 import { wrapKey, unwrapKey, isWrapped, wrapKeyPRF, unwrapKeyPRF } from '../src/keywrap';
@@ -59,6 +60,7 @@ const loadAuto = (): { acct: string; base: string; pem: string } | null => {
 };
 let sync: StateSync | null = null;
 let draftId = '';
+let healthCache: any = null; // Etappe 7: /health (Byte-Porto-Preis + Kurs) für die Compose-Schätzung
 let abSel = '', abEdit = '', abQ = ''; // Adressbuch (Etappe A)
 const spamKey = () => `lm_spam_${base.slice(1)}_${acct}`;
 const spamSet = (): Set<string> => sync ? new Set(Object.keys(sync.doc.spam)) : new Set(JSON.parse(localStorage.getItem(spamKey()) || '[]'));
@@ -66,7 +68,7 @@ const spamAdd = (k: string) => { if (sync) sync.toggleSpam(k, true); else { cons
 const spamDel = (k: string) => { if (sync) sync.toggleSpam(k, false); else { const x = new Set(spamSet()); x.delete(k); localStorage.setItem(spamKey(), JSON.stringify([...x])); } };
 
 // Gesendet-Ordner (lokal, synchronisiert wird ab M2.5)
-type MsgRow = { seq: number; msgId: string; subject: string; body: string; sender: string; pub: string; ts: number; atts: { sha256: string; name: string }[] };
+type MsgRow = { seq: number; msgId: string; subject: string; body: string; sender: string; pub: string; ts: number; atts: { sha256: string; name: string; chunked?: boolean }[] };
 type SentRow = { ts: number; to: string; subject: string; msg_id: string; bytes: number };
 const sentKey = () => `lm_out_${base.slice(1)}_${acct}`;
 const sentList = (): SentRow[] => JSON.parse(localStorage.getItem(sentKey()) || '[]');
@@ -92,6 +94,7 @@ async function api(path: string, init?: RequestInit) {
 
 async function login(pem: string) {
   acct = $('l-acct').value.trim(); base = $('l-relay').value;
+  healthCache = null; // Relay-Wechsel → Byte-Porto-Preise neu ziehen
   priv = parseSec1PEM(pem);
   const sig = authSign(priv, acct);
   const r = await fetch(base + '/v1/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -152,7 +155,7 @@ async function refresh() {
       const aad = new Uint8Array([...env[TAG.RecipientHash], ...env[TAG.MsgID]]);
       const pt = decryptPayload(priv!, env[TAG.Ephemeral], env[TAG.Payload], aad);
       const p = JSON.parse(new TextDecoder().decode(pt));
-      const atts = (p.attachments || []).map((a: any) => ({ sha256: a.sha256, name: a.name }));
+      const atts = (p.attachments || []).map((a: any) => ({ sha256: a.sha256, name: a.name, chunked: !!a.chunked }));
       const refs = env[TAG.BlobRefs] ? Array.from({ length: blobCount(env[TAG.BlobRefs]) }, (_, i) => toHex(blobRef(env[TAG.BlobRefs]!, i))) : [];
       msgs.push({ seq: m.seq, msgId: toHex(env[TAG.MsgID]), subject: p.subject, body: p.body, sender: toHex(env[TAG.SenderPubkey]).slice(0, 12), pub: toHex(env[TAG.SenderPubkey]), ts: m.received_at, atts: atts.length ? atts : refs.map((r, i) => ({ sha256: r, name: `anhang-${i + 1}` })) });
     } catch (e: any) { (window as any).__decodeErr = String(e && e.stack || e); }
@@ -231,7 +234,7 @@ function renderDetail() {
     <div class="subj" style="font-size:17px">${esc(m.subject)}</div>
     <div class="meta">Von ${cn ? esc(abLabel(cn)) : esc(m.sender) + '…'} · ${new Date(m.ts * 1000).toLocaleString('de')}</div>
     <pre style="white-space:pre-wrap;font:inherit;margin:14px 0">${esc(m.body)}</pre>
-    ${m.atts.map(a => `<span class="attach" data-sha="${a.sha256}" data-name="${esc(a.name)}">↓ ${esc(a.name)}</span>`).join('')}
+    ${m.atts.map(a => `<span class="attach" data-sha="${a.sha256}" data-name="${esc(a.name)}" data-chunked="${a.chunked ? 1 : 0}">↓ ${esc(a.name)}${a.chunked ? ' 📦' : ''}</span>`).join('')}
     <div class="classify">Absender:
       <button id="cl-spam" class="${sp ? 'on' : ''}">${sp ? 'unerwünscht' : 'als unerwünscht markieren'}</button>
       ${sp ? '<button id="cl-un">zurück nach Posteingang</button>' : ''}
@@ -239,10 +242,27 @@ function renderDetail() {
       ${cn ? '' : '<button id="cl-ab">als Kontakt speichern</button>'}
     </div></div>`;
   document.querySelectorAll('.attach').forEach(el => el.addEventListener('click', async () => {
-    const r = await api(`/v1/blob/${el.getAttribute('data-sha')}`);
-    if (!r.ok) { alert(errText(r.status)); return; }
-    const url = URL.createObjectURL(await r.blob());
-    const a = document.createElement('a'); a.href = url; a.download = el.getAttribute('data-name')!; a.click();
+    // Etappe 7: chunked Anhänge erst aus Manifest + Scheiben zusammensetzen
+    try {
+      let blob: Blob;
+      if (el.getAttribute('data-chunked') === '1') {
+        const mr = await api(`/v1/blob/${el.getAttribute('data-sha')}`);
+        if (!mr.ok) { alert(errText(mr.status)); return; }
+        const man = parseManifest(new Uint8Array(await mr.arrayBuffer()));
+        const bytes = await reassemble(async (sha) => {
+          const rr = await api(`/v1/blob/${sha}`);
+          if (!rr.ok) throw new Error(errText(rr.status));
+          return new Uint8Array(await rr.arrayBuffer());
+        }, man);
+        blob = new Blob([bytes as BlobPart]);
+      } else {
+        const r = await api(`/v1/blob/${el.getAttribute('data-sha')}`);
+        if (!r.ok) { alert(errText(r.status)); return; }
+        blob = await r.blob();
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = el.getAttribute('data-name')!; a.click();
+    } catch (e: any) { alert('Download: ' + String(e?.message || e).slice(0, 120)); }
   }));
   $('cl-spam').onclick = () => { sp ? spamDel(m.sender) : spamAdd(m.sender); render(); };
   if ($('cl-un')) $('cl-un').onclick = () => { spamDel(m.sender); render(); };
@@ -540,10 +560,23 @@ async function renderCompose() {
     el.value = [el.value.trim(), ...addrs].filter(Boolean).join(', ');
     el.dispatchEvent(new Event('change'));
   });
-  $('c-file').addEventListener('change', () => {
+  $('c-file').addEventListener('change', async () => {
     const fs = [...($('c-file') as any).files] as File[];
     const el = $('portofuss') as HTMLElement;
-    if (fs.length) el.textContent = `${fs.length} Anhang: ` + fs.map(f => `${f.name} (${Math.round(f.size / 1024)} kB)`).join(', ');
+    if (!fs.length) { el.textContent = 'Empfänger wählen — Porto und Fingerprint erscheinen hier.'; return; }
+    // Etappe 7: Byte-Porto-Schätzung aus /health (Preis + Tageskurs)
+    let cost = '';
+    try {
+      healthCache ??= await fetch(base + '/health').then(r => r.json());
+      const h = healthCache;
+      if (h?.byte_porto_meur_per_mb > 0 && h?.rate_meur_per_btc > 0) {
+        const totalBytes = fs.reduce((s, f) => s + f.size, 0);
+        const x1000 = Math.ceil(totalBytes * h.byte_porto_meur_per_mb * 1000 / 1048576);
+        const msat = Math.ceil(x1000 * 1e8 / h.rate_meur_per_btc);
+        cost = ` · Byte-Porto ≈ ${Math.ceil(msat / 1000)} sats (${(h.byte_porto_meur_per_mb / 10).toLocaleString('de')} ct/MiB; Fotos ggf. kleiner nach Kompression)`;
+      }
+    } catch { /* Schätzung ist Komfort, kein Fehlerfall */ }
+    el.textContent = `${fs.length} Anhang: ` + fs.map(f => `${f.name} (${f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.round(f.size / 1024) + ' kB'})`).join(', ') + cost;
   });
 
   $('c-save').onclick = () => {
@@ -568,7 +601,8 @@ async function renderCompose() {
         } else atts.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
       }
       const total = atts.reduce((a, x) => a + x.bytes.length, 0);
-      const out = await composeAndSend(base, token, priv!, { to: $('c-to').value, subject: $('c-subj').value, body: $('c-body').value, attachments: atts });
+      const out = await composeAndSend(base, token, priv!, { to: ($('c-to') as HTMLInputElement).value, subject: ($('c-subj') as HTMLInputElement).value, body: ($('c-body') as HTMLTextAreaElement).value, attachments: atts,
+        onProgress: (m) => { const e = $('c-msg'); if (e) e.textContent = m; } });
       sentPush({ ts: Math.floor(Date.now() / 1000), to: $('c-to').value, subject: $('c-subj').value, msg_id: String(out.msg_id || ''), bytes: total });
       if (draftId && sync) { sync.delDraft(draftId); draftId = ''; }
       $('c-msg').textContent = '✓ gesendet (' + (out.msg_id || '').slice(0, 10) + '…)';

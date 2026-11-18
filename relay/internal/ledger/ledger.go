@@ -552,12 +552,18 @@ func (l *Ledger) CleanExpiredTokens() error {
 // --- Blob ACL + Quota (Etappe 4a) ---
 
 // RegisterBlobRef records that an account owns/has access to a blob.
-func (l *Ledger) RegisterBlobRef(accountID int64, sha256 [32]byte, size int64) error {
+// fresh=false → Zeile existierte schon (Etappe 7: Byte-Porto wird nur einmal
+// pro (Konto, Blob) fällig — Dedup lädt nicht doppelt zur Kasse).
+func (l *Ledger) RegisterBlobRef(accountID int64, sha256 [32]byte, size int64) (fresh bool, err error) {
 	t := now()
-	_, err := l.db.Exec(
+	res, err := l.db.Exec(
 		`INSERT OR IGNORE INTO blob_refs (sha256, account_id, bytes, created_at)
      VALUES (?,?,?,?)`, sha256[:], accountID, size, t)
-	return err
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
 }
 
 // HasBlobAccess returns true if the account has a blob_ref for this sha256.

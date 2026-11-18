@@ -81,8 +81,14 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/webauthn/credentials/delete", s.auth(s.handleWADelete))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		// currencies: §26 — Etappe B besiedelt nur btc; ab Etappe K aus der Config.
+		// byte_porto + rate: UI rechnet damit die Byte-Porto-Schätzung im Compose.
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"ok":true,"currencies":["btc"]}`))
+		resp := map[string]any{"ok": true, "currencies": []string{"btc"},
+			"byte_porto_meur_per_mb": s.cfg.Postage.BytePortoMEurPerMB}
+		if rate, ok := s.rateFeed.Current(); ok {
+			resp["rate_meur_per_btc"] = rate.MEurPerBtc
+		}
+		json.NewEncoder(w).Encode(resp)
 	})
 
 	// Etappe 6b: Retry-Ticker fuer Receipts, deren Peer-Mirror fehlschlug
@@ -426,32 +432,81 @@ func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
 	h := sha256.Sum256(raw)
 	hexSha := hex.EncodeToString(h[:])
 	dir := s.cfg.DataDir + "/blob/" + hexSha[:2]
-	os.MkdirAll(dir, 0700)
-	path := dir + "/" + hexSha
+
+	acct, err := s.ledger.GetAccount(account)
+	if err != nil {
+		http.Error(w, `{"error":"account lookup"}`, 500)
+		return
+	}
+
+	// Etappe 7: Byte-Porto (§22) — erst kassieren, dann speichern; Abbruch
+	// refundet. Nur einmal pro (Konto, Blob): HasBlobAccess = schon bezahlt.
+	var feeMsat int64
+	if bp := s.cfg.Postage.BytePortoMEurPerMB; bp > 0 {
+		exists, err := s.ledger.HasBlobAccess(acct.ID, h)
+		if err != nil {
+			http.Error(w, `{"error":"internal"}`, 500)
+			return
+		}
+		if !exists {
+			rate, ok := s.rateFeed.Current()
+			if !ok {
+				http.Error(w, `{"error":"no exchange rate — byte-porto unavailable"}`, 503)
+				return
+			}
+			feeMsat = BytePortoMsat(int64(len(raw)), bp, rate.MEurPerBtc)
+			if err := s.ledger.ApplyDelta(account, -feeMsat, ledger.KindFee, "blob:"+hexSha); err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(402)
+				json.NewEncoder(w).Encode(map[string]any{"error": "insufficient balance for byte-porto", "fee_msat": feeMsat})
+				return
+			}
+		}
+	}
 
 	// Only write file if new; always register blob ref
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err := os.WriteFile(path, raw, 0600); err != nil {
+	if _, err := os.Stat(dir + "/" + hexSha); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			s.refundBytePorto(account, feeMsat, hexSha)
+			http.Error(w, fmt.Sprintf(`{"error":"write: %v"}`, err), 500)
+			return
+		}
+		if err := os.WriteFile(dir+"/"+hexSha, raw, 0600); err != nil {
+			s.refundBytePorto(account, feeMsat, hexSha)
 			http.Error(w, fmt.Sprintf(`{"error":"write: %v"}`, err), 500)
 			return
 		}
 	}
 
 	// Register blob ref for ACL
-	acct, err := s.ledger.GetAccount(account)
+	fresh, err := s.ledger.RegisterBlobRef(acct.ID, h, int64(len(raw)))
 	if err != nil {
-		http.Error(w, `{"error":"account lookup"}`, 500)
-		return
-	}
-	if err := s.ledger.RegisterBlobRef(acct.ID, h, int64(len(raw))); err != nil {
+		s.refundBytePorto(account, feeMsat, hexSha)
 		http.Error(w, fmt.Sprintf(`{"error":"blob ref: %v"}`, err), 500)
 		return
+	}
+	if !fresh && feeMsat > 0 {
+		// Dedup-Race (Parallel-Upload): zweites Kassieren zurückgeben
+		s.refundBytePorto(account, feeMsat, hexSha)
+		feeMsat = 0
 	}
 
 	json.NewEncoder(w).Encode(map[string]any{
 		"sha256_hex":    hexSha,
 		"bytes_written": len(raw),
+		"charged_msat":  feeMsat,
 	})
+}
+
+// refundBytePorto: Infrastructure-Fehler NACH der Kassierung → Geld zurück
+// (txlog kind='fee', ref='refund:blob:…' — sichtbar im Statement).
+func (s *Server) refundBytePorto(account string, msat int64, shaHex string) {
+	if msat <= 0 {
+		return
+	}
+	if err := s.ledger.ApplyDelta(account, msat, ledger.KindFee, "refund:blob:"+shaHex); err != nil {
+		log.Printf("byte-porto refund %s: %v", shaHex, err)
+	}
 }
 
 // --- GET /v1/blob/{sha256} (Etappe 4a: ACL check) ---

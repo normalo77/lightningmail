@@ -34,6 +34,10 @@ type Postage struct {
 	ContactSats  int64 `yaml:"contact_sats"`
 	MinSats      int64 `yaml:"min_sats"`
 	BlobMaxBytes int64 `yaml:"blob_max_bytes"`
+	// Etappe 7 (§22): Byte-Porto — Storage-Preis in Milli-EUR pro MiB beim
+	// Upload, wertdefiniert (§26) → msat per Tageskurs. 0 = aus (Default,
+	// Uploads gratis wie vor Etappe 7); einmal pro (Konto, Blob).
+	BytePortoMEurPerMB int64 `yaml:"byte_porto_meur_per_mb"`
 }
 
 type Peer struct {
@@ -167,6 +171,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Postage.BlobMaxBytes <= 0 {
 		errs = append(errs, "postage.blob_max_bytes must be > 0")
+	}
+	if c.Postage.BytePortoMEurPerMB < 0 {
+		errs = append(errs, "postage.byte_porto_meur_per_mb must be >= 0 (0 = aus)")
 	}
 	if c.Directory.ServerFeeMEur < -1 {
 		errs = append(errs, "directory.server_fee_meur must be >= -1")

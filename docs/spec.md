@@ -425,3 +425,37 @@ Plausibilitätsgrenze 1e9), manueller Config-Kurs als Fallback/Test.
 Tests: `go test ./internal/ledger/ -run 'Profile|BuyCard|RateStamp|Migrate3to4'`,
 `npx tsx test/directory.mts` (PUT-Validierung, 403 Fremdsig, 402→Kauf→Dedup,
 Split, Steuerstempel, DELETE→410/404, 429-Burst; Guthaben via SQLite-Recipe).
+
+## 6.5 Chunked Blobs & Byte-Porto (Etappe 7, CONCEPT §22)
+
+**Chunking (Client):** Anhänge > 1 MiB werden in 1-MiB-Scheiben zerlegt
+(`src/chunks.ts`). Jede Scheibe ist ein eigener Blob (sha256-adressiert →
+Content-Dedup relay- und kontoweit), das Manifest `{"v":1,"size":N,
+"chunks":["sha-hex",…]}` ebenfalls. ALLE Hashes (Scheiben + Manifest) gehen
+in die envelope-blob_refs → ACL (blob_refs) und Relay-Mirror (6.4) bleiben
+unverändert. Payload-attachment: `{sha256:<manifest>, name, size,
+chunked:true, chunks:N}`. Obergrenze 255 Refs/Brief (count = 1 Byte,
+≈254 MB); echte Grenze = Konto-Quota. Dateien ≤ 1 MiB gehen weiter als
+Single-Blob (e2e/lmcli-interop unverändert). Download: Manifest holen →
+Scheiben sequentiell → konkatenieren, Längencheck gegen `size`.
+
+**Byte-Porto (Server):** `postage.byte_porto_meur_per_mb` (0 = aus,
+Default). `POST /v1/blob` kassiert pro FRISCHEM blob_ref (erste Speicherung
+für dieses Konto — Dedup lädt nicht doppelt zur Kasse):
+`msat = ceil(ceil(size·bp·1000/MiB)·1e8/kurs)`, zweistufig aufgerundet
+(int64-sicher, niemand speichert gratis). Buchung `kind='fee'`,
+`ref='blob:<sha>'`; Refund bei Infra-Fehler nach Kassierung
+(`ref='refund:blob:<sha>'`). Reihenfolge: erst kassieren, dann speichern —
+bei `ErrInsufficient` 402 `{fee_msat}`, es liegt dann kein Byte auf Platte.
+Kein Kurs im Feed → 503 (Preis wäre erfunden). `/health` liefert
+`byte_porto_meur_per_mb` + `rate_meur_per_btc` für die UI-Schätzung.
+Prod-Regtest: 10 mEUR/MiB = 1 ct/MiB (Vorschlag an Bernd, Config-Sache).
+Zeitkomponente ("pro Zeit", §22) bewusst NICHT gebaut — Retention-Cleanup
+(7b) begrenzt die Lebensdauer bereits; Upgrade-Pfad: Preis = f(bytes, tage).
+
+Tests: `go test ./internal/relaysrv -run BytePorto` (Mathematik inkl.
+Overflow-Wache), `npx tsx test/chunk-test.mts` (Unit + 2,5-MiB-Roundtrip
+A→B mit Mirror, exakte Byte-Gleichheit, Abbuchungskontrolle aufs msat,
+Dedup, 402). Falle beim Testbau: Testdaten NICHT periodisch füllen
+(i·7&0xff hat Periode 256 → identische Scheiben → Dedup „klaut" eine
+Buchung und der Test lügt rot).

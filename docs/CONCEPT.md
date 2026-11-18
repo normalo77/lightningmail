@@ -494,6 +494,13 @@ Ziel: `name@relaydomain` wird zum Account-Anker, den Dienste nutzen können.
 - Delivery unverändert: HTTP-Fetch + Relay-Mirror (Spec 6.4);
   Cleanup hängt am bestehenden `blob_refs.downloaded_at`-Pfad
   (`relayd -cleanup-once`).
+- **Status (18.11.2026): GEBAUT** — spec §6.5: 1-MiB-Scheiben + Manifest
+  als Blob, alle Hashes in blob_refs (ACL/Mirror unverändert), 255-Ref-Cap
+  (~254 MB/Brief), Byte-Porto `byte_porto_meur_per_mb` (Prod-Regtest-Vorschlag
+  1 ct/MiB) pro frischem blob_ref, erst kassieren dann speichern, Refund bei
+  Infra-Fehler, 503 ohne Kurs. Zeitkomponente offen (Retention deckt Basics).
+  UI: Kostenschätzung im Compose (/health), Scheiben-Fortschritt, 📦-Download
+  mit Reassemblierung. Tests: chunk-test.mts 15/15 inkl. Cross-Relay-Roundtrip.
 
 ## 23. Empfangsbestätigung ✓/✓✓ (Etappe 6b, 13.11.2026)
 

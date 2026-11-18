@@ -9,6 +9,8 @@ postage:
   foreign_sats: 10
   contact_sats: 0
   min_sats: 1
+  # Etappe 7 (§22): Byte-Porto — 10 mEUR/MiB = 1 ct pro MiB (Vorschlag, Bernd kann vetieren)
+  byte_porto_meur_per_mb: 10
 peers:
   - name: beta
     url: http://127.0.0.1:9443
