@@ -499,3 +499,31 @@ in-process inkl. ES256-Verify, Replay, Fremdsig-403, Param-Mutationen,
 Deny-Pfad, 503), `npx tsx test/oidc-rp-test.mts` (RP-Simulation über echtes
 HTTP, WebCrypto-JWKS-Verify, bmail-BIP340-Check, Replay; läuft auch gegen
 https://relay-a.lightningmail.app durch den Tunnel).
+
+## 7f. Statement-Export mit Hash-Kette (§25 G2, Beschluss 15.11., gebaut 18.11.)
+
+- `GET /v1/statement?from&to&fmt=csv|json` (Bearer, eigenes Konto; from/to =
+  Unix-Sekunden, 0/offen = unbegrenzt; Default fmt=json).
+- `GET /v1/relay/statement?from&to&fmt=…` (X-Relay-Secret, Betreiber-Sicht):
+  Zeilen aus txlog kind='fee' über ALLE Konten (Vorzeichen gedreht — was der
+  Nutzer zahlt, ist Betreiber-Einnahme; refund: negativ) + card_purchases
+  fee_msat als `card_fee` (EUR anteilig aus dem Kauf-Kursstempel).
+- **Hash-Kette:** hash_i = sha256(hash_{i-1} || kanon), kanon = Felder mit '|'
+  in fester Reihenfolge (NULL = Leerstring), Genesis Konto =
+  sha256("bmail-statement-v1:"+konto), Betreiber =
+  sha256("bmail-operator-v1:"+relay-name). Kette wird IMMER von Genesis
+  gerechnet; from filtert nur die Ausgabe — der exportierte Kopf ist damit der
+  Monats-/Zeit-Anker für spätere Fortsetzungsprüfungen. Jede Zeile trägt
+  prev_hash+hash (CSV-Spalten bzw. JSON-Felder), Export-Kopf trägt genesis+kopf.
+- CSV: 2 Kommentarzeilen (Kennung/Bereich/genesis/kopf + LND-Hinweis), dann
+  Header, dann Daten. EUR-Spalten aus dem G1-Stempel; ungeratet = leer.
+- **G1-Vervollständigung (mit G2):** postage_out (auch refunds), byte-porto
+  fee + refund werden jetzt per ApplyDeltaMeta mit Kursstempel gebucht —
+  zuvor nur card_* und postage_in. Jede Wert-Buchung ist damit gestempelt
+  oder bewusst NULL.
+- UI: Nav „💶 Umsätze" — Monatsliste (Ein/Aus sats+EUR, „≈…(Teile ungeratet)"
+  wenn gemischt), Monats-Detail als Tabelle, CSV-Download pro Monat/komplett.
+- Tests: ledger/statement_test.go (Kette, from-Filter, NULL vs Stempel,
+  Operator-Vorzeichen/Determinismus), relaysrv/statement_test.go (CSV-Form +
+  Kettenfelder, JSON, 403 ohne Secret), client/test/statement-test.mts 14/14 —
+  rechnet Genesis+Kette clientseitig nach (Kanon-Formel = Doku).

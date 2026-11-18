@@ -46,7 +46,7 @@ const $ = (id: string) => document.getElementById(id)!;
 let base = '/relay-b', token = '', priv: Uint8Array | null = null, acct = '';
 let msgs: MsgRow[] = [];
 let receipts: Record<string, number> = {}; // msg_id(hex) -> ✓✓-Zeitstempel (Etappe 6b)
-let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' | 'ab' = 'in';
+let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' | 'ab' | 'ums' = 'in';
 let pemCache = '';
 // Auto-Login: erfolgreicher Login merkt sich Schluessel+Konto+Relay im Geraetespeicher
 // (unverschluesselt, nur App-Sandbox; APK hat allowBackup=false). "Vergessen" loescht es,
@@ -179,6 +179,7 @@ function visible() {
 function render() {
   if (folder === 'new') { renderCompose(); $('list').innerHTML = ''; return; }
   if (folder === 'ab') { renderAB(); return; }
+  if (folder === 'ums') { renderUms(); return; }
   if (folder === 'out') { renderSent(); return; }
   if (folder == 'dra') { renderDrafts(); return; }
   const list = visible().slice().reverse();
@@ -913,6 +914,7 @@ if ($('nav-sent')) $('nav-sent').onclick = () => { folder = 'out'; sel = -1; mar
 if ($('nav-dra')) $('nav-dra').onclick = () => { folder = 'dra'; sel = -1; mark(); render(); };
 $('nav-new').onclick = () => { folder = 'new'; draftId = ''; mark(); render(); };
 $('nav-ab').onclick = () => { folder = 'ab'; sel = -1; abEdit = ''; mark(); render(); };
+if ($('nav-ums')) $('nav-ums').onclick = () => { folder = 'ums'; sel = -1; mark(); render(); };
 $('nav-out').onclick = () => { localStorage.setItem(NOAUTO_KEY, '1'); location.reload(); };
 if ($('l-passbtn')) $('l-passbtn').onclick = tryUnwrap;
 function mark() {
@@ -922,6 +924,76 @@ function mark() {
   if ($('nav-dra')) $('nav-dra').classList.toggle('on', folder === 'dra');
   $('nav-new').classList.toggle('on', folder === 'new');
   $('nav-ab').classList.toggle('on', folder === 'ab');
+  if ($('nav-ums')) $('nav-ums').classList.toggle('on', folder === 'ums');
+}
+
+// --- Etappe G2 (§25): Umsätze — Monatsliste aus /v1/statement + CSV-Knopf.
+// Kein neues Subsystem: liest nur das Statement, EUR-Spalte kommt vom Server. ---
+const KINDDE: Record<string, string> = {
+  postage_out: 'Porto versendet', postage_in: 'Porto erhalten', topup: 'Einzahlung',
+  withdraw: 'Auszahlung', fee: 'Gebühr/Erstattung', card_out: 'Kartenkauf', card_in: 'Karten-Erlös',
+};
+const fmtSat = (n: number) => Math.round(n).toLocaleString('de');
+const fmtEur = (n: number) => n.toLocaleString('de', { style: 'currency', currency: 'EUR' });
+const monLabel = (k: string) => new Date(+k.slice(0, 4), +k.slice(5) - 1, 1).toLocaleDateString('de', { month: 'long', year: 'numeric' });
+
+async function dlCsv(path: string, name: string) {
+  const r = await api(path);
+  if (!r.ok) { alert(errText(r.status)); return; }
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+}
+
+async function renderUms() {
+  $('list').innerHTML = '<div class="meta" style="padding:12px">Lade Umsätze…</div>';
+  $('detail').innerHTML = '<p class="meta">Monat wählen — Details und CSV-Export erscheinen hier.</p>';
+  let j: any;
+  try {
+    const r = await api('/v1/statement?fmt=json');
+    if (!r.ok) throw new Error(errText(r.status));
+    j = await r.json();
+  } catch (e: any) {
+    $('list').innerHTML = `<div class="meta" style="padding:12px">✗ ${esc(String(e?.message || e).slice(0, 140))}</div>`;
+    return;
+  }
+  const rows = (j.zeilen || []) as any[];
+  const mon: Record<string, any[]> = {};
+  for (const x of rows) {
+    const d = new Date(x.ts * 1000);
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    (mon[k] ??= []).push(x);
+  }
+  const keys = Object.keys(mon).sort().reverse();
+  const eurSum = (l: any[]) => l.filter(x => x.eur !== undefined).reduce((s, x) => s + Math.abs(x.eur), 0);
+  const eurTxt = (l: any[]) => l.some(x => x.eur === undefined)
+    ? (eurSum(l) > 0 ? '≈' + fmtEur(eurSum(l)) + ' (Teile ungeratet)' : '—')
+    : fmtEur(eurSum(l));
+  $('list').innerHTML = `<div class="abbar"><button id="ums-csv">⬇ CSV komplett</button>
+      <span class="meta" style="align-self:center" title="Hash-Kette: jeder Export setzt den vorigen fort">Kette: ${esc(String(j.kopf || '').slice(0, 10))}…</span></div>` +
+    (keys.map(k => {
+      const rs = mon[k];
+      const ein = rs.filter(x => x.msat > 0), aus = rs.filter(x => x.msat < 0);
+      const sat = (l: any[]) => l.reduce((s, x) => s + Math.abs(x.msat), 0) / 1000;
+      return `<div class="row" data-mon="${k}"><div class="subj">${esc(monLabel(k))}</div>
+        <div class="meta">Ein ${fmtSat(sat(ein))} sats (${eurTxt(ein)}) · Aus ${fmtSat(sat(aus))} sats (${eurTxt(aus)}) · ${rs.length} Zeilen</div></div>`;
+    }).join('') || '<div class="meta" style="padding:12px">— keine Buchungen —</div>');
+  $('ums-csv').onclick = () => dlCsv('/v1/statement?fmt=csv', `umsaetze-${acct}.csv`);
+  document.querySelectorAll('#list .row[data-mon]').forEach(el => el.addEventListener('click', () => {
+    const k = el.getAttribute('data-mon')!;
+    const rs = mon[k].slice().reverse();
+    $('detail').innerHTML = `<div class="window" style="max-width:72ch"><div class="title-bar"><div class="title-bar-text">Umsätze ${esc(monLabel(k))}</div></div>
+      <div class="window-body"><table style="width:100%;font-size:12px;border-collapse:collapse">${rs.map(x => `<tr style="border-bottom:1px solid #dfdfdf">
+        <td style="padding:3px 4px;white-space:nowrap">${esc(String(x.zeit || '').replace('T', ' ').slice(0, 16))} UTC</td>
+        <td>${esc(KINDDE[x.art] || x.art)}</td>
+        <td style="text-align:right;white-space:nowrap">${x.msat > 0 ? '+' : '−'}${fmtSat(Math.abs(x.msat) / 1000)} sats</td>
+        <td style="text-align:right;white-space:nowrap">${x.eur !== undefined ? (x.msat > 0 ? '+' : '−') + fmtEur(Math.abs(x.eur)) : '—'}</td>
+        <td class="meta" style="text-align:right;max-width:14ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(String(x.referenz || ''))}">${esc(String(x.referenz || '').slice(0, 12))}</td></tr>`).join('')}</table>
+      <p style="margin:10px 0 0"><button id="ums-mcsv">⬇ CSV ${esc(monLabel(k))}</button></p>
+      <p class="meta">Zeilen sind hash-verkettet (Genesis → Kopf). LND-Onchain-/Routinggebühren stehen hier nicht — LND-Reports ergänzen.</p></div></div>`;
+    const von = Math.floor(new Date(+k.slice(0, 4), +k.slice(5) - 1, 1).getTime() / 1000);
+    const bis = Math.floor(new Date(+k.slice(0, 4), +k.slice(5), 1).getTime() / 1000);
+    $('ums-mcsv').onclick = () => dlCsv(`/v1/statement?fmt=csv&from=${von}&to=${bis - 1}`, `umsaetze-${acct}-${k}.csv`);
+  }));
 }
 
 // --- IdP (§21): OIDC-Login-Flow — Consent + BIP340-Signatur der Server-Challenge

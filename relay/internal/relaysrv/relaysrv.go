@@ -75,6 +75,9 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/relay/blob/", s.relayBlob)
 	mux.HandleFunc("/v1/receipts", s.auth(s.handleReceipts))
 	mux.HandleFunc("/v1/relay/receipt", s.relayReceipt)
+	// Etappe G2 (§25): Statements mit Hash-Kette — Konto + Betreiber
+	mux.HandleFunc("/v1/statement", s.auth(s.handleStatement))
+	mux.HandleFunc("/v1/relay/statement", s.handleOperatorStatement)
 	mux.HandleFunc("/v1/account", s.handleAccount)
 	// Etappe 6: WebAuthn/Passkey (CONCEPT §21)
 	mux.HandleFunc("/v1/webauthn/register/begin", s.auth(s.handleWARegisterBegin))
@@ -243,13 +246,13 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	postageAmt := s.postage.ForeignSats()
 	postageMsat := postageAmt * 1000
 
-	if err := s.ledger.ApplyDelta(account, -postageMsat, ledger.KindPostageOut, hex.EncodeToString(env.MsgID[:])); err != nil {
+	if err := s.ledger.ApplyDeltaMeta(account, -postageMsat, ledger.KindPostageOut, hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr()); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"insufficient balance: %v"}`, err), 402)
 		return
 	}
 
 	if len(s.cfg.Peers) == 0 {
-		s.ledger.ApplyDelta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]))
+		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 		http.Error(w, `{"error":"no peers configured"}`, 500)
 		return
 	}
@@ -259,13 +262,13 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 
 	info, err := s.ln.GetInfo(r.Context())
 	if err != nil {
-		s.ledger.ApplyDelta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]))
+		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 		http.Error(w, fmt.Sprintf(`{"error":"lnd: %v"}`, err), 500)
 		return
 	}
 	relayPubkeyBytes, err := hex.DecodeString(info.IdentityPubkey)
 	if err != nil {
-		s.ledger.ApplyDelta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]))
+		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 		http.Error(w, `{"error":"bad node pubkey"}`, 500)
 		return
 	}
@@ -290,7 +293,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 
 	preimage, err := s.ln.SendKeysend(r.Context(), peer.NodePubkey, postageAmt, customRecords)
 	if err != nil {
-		s.ledger.ApplyDelta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]))
+		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 		http.Error(w, fmt.Sprintf(`{"error":"keysend: %v"}`, err), 502)
 		return
 	}
@@ -462,7 +465,7 @@ func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			feeMsat = BytePortoMsat(int64(len(raw)), bp, rate.MEurPerBtc)
-			if err := s.ledger.ApplyDelta(account, -feeMsat, ledger.KindFee, "blob:"+hexSha); err != nil {
+			if err := s.ledger.ApplyDeltaMeta(account, -feeMsat, ledger.KindFee, "blob:"+hexSha, "btc", &rate); err != nil {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(402)
 				json.NewEncoder(w).Encode(map[string]any{"error": "insufficient balance for byte-porto", "fee_msat": feeMsat})
@@ -505,13 +508,24 @@ func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ratePtr: Steuerstempel fuer Wert-Buchungen (§25 G1), nil = ungeratet.
+func (s *Server) ratePtr() *ledger.RateStamp {
+	if s.rateFeed == nil {
+		return nil
+	}
+	if st, ok := s.rateFeed.Current(); ok {
+		return &st
+	}
+	return nil
+}
+
 // refundBytePorto: Infrastructure-Fehler NACH der Kassierung → Geld zurück
 // (txlog kind='fee', ref='refund:blob:…' — sichtbar im Statement).
 func (s *Server) refundBytePorto(account string, msat int64, shaHex string) {
 	if msat <= 0 {
 		return
 	}
-	if err := s.ledger.ApplyDelta(account, msat, ledger.KindFee, "refund:blob:"+shaHex); err != nil {
+	if err := s.ledger.ApplyDeltaMeta(account, msat, ledger.KindFee, "refund:blob:"+shaHex, "btc", s.ratePtr()); err != nil {
 		log.Printf("byte-porto refund %s: %v", shaHex, err)
 	}
 }

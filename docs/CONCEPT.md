@@ -609,6 +609,14 @@ in lokaler Währung. Der Relay schreibt mit, aber er buchführt nicht.
   Kein neues Subsystem: es liest nur `GET /v1/statement`.
 - **Reihenfolge:** G1 Rate-Stempeln (fällt mit Etappe B zusammen, da entstehen
   die ersten Erlöse), G2 Statement-Endpunkte + Kette + UI-Knopf „Export".
+- **Status G2 (18.11.2026): GEBAUT** — spec §7f: `/v1/statement` (auth,
+  JSON+CSV) und `/v1/relay/statement` (X-Relay-Secret), Zeilen hash-verkettet
+  (Genesis = sha256 über Kontoname, Kopf im Export; Teilbereiche ketten durch).
+  UI: Nav „💶 Umsätze" — Monatsliste Ein/Aus in sats+EUR, Detail-Tabelle,
+  CSV-Knopf pro Monat + komplett. G1 nachgezogen: Porto (hin/rück), Byte-Porto
+  und Refunds tragen jetzt ebenfalls den Kursstempel — damit ist JEDE
+  Wert-Buchung gestempelt oder bewusst NULL (kein Kurs). Regtest-Manual-Kurs
+  bleibt als `rate_src=manual` = Testdaten-Kennzeichnung sichtbar.
 
 ## 26. Multi-Währungs-Porto: BTC und LTC in einem Mail (Beschluss 15.11.2026, Bau in Etappe B / K)
 
