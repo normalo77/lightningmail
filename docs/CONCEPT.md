@@ -481,8 +481,15 @@ Ziel: `name@relaydomain` wird zum Account-Anker, den Dienste nutzen können.
   anonyme Lookups, Steuer-Log G1 (eur_micro/rate_ts/rate_src auf jeder
   txlog-Zeile, schema v4) und currency-Spalte (§26) fallen mit. Kauf ist
   relay-lokal; Cross-Relay-Kartenkauf (Keysend-Mirror à la Receipts) und
-  DNS-Föderation der Suche folgen. OIDC-IdP bleibt offen (Reihenfolge §29:
-  B → IdP/§28).
+  DNS-Föderation der Suche folgen. OIDC-IdP: gebaut, siehe nächster Punkt.
+- **Status IdP (18.11.2026): „Sign in with lightningmail" GEBAUT** — spec §7e:
+  OIDC Authorization-Code + PKCE im relayd (ES256-IdP-Key; P-256 ≠ secp256k1,
+  die Welten bleiben getrennt). Login über die PWA im OIDC-Modus
+  (Consent-Screen), Föderations-Beweis = BIP340-Signatur des Mailbox-Keys
+  über Server-Challenge (bmail-Claim im ID-Token), email_verified=true erst
+  durch diesen Beweis. Demo-Dienst unter /oidc/demo-callback.html.
+  Betreiberrolle damit dezentral beantwortet: pro Relay = ein Issuer.
+  Offen: DCR, refresh_token/offline_access, §28-Registrierbrief (Etappe I).
 
 ## 22. Etappe 7 — Chunked Blobs & Byte-Porto (riesige Anhänge)
 

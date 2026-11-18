@@ -36,3 +36,17 @@ directory:
   default_price_meur: 25
   manual_eur_per_btc: 50000
   public_rpm: 30
+
+# IdP (§21/§29): "Sign in with lightningmail" — OIDC Authorization-Code + PKCE.
+# ES256-IdP-Schluessel wird erzeugt: data_dir/idp_es256.pem (600) — NIEMALS
+# loeschen, sonst bricht das Vertrauen aller angebundenen Dienste.
+# Foederations-Beweis = BIP340-Sig des Mailbox-Keys (bmail-Claim im ID-Token).
+oidc:
+  issuer: "https://relay-a.lightningmail.app"
+  login_page: "https://lightningmail.app/app/"
+  address_domain: "lightningmail.app"
+  clients:
+    - id: demo
+      name: "Demo-Dienst"
+      redirect_uris:
+        - "https://relay-a.lightningmail.app/oidc/demo-callback.html"

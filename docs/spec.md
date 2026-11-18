@@ -459,3 +459,43 @@ A→B mit Mirror, exakte Byte-Gleichheit, Abbuchungskontrolle aufs msat,
 Dedup, 402). Falle beim Testbau: Testdaten NICHT periodisch füllen
 (i·7&0xff hat Periode 256 → identische Scheiben → Dedup „klaut" eine
 Buchung und der Test lügt rot).
+
+## 7e. OIDC-IdP „Sign in with lightningmail" (CONCEPT §21/§29, Beschluss 18.11.)
+
+Authorization-Code-Flow + PKCE (S256 Pflicht, public clients — kein Secret,
+kein DCR, kein refresh_token; shortcuts v0.1). Issuer = relay-URL; Config
+`oidc:{issuer, login_page, address_domain, clients[{id,name,redirect_uris}]}`;
+issuer leer = IdP aus (503).
+
+Zwei getrennte Krypto-Welten (§21, Absicht):
+- **IdP-Signatur:** ES256/P-256, Schlüssel auto-generiert in
+  `data_dir/idp_es256.pem` (0600, NIE löschen — sonst bricht das Vertrauen
+  aller angebundenen Dienste). JWKS unter `/oidc/jwks` (kid = sha256(pub)[:8]).
+- **Föderations-Beweis:** BIP340-Signatur des MAILBOX-Keys (secp256k1) über
+  eine 32-Byte-Server-Challenge. Entsteht im Browser (PWA im OIDC-Modus) —
+  der Relay sieht den privaten Mailbox-Key nie. Im ID-Token als Claim
+  `bmail:{pubkey, sig, challenge, alg:"bip340-sha256"}`. Dienst verifiziert
+  Signatur selbst + Pubkey↔Adresse via Directory (§4.2 Ebene 3) =
+  LNURL-auth-Muster mit OIDC-Wrapper.
+
+Flow: GET `/oidc/auth` (client_id/redirect_uri exakt, scope∋openid, PKCE)
+→ 302 `login_page?oidc=<issuer>&sid=…` → PWA login wie üblich (Passkey/Datei/
+Auto) → POST `/oidc/auth/login` {sid} mit Bearer → {challenge_b64,
+client_name, address} → Consent-Screen → Browser signiert → POST
+`/oidc/auth/sign` {sid, sig|deny} → {redirect: redirect_uri?code&state} →
+POST `/oidc/token` (form: code, code_verifier, client_id, redirect_uri;
+single-use, 2 min TTL) → {id_token (ES256, 1 h), access_token (opak, 1 h)} →
+GET `/oidc/userinfo` (Bearer). CORS auf auth/login+sign für
+webauthn.origins (= PWA-Origin(s)).
+
+ID-Token-Claims: iss, sub = `name@address_domain`, aud, exp/iat/auth_time,
+nonce (durchgereicht), email (= sub), **email_verified: true** (Beweis =
+Mailbox-Key-Signatur, nicht MX), preferred_username, bmail{…}.
+
+Demo-RP: `/oidc/demo-callback.html` (eingebettet, reines JS): startet Flow,
+tauscht Code, verifiziert ES256 via WebCrypto gegen JWKS, zeigt Claims.
+Tests: `go test ./internal/relaysrv -run 'OIDC|Pkce'` (5 Tests, Vollflow
+in-process inkl. ES256-Verify, Replay, Fremdsig-403, Param-Mutationen,
+Deny-Pfad, 503), `npx tsx test/oidc-rp-test.mts` (RP-Simulation über echtes
+HTTP, WebCrypto-JWKS-Verify, bmail-BIP340-Check, Replay; läuft auch gegen
+https://relay-a.lightningmail.app durch den Tunnel).

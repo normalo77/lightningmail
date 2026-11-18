@@ -40,6 +40,9 @@ type Server struct {
 	rateFeed *rates.Feed
 	pubLim   *pubLimit
 
+	// IdP (§21/§29): OIDC-Sessions/Codes/Tokens + ES256-Schluessel.
+	oidc *oidcState
+
 	// Etappe 6: fluechtige WebAuthn-Zeremonie-Sessions (shortcut:
 	// In-Memory, single-process; bei Multi-Instanz-Relay externalisieren).
 	waMu       sync.Mutex
@@ -51,7 +54,8 @@ type Server struct {
 func New(cfg *config.Config, l *ledger.Ledger, ln *lnclient.Client, p *postage.Service, feed *rates.Feed) *Server {
 	return &Server{cfg: cfg, ledger: l, ln: ln, postage: p, waSessions: map[string]waSessionEntry{},
 		rateFeed: feed,
-		pubLim:   newPubLimit(cfg.Directory.PublicRPM)}
+		pubLim:   newPubLimit(cfg.Directory.PublicRPM),
+		oidc:     newOIDCState(cfg.DataDir)}
 }
 
 func (s *Server) ListenAndServe() error {
@@ -79,6 +83,9 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/webauthn/login/finish", s.handleWALoginFinish)
 	mux.HandleFunc("/v1/webauthn/credentials", s.auth(s.handleWAList))
 	mux.HandleFunc("/v1/webauthn/credentials/delete", s.auth(s.handleWADelete))
+	// IdP (§21/§29): OIDC — Discovery, JWKS, Auth/Token/Userinfo, Demo-RP
+	mux.HandleFunc("/.well-known/openid-configuration", s.handleOIDCDiscovery)
+	mux.HandleFunc("/oidc/", s.handleOIDCRouter)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		// currencies: §26 — Etappe B besiedelt nur btc; ab Etappe K aus der Config.
 		// byte_porto + rate: UI rechnet damit die Byte-Porto-Schätzung im Compose.

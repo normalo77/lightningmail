@@ -85,6 +85,24 @@ const (
 	MaxCardBytes            = 8192
 )
 
+// Oidc (IdP, CONCEPT §21/§29): „Sign in with lightningmail".
+// Issuer leer = IdP aus (Endpoints 503). Clients statisch (public clients,
+// PKCE S256 Pflicht — kein Secret, kein DCR; shortcuts v0.1). Login laeuft
+// ueber die PWA (login_page) im OIDC-Modus; Foederations-Beweis = BIP340-Sig
+// des Mailbox-Keys als bmail-Claim im ID-Token.
+type OidcClient struct {
+	ID           string   `yaml:"id"`
+	Name         string   `yaml:"name"`
+	RedirectURIs []string `yaml:"redirect_uris"`
+}
+
+type Oidc struct {
+	Issuer        string       `yaml:"issuer"`
+	LoginPage     string       `yaml:"login_page"`     // absolute PWA-URL
+	AddressDomain string       `yaml:"address_domain"` // Default: Host des Issuers
+	Clients       []OidcClient `yaml:"clients"`
+}
+
 type Config struct {
 	Name        string    `yaml:"name"`
 	ListenAddr  string    `yaml:"listen_addr"`
@@ -96,6 +114,7 @@ type Config struct {
 	Retention   Retention `yaml:"retention"`
 	WebAuthn    WebAuthn  `yaml:"webauthn"`
 	Directory   Directory `yaml:"directory"`
+	Oidc        Oidc      `yaml:"oidc"`
 }
 
 const DefaultBlobMaxBytes = 10 * 1024 * 1024 // 10 MiB (PRECODING §B)
@@ -186,6 +205,35 @@ func (c *Config) Validate() error {
 	}
 	if c.Directory.ManualEurPerBtc < 0 {
 		errs = append(errs, "directory.manual_eur_per_btc must be >= 0")
+	}
+	if c.Oidc.Issuer != "" {
+		if u, err := url.Parse(c.Oidc.Issuer); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+			errs = append(errs, "oidc.issuer must be an absolute http(s) URL")
+		}
+		if c.Oidc.LoginPage != "" {
+			if u, err := url.Parse(c.Oidc.LoginPage); err != nil || u.Host == "" {
+				errs = append(errs, "oidc.login_page must be an absolute URL")
+			}
+		}
+		seen := map[string]bool{}
+		for i, cl := range c.Oidc.Clients {
+			where := fmt.Sprintf("oidc.clients[%d]", i)
+			if cl.ID == "" {
+				errs = append(errs, where+".id is required")
+			} else if seen[cl.ID] {
+				errs = append(errs, where+".id duplicate: "+cl.ID)
+			} else {
+				seen[cl.ID] = true
+			}
+			if len(cl.RedirectURIs) == 0 {
+				errs = append(errs, where+".redirect_uris must not be empty")
+			}
+			for _, u := range cl.RedirectURIs {
+				if pu, err := url.Parse(u); err != nil || pu.Host == "" {
+					errs = append(errs, where+".redirect_uris must be absolute URLs")
+				}
+			}
+		}
 	}
 
 	names := map[string]bool{c.Name: true}

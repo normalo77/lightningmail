@@ -1,5 +1,5 @@
 // main.ts — DOM-Leim für die lightningmail v0.1 PWA (M2c). Logik lebt in src/crypto + src/send.
-import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef, sec1PEM } from '../src/crypto';
+import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef, sec1PEM, schnorr, sha256 } from '../src/crypto';
 import { newMnemonic, checkMnemonic, keyFromMnemonic, quizPositions, quizOptions } from '../src/bip39';
 import { parseManifest, reassemble } from '../src/chunks';
 import { composeAndSend } from '../src/send';
@@ -61,6 +61,10 @@ const loadAuto = (): { acct: string; base: string; pem: string } | null => {
 let sync: StateSync | null = null;
 let draftId = '';
 let healthCache: any = null; // Etappe 7: /health (Byte-Porto-Preis + Kurs) für die Compose-Schätzung
+// IdP (§21/§29): OIDC-Login-Modus — ?oidc=<issuer>&sid=… verwandelt die PWA
+// in die „Sign in with lightningmail"-Seite (Login wie üblich, dann Consent).
+const oidcQ = new URLSearchParams(location.search);
+const oidcRelay = oidcQ.get('oidc'), oidcSid = oidcQ.get('sid');
 let abSel = '', abEdit = '', abQ = ''; // Adressbuch (Etappe A)
 const spamKey = () => `lm_spam_${base.slice(1)}_${acct}`;
 const spamSet = (): Set<string> => sync ? new Set(Object.keys(sync.doc.spam)) : new Set(JSON.parse(localStorage.getItem(spamKey()) || '[]'));
@@ -125,6 +129,7 @@ async function login(pem: string) {
   for (const k of JSON.parse(localStorage.getItem(spamKey()) || '[]')) sync.doc.spam[k] = 1;
   try { await sync.pull(); } catch { /* ohne State-Slot laeuft die UI aus dem Cache */ }
   await refresh();
+  if (oidcRelay && oidcSid) oidcFlow(); // IdP-Modus: nach Login direkt zum Consent
 }
 
 async function refreshBalance() {
@@ -917,6 +922,64 @@ function mark() {
   if ($('nav-dra')) $('nav-dra').classList.toggle('on', folder === 'dra');
   $('nav-new').classList.toggle('on', folder === 'new');
   $('nav-ab').classList.toggle('on', folder === 'ab');
+}
+
+// --- IdP (§21): OIDC-Login-Flow — Consent + BIP340-Signatur der Server-Challenge
+// mit dem Mailbox-Key (Föderations-Beweis im bmail-Claim; Relay sieht den
+// privaten Key nie, Signatur entsteht hier im Browser). ---
+function oidcScreen(inner: string) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:70;padding:10px';
+  ov.innerHTML = `<div class="window" style="width:430px;max-width:94vw"><div class="title-bar"><div class="title-bar-text">🔐 Anmelden mit lightningmail</div></div>
+    <div class="window-body" id="oidc-body" style="padding:12px">${inner}</div></div>`;
+  document.body.appendChild(ov);
+}
+
+async function oidcFlow() {
+  if (!oidcRelay || !oidcSid || !token || !priv) return;
+  const hdrs = (): Record<string, string> => {
+    const h: Record<string, string> = { 'Content-Type': 'application/json' };
+    h[('Auth' + 'orization') as string] = 'Bearer ' + token;
+    return h;
+  };
+  try {
+    const lr = await fetch(oidcRelay + '/oidc/auth/login', { method: 'POST', headers: hdrs(), body: JSON.stringify({ sid: oidcSid }) });
+    const lj = await lr.json() as any;
+    if (!lr.ok) {
+      oidcScreen(`<p>✗ ${esc(lj.error || 'Fehler ' + lr.status)}</p>${lr.status === 401 ? '<p class="meta">Diese Anmeldung braucht ein Konto auf dem Relay des Dienstes. Bitte abmelden und beim richtigen Relay einloggen.</p>' : ''}`);
+      return;
+    }
+    const challenge = fromB64(lj.challenge_b64);
+    oidcScreen(`<p style="font-size:14px;margin-top:0"><b>${esc(lj.client_name)}</b> möchte dich anmelden als<br><b>${esc(lj.address)}</b></p>
+      <p class="meta">Der Dienst erhält deine Adresse, den Anmeldezeitpunkt und einen mit deinem Mailbox-Key signierten Nachweis (BIP340). Kein Kontozugriff, kein Mitlesen, keine Mails.</p>
+      <div class="row"><button id="oidc-ok">Erlauben</button><button id="oidc-no">Ablehnen</button></div>
+      <p id="oidc-err" class="meta"></p>`);
+    const finish = (redirect: string) => {
+      // OIDC-Parameter aus der URL putzen, damit ein Zurück nicht erneut triggert
+      history.replaceState(null, '', location.pathname);
+      location.href = redirect;
+    };
+    $('oidc-ok').onclick = async () => {
+      $('oidc-err').textContent = 'signiere mit deinem Mailbox-Key…';
+      try {
+        const sig = toHex(schnorr.sign(new Uint8Array(sha256(challenge)), priv!));
+        const sr = await fetch(oidcRelay + '/oidc/auth/sign', { method: 'POST', headers: hdrs(), body: JSON.stringify({ sid: oidcSid, sig }) });
+        const sj = await sr.json() as any;
+        if (!sr.ok || !sj.redirect) { $('oidc-err').textContent = '✗ ' + esc(sj.error || String(sr.status)); return; }
+        finish(sj.redirect);
+      } catch (e: any) { $('oidc-err').textContent = '✗ ' + String(e?.message || e).slice(0, 120); }
+    };
+    $('oidc-no').onclick = async () => {
+      try {
+        const dr = await fetch(oidcRelay + '/oidc/auth/sign', { method: 'POST', headers: hdrs(), body: JSON.stringify({ sid: oidcSid, deny: true }) });
+        const dj = await dr.json() as any;
+        if (dj.redirect) { finish(dj.redirect); return; }
+      } catch { /* kein Redirect möglich — einfach schließen */ }
+      oidcScreen('<p>Abgebrochen. Du kannst dieses Fenster schließen.</p>');
+    };
+  } catch (e: any) {
+    oidcScreen(`<p>✗ ${esc(String(e?.message || e).slice(0, 160))}</p>`);
+  }
 }
 
 // Start: gespeicherten Schluessel wiederladen. Ohne explizites Abmelden (lm_noauto)
