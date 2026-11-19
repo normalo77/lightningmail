@@ -51,6 +51,8 @@ def _init_db():
         with sqlite3.connect(STATS_DB) as c:
             c.execute("CREATE TABLE IF NOT EXISTS daily_hits (day TEXT, path TEXT, hits INTEGER DEFAULT 0, PRIMARY KEY(day, path))")
             c.execute("CREATE TABLE IF NOT EXISTS daily_visitors (day TEXT, vhash TEXT, PRIMARY KEY(day, vhash))")
+            c.execute("CREATE TABLE IF NOT EXISTS unique_ips (iphash TEXT PRIMARY KEY, first_day TEXT)")
+            c.execute("CREATE TABLE IF NOT EXISTS bot_hits (day TEXT PRIMARY KEY, hits INTEGER DEFAULT 0)")
             c.execute("CREATE TABLE IF NOT EXISTS forum_posts (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, author TEXT, pubkey TEXT, relay TEXT, title TEXT, body TEXT)")
             c.execute("CREATE TABLE IF NOT EXISTS paywall_unlocks (address TEXT, item_id TEXT, ts INTEGER, sats INTEGER, PRIMARY KEY(address, item_id))")
             if c.execute("SELECT COUNT(*) FROM forum_posts").fetchone()[0] == 0:
@@ -63,27 +65,49 @@ def _init_db():
 
 _init_db()
 
+BOT_KEYWORDS = (
+    "bot", "crawl", "spider", "slurp", "curl/", "wget/", "python-requests", "python-urllib",
+    "go-http-client", "headlesschrome", "lighthouse", "censys", "zgrab", "masscan", "nmap",
+    "uptimerobot", "pingdom", "statuscake", "ahrefs", "semrush", "mj12bot", "dotbot",
+    "bytespider", "gptbot", "claudebot", "bingpreview", "facebookexternalhit", "whatsapp",
+    "telegrambot", "discordbot", "twitterbot"
+)
+
+def is_human_ua(ua: str) -> bool:
+    u = (ua or "").lower()
+    if len(u) < 25 or "mozilla/5.0" not in u:
+        return False
+    return not any(k in u for k in BOT_KEYWORDS)
+
 def record_hit(handler, canonical_path):
     if handler.command != "GET":
         return
     ua = handler.headers.get("User-Agent", "")
-    # offensichtliche Health-Checks von lokalem curl ignorieren
     ip = handler.headers.get("CF-Connecting-IP") or handler.headers.get("X-Forwarded-For", "").split(",")[0].strip() or handler.client_address[0]
-    if ip == "127.0.0.1" and ua.startswith("curl/"):
+    if ip in ("127.0.0.1", "::1") or ip.startswith("192.168."):
         return
     day = datetime.date.today().isoformat()
-    # Tages-Hash (SHA-256 ueber Tag + IP + UA): nicht rueckrechenbar, keine IP-Speicherung, keine Cookies!
+    if not is_human_ua(ua):
+        try:
+            with _db_lock, sqlite3.connect(STATS_DB) as c:
+                c.execute("INSERT INTO bot_hits(day, hits) VALUES(?,1) ON CONFLICT(day) DO UPDATE SET hits=hits+1", (day,))
+        except Exception:
+            pass
+        return
+    # Cookielos & DSGVO-sauber: Einweg-SHA256-Hashes ohne Klartext-IP-Speicherung
     vhash = hashlib.sha256(f"{day}|bmail-anon|{ip}|{ua}".encode("utf-8")).hexdigest()[:20]
+    iphash = hashlib.sha256(f"bmail-unique-ip-v1|{ip}".encode("utf-8")).hexdigest()[:24]
     try:
         with _db_lock, sqlite3.connect(STATS_DB) as c:
             c.execute("INSERT INTO daily_hits(day, path, hits) VALUES(?,?,1) ON CONFLICT(day,path) DO UPDATE SET hits=hits+1", (day, canonical_path))
             c.execute("INSERT OR IGNORE INTO daily_visitors(day, vhash) VALUES(?,?)", (day, vhash))
+            c.execute("INSERT OR IGNORE INTO unique_ips(iphash, first_day) VALUES(?,?)", (iphash, day))
             c.execute("DELETE FROM daily_visitors WHERE day < date('now', '-35 days')")
     except Exception:
         pass
 
 def get_stats():
-    out = {"total_hits": 0, "total_unique_daily_visitors": 0, "by_path": {}, "days": []}
+    out = {"total_hits": 0, "total_unique_ips": 0, "total_unique_daily_visitors": 0, "filtered_bot_hits": 0, "by_path": {}, "days": []}
     try:
         with _db_lock, sqlite3.connect(STATS_DB) as c:
             for p, h in c.execute("SELECT path, SUM(hits) FROM daily_hits GROUP BY path ORDER BY SUM(hits) DESC"):
@@ -91,6 +115,10 @@ def get_stats():
                 out["total_hits"] += h
             row = c.execute("SELECT COUNT(*) FROM daily_visitors").fetchone()
             out["total_unique_daily_visitors"] = row[0] if row else 0
+            row_ip = c.execute("SELECT COUNT(*) FROM unique_ips").fetchone()
+            out["total_unique_ips"] = row_ip[0] if row_ip else 0
+            row_bot = c.execute("SELECT COALESCE(SUM(hits),0) FROM bot_hits").fetchone()
+            out["filtered_bot_hits"] = row_bot[0] if row_bot else 0
             days_hits = {d: h for d, h in c.execute("SELECT day, SUM(hits) FROM daily_hits GROUP BY day ORDER BY day DESC LIMIT 30")}
             days_vis = {d: v for d, v in c.execute("SELECT day, COUNT(*) FROM daily_visitors GROUP BY day")}
             for d in sorted(days_hits.keys(), reverse=True):
@@ -133,9 +161,10 @@ a{{color:#122338;font-weight:600}}
 <h1>⚡ lightningmail.app — Statistik</h1>
 <p class="sub">100 % cookielos &amp; ohne Tracking-Profile: gezählt werden nur Seiten-/Download-Abrufe sowie ein nicht rückrechenbarer Tages-Hash (keine IP-Speicherung, keine Cookies).</p>
 <div class="cards">
-  <div class="card"><div class="num">{st['total_unique_daily_visitors']}</div><div class="lbl">Besucher gesamt (Tages-Uniques)</div></div>
+  <div class="card"><div class="num">{st['total_unique_ips']}</div><div class="lbl">Verschiedene IPs (echte Browser, ohne Bots)</div></div>
+  <div class="card"><div class="num">{st['total_unique_daily_visitors']}</div><div class="lbl">Tages-Besucher (Uniques)</div></div>
   <div class="card"><div class="num">{st['total_hits']}</div><div class="lbl">Seiten- &amp; Download-Aufrufe</div></div>
-  <div class="card"><div class="num">{st['days'][0]['visitors'] if st['days'] else 0} / {st['days'][0]['hits'] if st['days'] else 0}</div><div class="lbl">Heute (Besucher / Aufrufe)</div></div>
+  <div class="card"><div class="num">{st['filtered_bot_hits']}</div><div class="lbl">Gefilterte Bot-/Scanner-Anfragen</div></div>
 </div>
 <h2>Tagesverlauf (letzte 30 Tage)</h2>
 <table><thead><tr><th>Datum</th><th>Besucher (Unique)</th><th>Aufrufe</th></tr></thead><tbody>{rows_days}</tbody></table>
