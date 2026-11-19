@@ -678,3 +678,19 @@ klassischen E-Mail-Welt. Das Ökosystem besteht aus drei klar getrennten Teilen:
      Unternehmen extern bereits BTCPay oder ein ERP für Rechnungen nutzt, kann
      es dieses optional an den Connector anbinden — für das Relay selbst bleibt
      es komplett außen vor.
+
+## 30. Mainnet-Ökonomie des Relays: BIP-21-Aufladung, Kanal-Pool & Byte-Porto-Staffel (Beschluss 19.11.2026)
+
+Das Relay wird kostendeckend als Infrastruktur betrieben, nicht zur Gewinnmaximierung — Nutzer dürfen sich beim normalen Schreiben nie ausgenutzt fühlen, und Channel-Management bleibt für sie komplett unsichtbar.
+
+**1. Gemeinsamer LND-Pool & BIP-21 Unified Topup (ohne BTCPay Server):**
+- **Kein User-Channel, kein BTCPay:** Mit einzelnen 10-€-Einzahlungen lassen sich keine eigenen Kanäle betreiben, und BTCPay Server nimmt kein Channel-Balancing ab. Stattdessen hält das Relay **einen gemeinsamen LND-Kanalpool** (4–8 solide Kanäle, kostensparend in einer einzigen Transaktion per `lncli batchopenchannel` eröffnet).
+- **Ein QR-Code für On-Chain & Lightning (BIP-21):** Da viele Nutzer On-Chain-BTC statt eigener Lightning-Kanäle besitzen, erzeugt `relayd` über die eingebaute `lnd`-Wallet (`newaddress` + `SubscribeTransactions`) einen kombinierten BIP-21-URI (`bitcoin:bc1q…?amount=…&lightning=lnbc…`). Börsen und Hardware-Wallets zahlen automatisch On-Chain (mit sinnvoll empfohlenem Mindestbetrag ab ~20.000 Sats wegen späterer UTXO-Konsolidierung), Lightning-Wallets zahlen denselben Code sofort in 1 Sekunde.
+- **Organischer Liquiditätskreislauf:** On-Chain-Einzahlungen der Nutzer sammeln sich in der `lnd`-Wallet des Betreibers und finanzieren bei Bedarf den nächsten großen Kanal oder Submarine-Swap, während der laufende Mailverkehr in beide Richtungen die Kanäle weitgehend natürlich ausgleicht.
+
+**2. Kostendeckung über gestaffeltes Byte-Porto (bis 1.000 MB):**
+- Reine LND-Routinggebühren (~0,01 %) decken weder Server (~5–8 €/Monat) noch gelegentliches Rebalancing. Einzige Einnahmequelle des Relays sind daher größere Dateianhänge:
+  - **Bis 1 MB frei:** Jede Textmail, klassische PDF-Rechnung und jedes komprimierte Foto kostet **0 Cent** ans Relay. (Bewusst 1 MB statt 25 MB Freigrenze, damit 500-MB-Dateien nicht kostenlos in 20 Einzelmails gesplittet werden können.)
+  - **Über 1 MB bis 100 MB:** **0,3 Cent / MB** (z. B. 10 MB ≈ 2,7 Cent; 100 MB ≈ 30 Cent).
+  - **Über 100 MB bis 1.000 MB:** **0,1 Cent / MB** (1.000 MB ≈ 1,20 €; dank 7-Tage-Sweep nach Erstdownload liegen die realen Grenzkosten unter 0,5 Cent/GB, sodass bereits wenige große Transfers pro Monat den gesamten Relay-Betrieb tragen).
+- **Offene Umsetzung vor Mainnet:** Zweistufige Byte-Porto-Staffel in `postage.go` ergänzen sowie für Dateien bis 1.000 MB die Chunk-Größe (z. B. 4 MiB statt 1 MiB) bzw. das 255-Ref-Limit im Envelope erweitern.
