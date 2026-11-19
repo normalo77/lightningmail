@@ -47,12 +47,21 @@ let receipts: Record<string, number> = {}; // msg_id(hex) -> ✓✓-Zeitstempel 
 let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' | 'ab' | 'ums' = 'in';
 let pemCache = '';
 // Auto-Login: erfolgreicher Login merkt sich Schluessel+Konto+Relay im Geraetespeicher
-// (unverschluesselt, nur App-Sandbox; APK hat allowBackup=false). "Vergessen" loescht es,
-// Abmelden setzt lm_noauto, damit Reload/401-Handler nicht sofort wieder einloggen.
+// Session-Speicher: Der entschlüsselte Private Key liegt im Browser nur noch im
+// flüchtigen sessionStorage (wird beim Schließen des Browserfensters oder beim
+// Klick auf "Abmelden" gelöscht). Auf Android übernimmt der Hardware-Keystore
+// (AndroidNative.saveVault/loadVault) die persistente Versiegelung.
 const AUTO_KEY = 'lm_autologin', NOAUTO_KEY = 'lm_noauto';
 const loadAuto = (): { acct: string; base: string; pem: string } | null => {
   try {
-    const v = JSON.parse(localStorage.getItem(AUTO_KEY) || 'null');
+    // Migration: falls aus einer älteren Sitzung noch ein Klartext-Key in localStorage lag,
+    // einmalig in sessionStorage umziehen und sofort aus localStorage tilgen.
+    const legacy = localStorage.getItem(AUTO_KEY);
+    if (legacy) {
+      sessionStorage.setItem(AUTO_KEY, legacy);
+      localStorage.removeItem(AUTO_KEY);
+    }
+    const v = JSON.parse(sessionStorage.getItem(AUTO_KEY) || 'null');
     return v && typeof v.pem === 'string' && v.pem && v.acct && v.base ? v : null;
   } catch { return null; }
 };
@@ -119,9 +128,14 @@ async function login(pem: string) {
     return;
   }
   token = ((await r.json()) as any).token;
-  localStorage.setItem(AUTO_KEY, JSON.stringify({ acct, base, pem }));
-  // Android: Schluessel zusaetzlich im Hardware-Keystore versiegeln (AES/GCM)
-  try { (window as any).AndroidNative?.saveVault?.(JSON.stringify({ acct, base, pem })); } catch { /* Tresor ist Komfort */ }
+  localStorage.removeItem(AUTO_KEY);
+  // Auf Android nur im Hardware-Keystore speichern; im Browser nur in sessionStorage (Tab-Lebensdauer)
+  if ((window as any).AndroidNative?.saveVault) {
+    try { (window as any).AndroidNative.saveVault(JSON.stringify({ acct, base, pem })); } catch { /* Tresor ist Komfort */ }
+    sessionStorage.setItem(AUTO_KEY, JSON.stringify({ acct, base, pem }));
+  } else {
+    sessionStorage.setItem(AUTO_KEY, JSON.stringify({ acct, base, pem }));
+  }
   localStorage.removeItem(NOAUTO_KEY);
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
   const bp = $('btn-passkey'); if (bp && passkeyAvailable()) { bp.style.display = ''; bp.onclick = passkeyRegister; }
@@ -846,7 +860,14 @@ if ($('nav-dra')) $('nav-dra').onclick = () => { folder = 'dra'; sel = -1; mark(
 $('nav-new').onclick = () => { folder = 'new'; draftId = ''; mark(); render(); };
 $('nav-ab').onclick = () => { folder = 'ab'; sel = -1; abEdit = ''; mark(); render(); };
 if ($('nav-ums')) $('nav-ums').onclick = () => { folder = 'ums'; sel = -1; mark(); render(); };
-$('nav-out').onclick = () => { localStorage.setItem(NOAUTO_KEY, '1'); location.reload(); };
+$('nav-out').onclick = () => {
+  if (priv) priv.fill(0);
+  priv = null; pemCache = ''; token = '';
+  sessionStorage.removeItem(AUTO_KEY);
+  localStorage.removeItem(AUTO_KEY);
+  localStorage.setItem(NOAUTO_KEY, '1');
+  location.reload();
+};
 if ($('l-passbtn')) $('l-passbtn').onclick = tryUnwrap;
 function mark() {
   $('nav-in').classList.toggle('on', folder === 'in');
@@ -1057,9 +1078,11 @@ if (autoSaved) {
     login(autoSaved.pem).catch((e: any) => { $('l-err').textContent = '✗ ' + String(e?.message || e).slice(0, 120); });
   };
   $('l-forget').onclick = () => {
+    sessionStorage.removeItem(AUTO_KEY);
     localStorage.removeItem(AUTO_KEY);
+    try { (window as any).AndroidNative?.clearVault?.(); } catch {}
     q.style.display = 'none';
-    $('l-err').textContent = 'Gespeicherter Schluessel geloescht — Datei oder Demo-Key noetig.';
+    $('l-err').textContent = 'Gespeicherter Schluessel geloescht — Datei, Passkey oder 24 Wörter nötig.';
   };
   if (!localStorage.getItem(NOAUTO_KEY)) {
     pemCache = autoSaved.pem;

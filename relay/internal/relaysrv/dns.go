@@ -65,6 +65,10 @@ func (s *Server) resolveDomainRelay(ctx context.Context, domain string) (string,
 			lastErr = err
 			continue
 		}
+		if err := verifyPublicRelayURL(ctx, relay); err != nil {
+			lastErr = err
+			continue
+		}
 		s.dnsMu.Lock()
 		s.dns[domain] = dnsEntry{relay: relay, node: node, at: time.Now()}
 		s.dnsMu.Unlock()
@@ -89,11 +93,16 @@ func parseBmailTXT(txt string) (relay, node string, err error) {
 		return "", "", fmt.Errorf("unsupported version %q", kv["v"])
 	}
 	relay, node = kv["relay"], kv["node"]
-	// http nur für lokale Dev-Relays (Regtest), sonst https Pflicht.
-	if !strings.HasPrefix(relay, "https://") &&
-		!strings.HasPrefix(relay, "http://localhost") &&
-		!strings.HasPrefix(relay, "http://127.") {
-		return "", "", fmt.Errorf("bad relay url %q", relay)
+	// Öffentliche DNS-Records dürfen ausschließlich https:// auf öffentliche Hosts nutzen
+	// (lokale Dev-Relays stehen in relay.yaml unter peers, niemals im öffentlichen DNS -> SSRF-Schutz).
+	u, uerr := url.Parse(relay)
+	if uerr != nil || u.Scheme != "https" || u.Hostname() == "" || strings.EqualFold(u.Hostname(), "localhost") {
+		return "", "", fmt.Errorf("bad relay url %q (https on public host required)", relay)
+	}
+	if ip := net.ParseIP(u.Hostname()); ip != nil {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+			return "", "", fmt.Errorf("ssrf blocked: private/loopback IP in relay url %q", relay)
+		}
 	}
 	raw, err := hex.DecodeString(node)
 	if err != nil || len(raw) != 33 {
@@ -103,4 +112,24 @@ func parseBmailTXT(txt string) (relay, node string, err error) {
 		return "", "", fmt.Errorf("bad node pubkey: %w", err)
 	}
 	return relay, node, nil
+}
+
+// verifyPublicRelayURL prüft nach DNS-Auflösung, dass der Ziel-Hostname auf keine
+// private, Loopback- oder Link-Local-IP auflöst (DNS-Rebinding-/SSRF-Schutz).
+func verifyPublicRelayURL(ctx context.Context, relayURL string) error {
+	u, err := url.Parse(relayURL)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" {
+		return fmt.Errorf("ssrf: non-https relay %q", relayURL)
+	}
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, u.Hostname())
+	if err != nil || len(ips) == 0 {
+		return fmt.Errorf("ssrf: cannot resolve %q", u.Hostname())
+	}
+	for _, a := range ips {
+		ip := a.IP
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+			return fmt.Errorf("ssrf: blocked private/loopback address %s for %s", ip.String(), u.Hostname())
+		}
+	}
+	return nil
 }

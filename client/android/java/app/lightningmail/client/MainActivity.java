@@ -78,8 +78,10 @@ public class MainActivity extends Activity {
 
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);   // Pflicht für localStorage
+        s.setDomStorageEnabled(true);   // Pflicht für localStorage/sessionStorage
         s.setDatabaseEnabled(true);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(false);
         webView.setBackgroundColor(0xFF122338); // kein Weiß-Blitz beim Start
         webView.addJavascriptInterface(new NativeBridge(), "AndroidNative");
 
@@ -209,6 +211,14 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 return "";
             }
+        }
+
+        /** Gespeicherten Hardware-Tresor loeschen. */
+        @JavascriptInterface
+        public void clearVault() {
+            try {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove("vault").apply();
+            } catch (Exception ignored) { }
         }
 
         /** Native Notification (Kanal lm_mail). */

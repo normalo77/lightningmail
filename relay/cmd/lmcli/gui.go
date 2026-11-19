@@ -4,7 +4,9 @@
 package main
 
 import (
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -42,6 +44,10 @@ func cmdGUI(args []string) {
 	}
 
 	mux := http.NewServeMux()
+	tb := make([]byte, 32)
+	_, _ = rand.Read(tb)
+	nativeToken := hex.EncodeToString(tb)
+	const cspHeader = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; img-src 'self' data: blob:; font-src 'self' data:; frame-ancestors 'none'"
 
 	// Relay-Reverse-Proxy: Ziel = $BMAIL_RELAY oder https://lightningmail.app,
 	// Pfad bleibt erhalten (/relay-a/* -> Ziel/relay-a/*).
@@ -66,8 +72,12 @@ func cmdGUI(args []string) {
 	mux.Handle("/relay-a/", proxy)
 	mux.Handle("/relay-b/", proxy)
 
-	// Nativer Vault: Schluessel-JSON auf der Platte, 0600.
+	// Nativer Vault: Schluessel-JSON auf der Platte, 0600 (CSRF-geschuetzt via X-LM-Native-Token).
 	mux.HandleFunc("/__native/vault", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-LM-Native-Token") != nativeToken {
+			http.Error(w, `{"error":"forbidden (missing native token)"}`, http.StatusForbidden)
+			return
+		}
 		switch r.Method {
 		case http.MethodGet:
 			b, err := os.ReadFile(vaultPath())
@@ -97,24 +107,34 @@ func cmdGUI(args []string) {
 		}
 	})
 
-	// Desktop-Benachrichtigung (best effort — ohne notify-send passiert nichts).
+	// Desktop-Benachrichtigung (best effort — CSRF-geschuetzt + "--" gegen Flag-Injection).
 	mux.HandleFunc("/__native/notify", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-LM-Native-Token") != nativeToken {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
 		var n struct {
 			Title string `json:"title"`
 			Text  string `json:"text"`
 		}
 		json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&n)
-		_ = exec.Command("notify-send", n.Title, n.Text).Run()
+		_ = exec.Command("notify-send", "--", n.Title, n.Text).Run()
 		fmt.Fprint(w, `{"ok":true}`)
 	})
 
-	// Eingebettete PWA (100% code-pinned im Binary).
+	// Eingebettete PWA (100% code-pinned im Binary, mit CSP-Header).
 	sub, err := fs.Sub(uiFS, "ui")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "embed ui: %v\n", err)
 		os.Exit(1)
 	}
-	mux.Handle("/", http.FileServer(http.FS(sub)))
+	fileSrv := http.FileServer(http.FS(sub))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", cspHeader)
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		fileSrv.ServeHTTP(w, r)
+	})
 
 	ln, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(port))
 	if err != nil {

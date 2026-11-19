@@ -13,8 +13,6 @@ const testNodeKey = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b1
 func TestParseBmailTXT(t *testing.T) {
 	valid := []struct{ name, txt, relay string }{
 		{"standard", "v=bmail1; relay=https://relay.example.com; node=" + testNodeKey, "https://relay.example.com"},
-		{"localhost-http", "v=bmail1; relay=http://localhost:8082; node=" + testNodeKey, "http://localhost:8082"},
-		{"loopback-http", "v=bmail1;relay=http://127.0.0.1:8082;node=" + testNodeKey, "http://127.0.0.1:8082"},
 		{"extra-fields", "v=bmail1; relay=https://r.example.com; onion=abc.onion; node=" + testNodeKey + "; policy=https://r.example.com/p.json", "https://r.example.com"},
 	}
 	for _, tc := range valid {
@@ -32,6 +30,9 @@ func TestParseBmailTXT(t *testing.T) {
 		{"wrong version", "v=bmail2; relay=https://r.example.com; node=" + testNodeKey},
 		{"missing version", "relay=https://r.example.com; node=" + testNodeKey},
 		{"plain http", "v=bmail1; relay=http://r.example.com; node=" + testNodeKey},
+		{"ssrf localhost", "v=bmail1; relay=https://localhost:8443; node=" + testNodeKey},
+		{"ssrf loopback", "v=bmail1; relay=https://127.0.0.1:8443; node=" + testNodeKey},
+		{"ssrf private lan", "v=bmail1; relay=https://192.168.1.50:8443; node=" + testNodeKey},
 		{"missing relay", "v=bmail1; node=" + testNodeKey},
 		{"missing node", "v=bmail1; relay=https://r.example.com"},
 		{"node not hex", "v=bmail1; relay=https://r.example.com; node=zz" + testNodeKey[2:]},
