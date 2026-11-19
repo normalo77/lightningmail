@@ -15,6 +15,8 @@ _db_lock = threading.Lock()
 TRACKED_PATHS = {
     "/": "/",
     "/architecture": "/architecture",
+    "/forum": "/forum",
+    "/paywall": "/paywall",
     "/app/": "/app/",
     "/impressum": "/impressum",
     "/lightningmail.apk": "/lightningmail.apk",
@@ -484,8 +486,12 @@ a{{color:#122338;font-weight:600}}
             return self._api_forum()
         if p == "/api/forum/post" and self.command == "POST":
             return self._api_forum_post()
-        if p in ("/forum", "/forum.html"):
+        if p in ("/forum", "/forum/", "/forum.html"):
+            record_hit(self, "/forum")
             return self._static(SITE, "forum.html")
+        if p in ("/paywall", "/paywall/", "/paywall.html"):
+            record_hit(self, "/paywall")
+            return self._static(SITE, "paywall.html")
         for pref, port in RELAYS.items():
             if p == pref or p.startswith(pref + "/"):
                 return self._proxy(port)

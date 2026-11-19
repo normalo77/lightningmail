@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lightningmail · Paywall Demo (5-Satoshi-Mikro-Paywall)</title>
+<meta name="description" content="Live-Demo der 5-Satoshi-Mikro-Paywall über OpenID Connect: 4 Demo-Artikel mit 1 Klick ohne Abo, Cookies oder Kreditkarte aus dem Postfach-Guthaben freischalten.">
+<link rel="canonical" href="https://lightningmail.app/paywall">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://lightningmail.app/paywall">
+<meta property="og:title" content="⚡ Paywall Demo · 5-Satoshi-Mikro-Paywall mit lightningmail">
+<meta property="og:description" content="Passwortlos mit dem eigenen Postfach-Schlüssel anmelden, im Forum posten und 4 Demo-Artikel für je 5 Satoshis freischalten.">
+<meta property="og:image" content="https://lightningmail.app/og-card.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#f5f3ec">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cellipse cx='100' cy='100' rx='52' ry='46' fill='%23ffb38f'/%3E%3Cellipse cx='122' cy='92' rx='9' ry='9' fill='white'/%3E%3Ccircle cx='124' cy='93' r='4.6' fill='%23122338'/%3E%3Cellipse cx='81' cy='92' rx='15' ry='13' fill='%23122338'/%3E%3Cpath d='M52 64 Q100 28 148 64 Q100 48 52 64Z' fill='%23122338'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f5f3ec;
+  --surface: #e8e4d8;
+  --card: #ffffff;
+  --ink: #122338;
+  --muted: #4a5a6e;
+  --accent: #f4b71a;
+  --accent-ink: #122338;
+  --ok: #1b6e38;
+  --margin: clamp(1rem, 2.5vw, 2.5rem);
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: clamp(1rem, 0.96rem + 0.18vw, 1.12rem);
+  line-height: 1.58;
+  -webkit-font-smoothing: antialiased;
+}
+.de-only, .en-only, .es-only, .fr-only, .pl-only { display: none !important; }
+html[lang="de"] .de-only,
+html[lang="en"] .en-only,
+html[lang="es"] .es-only,
+html[lang="fr"] .fr-only,
+html[lang="pl"] .pl-only { display: inline !important; }
+
+header.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.15rem var(--margin);
+  max-width: 1440px;
+  margin-inline: auto;
+  border-bottom: 1px solid rgba(18,35,56,0.12);
+  flex-wrap: wrap;
+}
+.brand-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.28rem;
+  color: var(--ink);
+}
+nav { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap; }
+nav a { color: var(--ink); text-decoration: none; font-weight: 600; font-size: 0.93rem; }
+nav a:hover { text-decoration: underline; }
+.lang {
+  background: var(--surface);
+  color: var(--ink);
+  border: 0;
+  padding: 0.5rem 0.9rem;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+main {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: clamp(1.8rem, 4vw, 3.5rem) var(--margin);
+}
+.auth-bar {
+  background: var(--ink);
+  color: #f5f3ec;
+  border-radius: 12px;
+  padding: clamp(1.25rem, 2.5vw, 2rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 2.5rem;
+  box-shadow: 0 8px 26px rgba(18,35,56,0.14);
+}
+.auth-copy h1 {
+  font-size: clamp(1.55rem, 1.2rem + 1.4vw, 2.35rem);
+  line-height: 1.1;
+  margin: 0 0 0.45rem;
+  color: #fff;
+}
+.auth-copy p {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 0.96rem;
+  max-width: 68ch;
+}
+.auth-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+.auth-controls select {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.28);
+  border-radius: 8px;
+  padding: 0.68rem 0.9rem;
+  font: inherit;
+  font-size: 0.92rem;
+}
+.auth-controls select option { color: #122338; background: #fff; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 0;
+  border-radius: 8px;
+  padding: 0.72rem 1.2rem;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn:hover { filter: brightness(0.95); }
+.btn.ghost {
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.25);
+}
+.user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(244,183,26,0.18);
+  border: 1px solid var(--accent);
+  color: #fde68a;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+h2 {
+  font-size: clamp(1.4rem, 1.15rem + 1.1vw, 2rem);
+  margin: 0 0 0.4rem;
+  letter-spacing: -0.02em;
+}
+.section-sub {
+  color: var(--muted);
+  margin: 0 0 1.4rem;
+  font-size: 0.96rem;
+}
+
+/* Composer */
+.composer {
+  background: var(--card);
+  border: 1px solid rgba(18,35,56,0.15);
+  border-radius: 10px;
+  padding: 1.25rem 1.4rem;
+  margin-bottom: 1.6rem;
+  display: none;
+}
+.composer.active { display: block; }
+.composer input, .composer textarea {
+  width: 100%;
+  font: inherit;
+  padding: 0.65rem 0.85rem;
+  border: 1.5px solid #d8d3c4;
+  border-radius: 7px;
+  margin-bottom: 0.75rem;
+}
+.composer textarea { min-height: 110px; resize: vertical; }
+
+/* Forum Posts */
+.posts { display: grid; gap: 1rem; margin-bottom: 3.5rem; }
+.post {
+  background: var(--card);
+  border: 1px solid rgba(18,35,56,0.14);
+  border-left: 5px solid var(--ink);
+  border-radius: 10px;
+  padding: 1.15rem 1.4rem;
+  box-shadow: 0 2px 8px rgba(18,35,56,0.04);
+}
+.post-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.45rem;
+}
+.post-title { font-weight: 700; font-size: 1.12rem; }
+.post-meta {
+  font-size: 0.83rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.sig-pill {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  background: var(--surface);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  color: var(--ink);
+}
+.post-body {
+  white-space: pre-wrap;
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.98rem;
+}
+.reply-link {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--surface);
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  display: inline-block;
+}
+.reply-link:hover { background: var(--accent); }
+
+/* 5-Sat Paywall Section */
+.paywall-section {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  border: 1px solid rgba(18,35,56,0.12);
+}
+.articles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+.art-card {
+  background: var(--card);
+  border: 1px solid rgba(18,35,56,0.15);
+  border-top: 5px solid var(--accent);
+  border-radius: 10px;
+  padding: 1.35rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  scroll-margin-top: 84px;
+}
+.art-card.unlocked {
+  border-top-color: var(--ok);
+  grid-column: 1 / -1;
+}
+.art-card.just-unlocked {
+  box-shadow: 0 0 0 3px #34d399, 0 10px 28px rgba(18, 35, 56, 0.14);
+}
+.art-card h3 { margin: 0 0 0.5rem; font-size: 1.18rem; line-height: 1.3; }
+.art-teaser { color: var(--muted); font-size: 0.95rem; margin: 0 0 1rem; }
+.art-content {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #064e3b;
+  padding: 1.2rem 1.35rem;
+  border-radius: 8px;
+  font-size: 0.98rem;
+  margin: 0.5rem 0 0.85rem;
+  line-height: 1.65;
+}
+.art-content p { margin: 0 0 0.9rem; }
+.art-content p:last-child { margin-bottom: 0; }
+.art-figs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.art-fig {
+  margin: 0;
+  background: #fff;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  padding: 0.5rem;
+  text-align: center;
+}
+.art-fig svg { width: 100%; height: auto; display: block; border-radius: 6px; }
+.art-fig figcaption { font-size: 0.78rem; color: #047857; margin-top: 0.35rem; font-weight: 600; }
+.art-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed rgba(18,35,56,0.15);
+}
+.price-tag {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 0.88rem;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+}
+.unlocked-tag {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--ok);
+}
+.menu-toggle {
+  display: none;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1.5px solid rgba(18,35,56,0.2);
+  border-radius: 7px;
+  padding: 0.45rem 0.8rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (max-width: 760px) {
+  header.top { flex-wrap: wrap; padding: 0.85rem var(--margin); gap: 0.65rem; }
+  .brand-wrap { margin-right: auto; font-size: 1.15rem; }
+  .menu-toggle { display: inline-flex; align-items: center; }
+  nav {
+    display: none;
+    order: 3;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    background: var(--surface);
+    padding: 0.7rem;
+    border-radius: 10px;
+  }
+  nav.open { display: flex; }
+  nav a { padding: 0.6rem 0.75rem; background: rgba(255,255,255,0.6); border-radius: 6px; }
+  .auth-bar { padding: 1.15rem; }
+  .auth-controls { width: 100%; flex-direction: column; align-items: stretch; }
+  .auth-controls select, .auth-controls .btn { width: 100%; justify-content: center; }
+  .art-foot { flex-direction: column; align-items: stretch; }
+  .art-foot .btn { width: 100%; justify-content: center; }
+  .art-figs { grid-template-columns: 1fr; }
+}
+
+footer {
+  max-width: 1320px;
+  margin: 3rem auto 0;
+  padding: 1.5rem var(--margin) 3rem;
+  border-top: 1px solid rgba(18,35,56,0.12);
+  font-size: 0.9rem;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <a href="/" class="brand-wrap">⚡ lightningmail</a>
+  <div style="display:flex;align-items:center;gap:0.5rem">
+    <select class="lang" id="langSel" aria-label="Language">
+      <option value="de">🇩🇪 DE</option>
+      <option value="en">🇬🇧 EN</option>
+      <option value="es">🇪🇸 ES</option>
+      <option value="fr">🇫🇷 FR</option>
+      <option value="pl">🇵🇱 PL</option>
+    </select>
+    <button type="button" class="menu-toggle" onclick="document.getElementById('forumNav').classList.toggle('open')">☰ Menü</button>
+  </div>
+  <nav id="forumNav" onclick="if(event.target.tagName==='A')this.classList.remove('open')">
+    <a href="/"><span class="de-only">← Startseite</span><span class="en-only">← Home</span><span class="es-only">← Inicio</span><span class="fr-only">← Accueil</span><span class="pl-only">← Strona główna</span></a>
+    <a href="/forum">🔐 Forum Sign-in</a>
+    <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektur</span></a>
+    <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a>
+    <a href="/app/">Webmail</a>
+  </nav>
+</header>
+
+<main>
+  <!-- SIGN IN WITH LIGHTNINGMAIL HERO -->
+  <div class="auth-bar">
+    <div class="auth-copy">
+      <h1>
+        <span class="de-only">⚡ Paywall Demo — 5 Satoshis statt 35 Cent Gebühr</span>
+        <span class="en-only">⚡ Paywall Demo — 5 Satoshis Instead of a 35-Cent Fee</span>
+        <span class="es-only">⚡ Demo Paywall — 5 satoshis en lugar de 35 céntimos de comisión</span>
+        <span class="fr-only">⚡ Démo Paywall — 5 satoshis au lieu de 35 centimes de frais</span>
+        <span class="pl-only">⚡ Demo Paywall — 5 satoshi zamiast 35 centów prowizji</span>
+      </h1>
+      <p>
+        <span class="de-only">Was im Web bisher an Mindestgebühren und Abo-Zwang scheitert: Schalte die 4 Demo-Artikel unten mit einem Klick für jeweils 5 Satoshis (~0,0025 €) direkt aus deinem Postfach-Guthaben frei (10.000 Test-Satoshis Startguthaben in der Regtest-Phase). Zum Diskutieren geht es nebenan ins <a href="/forum" style="color:#f4b71a;font-weight:700">🔐 Forum Sign-in</a>.</span>
+        <span class="en-only">What usually fails on the web due to card minimums and forced subscriptions: unlock each of the 4 demo articles below in one click for 5 satoshis (~€0.0025) directly from your mailbox balance (10,000 test satoshis starting balance during regtest). Join the discussion over at <a href="/forum" style="color:#f4b71a;font-weight:700">🔐 Forum Sign-in</a>.</span>
+        <span class="es-only">Lo que en la web suele fracasar por comisiones mínimas y suscripciones forzosas: desbloquea cada uno de los 4 artículos de prueba abajo en un clic por 5 satoshis (~0,0025 €) desde el saldo de tu buzón (10.000 satoshis de prueba en fase regtest). Participa en la charla en <a href="/forum" style="color:#f4b71a;font-weight:700">🔐 Foro Sign-in</a>.</span>
+        <span class="fr-only">Ce qui échoue habituellement sur le web à cause des frais fixes et des abonnements forcés : débloquez chacun des 4 articles de démo ci-dessous en un clic pour 5 satoshis (~0,0025 €) depuis le solde de votre boîte (10 000 satoshis de test en phase regtest). Discutez sur <a href="/forum" style="color:#f4b71a;font-weight:700">🔐 Forum Sign-in</a>.</span>
+        <span class="pl-only">To, co w sieci przegrywa z opłatami minimalnymi i przymusem subskrypcji: odblokuj każdy z 4 artykułów demo poniżej jednym kliknięciem za 5 satoshi (~0,0025 €) prosto z salda skrzynki (10 000 testowych satoshi w fazie regtest). Podyskutuj obok w <a href="/forum" style="color:#f4b71a;font-weight:700">🔐 Forum Sign-in</a>.</span>
+      </p>
+    </div>
+    <div class="auth-controls" id="auth-box">
+      <select id="idp-sel" aria-label="Relay">
+        <option value="alpha">Relay Alpha (lightningmail.app)</option>
+        <option value="beta">Relay Beta (lightningmail.app)</option>
+      </select>
+      <button class="btn" id="btn-signin" type="button">
+        ⚡ <span class="de-only">Mit lightningmail anmelden</span><span class="en-only">Sign in with lightningmail</span><span class="es-only">Entrar con lightningmail</span><span class="fr-only">Se connecter avec lightningmail</span><span class="pl-only">Zaloguj przez lightningmail</span>
+      </button>
+      <a class="btn ghost" href="/app/">
+        <span class="de-only">Konto anlegen (10.000 Test-Sats)</span><span class="en-only">Create account (10,000 test sats)</span><span class="es-only">Crear cuenta (10.000 sats de prueba)</span><span class="fr-only">Créer un compte (10 000 sats de test)</span><span class="pl-only">Załóż konto (10 000 testowych sat)</span>
+      </a>
+    </div>
+  </div>
+
+  <p id="status-msg" style="font-weight:700;color:#a82020;display:none"></p>
+
+  <!-- 5-SAT PAYWALL SECTION -->
+  <section class="paywall-section" id="paywall">
+    <h2>
+      <span class="de-only">📰 5-Satoshi-Mikro-Paywall: 4 offensichtliche Blabla-Artikel</span>
+      <span class="en-only">📰 5-Satoshi Micro-Paywall: 4 obvious Blabla articles</span>
+      <span class="es-only">📰 Micro-Paywall de 5 satoshis: 4 artículos «Blabla» de prueba</span>
+      <span class="fr-only">📰 Micro-Paywall à 5 satoshis : 4 articles « Blabla » de démonstration</span>
+      <span class="pl-only">📰 Mikro-Paywall za 5 satoshi: 4 oczywiste artykuły „Blabla”</span>
+    </h2>
+    <p class="section-sub">
+      <span class="de-only">Was sonst an 35 Cent Kreditkartengebühr scheitert, geht mit „Sign in with lightningmail“ für 5 Satoshis (~0,0025 €): Klicke auf einen Artikel, bestätige im OIDC-Fenster die 5 Satoshis aus deinem Postfach-Guthaben, und der Server gibt den Volltext frei.</span>
+      <span class="en-only">What usually fails due to 35-cent credit card fees works for 5 satoshis (~€0.0025) with “Sign in with lightningmail”: click an article, approve 5 satoshis from your mailbox balance in the OIDC prompt, and the server unlocks the full text.</span>
+      <span class="es-only">Lo que suele fracasar por las comisiones de 35 céntimos de las tarjetas funciona por 5 satoshis (~0,0025 €) con «Sign in with lightningmail»: pulsa un artículo, confirma 5 satoshis desde el saldo de tu buzón y el servidor desbloquea el texto completo.</span>
+      <span class="fr-only">Ce qui échoue habituellement à cause des 35 centimes de frais bancaires fonctionne pour 5 satoshis (~0,0025 €) avec « Sign in with lightningmail » : cliquez sur un article, validez 5 satoshis depuis le solde de votre boîte et le serveur débloque le texte complet.</span>
+      <span class="pl-only">To, co zwykle przegrywa z 35-centową prowizją kartową, działa za 5 satoshi (~0,0025 €) z „Sign in with lightningmail”: kliknij artykuł, potwierdź 5 satoshi z salda swojej skrzynki w oknie OIDC, a serwer odblokuje pełny tekst.</span>
+    </p>
+    <div class="articles-grid" id="articles-list"></div>
+  </section>
+</main>
+
+<footer>
+  <div>⚡ <b>lightningmail</b> · MIT License</div>
+  <div>
+    <a href="/"><span class="de-only">Startseite</span><span class="en-only">Home</span><span class="es-only">Inicio</span><span class="fr-only">Accueil</span><span class="pl-only">Strona główna</span></a> ·
+    <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektura</span></a> ·
+    <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a> ·
+    <a href="/impressum">Impressum</a>
+  </div>
+</footer>
+
+<script>
+const sel = document.getElementById('langSel');
+const setLang = (l) => {
+  if (!['de','en','es','fr','pl'].includes(l)) l = 'de';
+  document.documentElement.lang = l;
+  sel.value = l;
+  try { localStorage.setItem('lm_lang', l); } catch {}
+};
+try { setLang(localStorage.getItem('lm_lang') || 'de'); } catch {}
+sel.onchange = () => setLang(sel.value);
+
+const RELAY_PATHS = { alpha: '/relay-a', beta: '/relay-b' };
+const CLIENT_ID = location.origin + '/paywall';
+const REDIRECT_URI = location.origin + '/paywall';
+
+function b64u(buf) {
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function rnd(n) { const b = new Uint8Array(n); crypto.getRandomValues(b); return b64u(b); }
+async function sha256b64u(s) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return b64u(d);
+}
+function esc(s) {
+  return String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function showMsg(txt) {
+  const el = document.getElementById('status-msg');
+  el.textContent = txt;
+  el.style.display = txt ? 'block' : 'none';
+}
+
+function guessPreferredRelay() {
+  const selEl = document.getElementById('idp-sel');
+  if (selEl && selEl.dataset.touched === '1') return selEl.value;
+  const saved = localStorage.getItem('lm_forum_relay');
+  if (saved === 'alpha' || saved === 'beta') return saved;
+  try {
+    const lu = JSON.parse(localStorage.getItem('lm_last_user') || 'null');
+    if (lu && typeof lu.base === 'string') return lu.base.includes('relay-b') ? 'beta' : 'alpha';
+  } catch {}
+  return selEl ? selEl.value : 'alpha';
+}
+const idpSelEl = document.getElementById('idp-sel');
+if (idpSelEl) {
+  idpSelEl.value = guessPreferredRelay();
+  idpSelEl.addEventListener('change', () => { idpSelEl.dataset.touched = '1'; localStorage.setItem('lm_forum_relay', idpSelEl.value); });
+}
+
+let newlyUnlockedItem = '';
+
+async function startOIDC(paySats = 0, payItem = '') {
+  const relayTag = guessPreferredRelay();
+  localStorage.setItem('lm_forum_relay', relayTag);
+  const verifier = rnd(48);
+  const challenge = await sha256b64u(verifier);
+  const state = rnd(12);
+  sessionStorage.setItem('forum_oidc_verifier', verifier);
+  sessionStorage.setItem('forum_oidc_state', state);
+  sessionStorage.setItem('forum_oidc_relay', relayTag);
+  if (payItem) sessionStorage.setItem('forum_oidc_item', payItem);
+  else sessionStorage.removeItem('forum_oidc_item');
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    scope: 'openid email profile',
+    state: state,
+    nonce: rnd(12),
+    code_challenge: challenge,
+    code_challenge_method: 'S256'
+  });
+  if (paySats > 0) {
+    params.set('pay_sats', String(paySats));
+    params.set('pay_item', payItem);
+  }
+  location.href = RELAY_PATHS[relayTag] + '/oidc/auth?' + params.toString();
+}
+
+async function handleCallbackIfPresent() {
+  const q = new URLSearchParams(location.search);
+  const code = q.get('code');
+  const err = q.get('error');
+  if (err) {
+    sessionStorage.removeItem('forum_oidc_item');
+    history.replaceState(null, '', '/paywall');
+    showMsg('Anmeldung abgebrochen: ' + err);
+    return;
+  }
+  if (!code) return;
+  const state = q.get('state');
+  const expectState = sessionStorage.getItem('forum_oidc_state');
+  const verifier = sessionStorage.getItem('forum_oidc_verifier');
+  const relayTag = sessionStorage.getItem('forum_oidc_relay') || 'alpha';
+  const paidItem = sessionStorage.getItem('forum_oidc_item') || '';
+  sessionStorage.removeItem('forum_oidc_state');
+  sessionStorage.removeItem('forum_oidc_verifier');
+  sessionStorage.removeItem('forum_oidc_item');
+  history.replaceState(null, '', '/paywall');
+  if (!verifier || state !== expectState) {
+    showMsg('OIDC-State ungültig — bitte erneut anmelden.');
+    return;
+  }
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: code,
+    redirect_uri: REDIRECT_URI,
+    client_id: CLIENT_ID,
+    code_verifier: verifier
+  });
+  const tr = await fetch(RELAY_PATHS[relayTag] + '/oidc/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body
+  });
+  const tok = await tr.json().catch(() => ({}));
+  if (!tr.ok || !tok.access_token) {
+    showMsg('Token-Austausch fehlgeschlagen: ' + (tok.error_description || tok.error || tr.status));
+    return;
+  }
+  // Direkt einmal gegen /api/forum einlösen -> verbucht Paywall-Unlock in SQLite & tauscht in dauerhaften fses:-Token
+  localStorage.setItem('lm_forum_token', relayTag + ':' + tok.access_token);
+  localStorage.setItem('lm_forum_relay', relayTag);
+  newlyUnlockedItem = paidItem;
+}
+
+async function loadForum() {
+  const ftok = localStorage.getItem('lm_forum_token') || '';
+  const hdrs = ftok ? { 'X-Forum-Token': ftok } : {};
+  const r = await fetch('/api/forum', { headers: hdrs });
+  const data = await r.json();
+  if (data.session_token) {
+    localStorage.setItem('lm_forum_token', data.session_token);
+  }
+  if (data.relay) {
+    localStorage.setItem('lm_forum_relay', data.relay);
+  }
+
+  const authBox = document.getElementById('auth-box');
+  if (data.user) {
+    authBox.innerHTML = `<span class="user-badge">✓ ${esc(data.user)}</span>
+      <button class="btn ghost" id="btn-logout" type="button">Abmelden / Logout</button>`;
+    document.getElementById('btn-logout').onclick = () => {
+      localStorage.removeItem('lm_forum_token');
+      location.reload();
+    };
+  } else {
+    if (ftok) localStorage.removeItem('lm_forum_token');
+    document.getElementById('btn-signin').onclick = () => startOIDC(0, '');
+  }
+
+  // Render 4 Blabla Paywall Articles
+  const al = document.getElementById('articles-list');
+  al.innerHTML = (data.articles || []).map(a => {
+    const just = newlyUnlockedItem && newlyUnlockedItem === a.id;
+    if (a.unlocked) {
+      return `<article class="art-card unlocked${just ? ' just-unlocked' : ''}" id="art-card-${esc(a.id)}">
+        <div>
+          <h3>✅ ${esc(a.title)}</h3>
+          <p class="art-teaser">${esc(a.teaser)}</p>
+          <div class="art-content">${a.content_html || esc(a.content || '')}</div>
+        </div>
+        <div class="art-foot">
+          <span class="unlocked-tag">✓ Freigeschaltet (${a.price_sats} Satoshis bezahlt)</span>
+        </div>
+      </article>`;
+    }
+    return `<article class="art-card" id="art-card-${esc(a.id)}">
+      <div>
+        <h3>🔒 ${esc(a.title)}</h3>
+        <p class="art-teaser">${esc(a.teaser)}</p>
+      </div>
+      <div class="art-foot">
+        <span class="price-tag">⚡ ${a.price_sats} Satoshis</span>
+        <button class="btn" type="button" data-unlock="${esc(a.id)}" data-sats="${a.price_sats}">
+          ⚡ Für ${a.price_sats} Sat freischalten &amp; lesen
+        </button>
+      </div>
+    </article>`;
+  }).join('');
+
+  document.querySelectorAll('button[data-unlock]').forEach(btn => {
+    btn.onclick = () => startOIDC(+btn.getAttribute('data-sats'), btn.getAttribute('data-unlock'));
+  });
+
+  if (newlyUnlockedItem) {
+    const targetEl = document.getElementById('art-card-' + newlyUnlockedItem);
+    newlyUnlockedItem = '';
+    if (targetEl) {
+      setTimeout(() => targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    }
+  }
+}
+
+
+(async () => {
+  await handleCallbackIfPresent();
+  await loadForum();
+})();
+</script>
+</body>
+</html>

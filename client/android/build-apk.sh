@@ -36,6 +36,7 @@ find build/assets -name '*.html' -exec sed -i \
   -e 's#value="/relay-b"#value="https://lightningmail.app/relay-b"#g' \
   -e 's#href="/"#href="https://lightningmail.app/"#g' \
   -e 's#href="/forum"#href="https://lightningmail.app/forum"#g' \
+  -e 's#href="/paywall"#href="https://lightningmail.app/paywall"#g' \
   -e 's#href="/architecture"#href="https://lightningmail.app/architecture"#g' \
   -e 's#href="/impressum"#href="https://lightningmail.app/impressum"#g' {} +
 grep -q 'value="https://lightningmail.app/relay-a"' build/assets/index.html \

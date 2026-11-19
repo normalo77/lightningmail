@@ -31,6 +31,8 @@ h = h.replace('value="/relay-a"', 'value="https://lightningmail.app/relay-a"')
 h = h.replace('value="/relay-b"', 'value="https://lightningmail.app/relay-b"')
 # Impressum: relativer Serverpfad existiert im Add-on nicht
 h = h.replace('href="/impressum"', 'href="https://lightningmail.app/impressum"')
+h = h.replace('href="/forum"', 'href="https://lightningmail.app/forum"')
+h = h.replace('href="/paywall"', 'href="https://lightningmail.app/paywall"')
 # Eigenes Relay: dritte Option, fragt eine URL ab und merkt sie sich
 custom = """<script>
 (function () {

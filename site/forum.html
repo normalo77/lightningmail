@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>lightningmail · Community-Forum &amp; 5-Sat-Paywall (Sign in with lightningmail)</title>
-<meta name="description" content="Live-Demo von Sign in with lightningmail (OpenID Connect + BIP340 Mailbox-Key): Kryptographisch signiertes Userforum und 5-Satoshi-Mikro-Paywall.">
+<title>lightningmail · Forum Sign-in (Sign in with lightningmail)</title>
+<meta name="description" content="Live-Demo von Sign in with lightningmail (OpenID Connect + BIP340 Mailbox-Key): Passwortlos anmelden und kryptographisch signierte Forenbeiträge schreiben.">
 <link rel="canonical" href="https://lightningmail.app/forum">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://lightningmail.app/forum">
-<meta property="og:title" content="🔐 Sign in with lightningmail · Live-Forum &amp; 5-Satoshi-Paywall">
-<meta property="og:description" content="Passwortlos mit dem eigenen Postfach-Schlüssel anmelden, im Forum posten und 4 Demo-Artikel für je 5 Satoshis freischalten.">
+<meta property="og:title" content="🔐 Forum Sign-in · Sign in with lightningmail">
+<meta property="og:description" content="Passwortlos mit dem eigenen Postfach-Schlüssel über OpenID Connect anmelden und BIP340-signierte Beiträge im Forum veröffentlichen.">
 <meta property="og:image" content="https://lightningmail.app/og-card.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#f5f3ec">
@@ -390,6 +390,7 @@ footer {
   </div>
   <nav id="forumNav" onclick="if(event.target.tagName==='A')this.classList.remove('open')">
     <a href="/"><span class="de-only">← Startseite</span><span class="en-only">← Home</span><span class="es-only">← Inicio</span><span class="fr-only">← Accueil</span><span class="pl-only">← Strona główna</span></a>
+    <a href="/paywall">⚡ Paywall Demo</a>
     <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektur</span></a>
     <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a>
     <a href="/app/">Webmail</a>
@@ -401,18 +402,18 @@ footer {
   <div class="auth-bar">
     <div class="auth-copy">
       <h1>
-        <span class="de-only">🔐 Sign in with lightningmail — Forum &amp; 5-Sat-Paywall</span>
-        <span class="en-only">🔐 Sign in with lightningmail — Forum &amp; 5-Sat Paywall</span>
-        <span class="es-only">🔐 Sign in with lightningmail — Foro y Paywall de 5 sats</span>
-        <span class="fr-only">🔐 Sign in with lightningmail — Forum &amp; Paywall à 5 sats</span>
-        <span class="pl-only">🔐 Sign in with lightningmail — Forum i Paywall za 5 sat</span>
+        <span class="de-only">🔐 Forum Sign-in — Sign in with lightningmail</span>
+        <span class="en-only">🔐 Forum Sign-in — Sign in with lightningmail</span>
+        <span class="es-only">🔐 Foro Sign-in — Sign in with lightningmail</span>
+        <span class="fr-only">🔐 Forum Sign-in — Sign in with lightningmail</span>
+        <span class="pl-only">🔐 Forum Sign-in — Sign in with lightningmail</span>
       </h1>
       <p>
-        <span class="de-only">Live-Demonstration unseres OpenID-Connect-Logins: Melde dich ohne Passwort mit deinem Postfach-Schlüssel an, schreibe im Userforum und schalte unten 4 Demo-Artikel für jeweils 5 Satoshis direkt aus deinem Postfach-Guthaben (10.000 Test-Satoshis Startguthaben in der Regtest-Phase) frei.</span>
-        <span class="en-only">Live demonstration of our OpenID Connect login: sign in passwordlessly with your mailbox key, post in the user forum, and unlock 4 demo articles below for 5 satoshis each directly from your mailbox balance (10,000 test satoshis starting balance during the regtest phase).</span>
-        <span class="es-only">Demostración en vivo de nuestro inicio de sesión OpenID Connect: entra sin contraseña con la clave de tu buzón, publica en el foro y desbloquea abajo 4 artículos de prueba por 5 satoshis cada uno directamente desde el saldo de tu buzón (10.000 satoshis de prueba iniciales en fase regtest).</span>
-        <span class="fr-only">Démonstration en direct de notre connexion OpenID Connect : connectez-vous sans mot de passe avec la clé de votre boîte, publiez sur le forum et débloquez ci-dessous 4 articles de démo pour 5 satoshis chacun directement depuis le solde de votre boîte (10 000 satoshis de test initiaux en phase regtest).</span>
-        <span class="pl-only">Demonstracja na żywo naszego logowania OpenID Connect: zaloguj się bez hasła kluczem swojej skrzynki, pisz na forum i odblokuj poniżej 4 artykuły demo po 5 satoshi każdy bezpośrednio z salda swojej skrzynki (10 000 testowych satoshi salda początkowego w fazie regtest).</span>
+        <span class="de-only">Live-Demonstration unseres passwortlosen OpenID-Connect-Logins: Melde dich mit deinem Postfach-Schlüssel an und veröffentliche kryptographisch signierte Beiträge im Community-Forum. Die Mikro-Bezahlschranke findest du nebenan unter <a href="/paywall" style="color:#f4b71a;font-weight:700">⚡ Paywall Demo</a>.</span>
+        <span class="en-only">Live demonstration of our passwordless OpenID Connect login: sign in with your mailbox key and publish cryptographically signed posts in the community forum. Try the micro-payment paywall separately under <a href="/paywall" style="color:#f4b71a;font-weight:700">⚡ Paywall Demo</a>.</span>
+        <span class="es-only">Demostración en vivo de nuestro inicio de sesión OpenID Connect sin contraseña: entra con la clave de tu buzón y publica mensajes firmados criptográficamente en el foro. Prueba el muro de micropago aparte en <a href="/paywall" style="color:#f4b71a;font-weight:700">⚡ Demo Paywall</a>.</span>
+        <span class="fr-only">Démonstration en direct de notre connexion OpenID Connect sans mot de passe : connectez-vous avec la clé de votre boîte et publiez des messages signés cryptographiquement sur le forum. Essayez le micro-paywall séparément sur <a href="/paywall" style="color:#f4b71a;font-weight:700">⚡ Démo Paywall</a>.</span>
+        <span class="pl-only">Demonstracja na żywo naszego bezhasłowego logowania OpenID Connect: zaloguj się kluczem swojej skrzynki i publikuj kryptograficznie podpisane wpisy na forum. Mikro-paywall przetestujesz osobno w zakładce <a href="/paywall" style="color:#f4b71a;font-weight:700">⚡ Demo Paywall</a>.</span>
       </p>
     </div>
     <div class="auth-controls" id="auth-box">
@@ -457,25 +458,6 @@ footer {
     </form>
 
     <div class="posts" id="posts-list"></div>
-  </section>
-
-  <!-- 5-SAT PAYWALL SECTION -->
-  <section class="paywall-section" id="paywall">
-    <h2>
-      <span class="de-only">📰 5-Satoshi-Mikro-Paywall: 4 offensichtliche Blabla-Artikel</span>
-      <span class="en-only">📰 5-Satoshi Micro-Paywall: 4 obvious Blabla articles</span>
-      <span class="es-only">📰 Micro-Paywall de 5 satoshis: 4 artículos «Blabla» de prueba</span>
-      <span class="fr-only">📰 Micro-Paywall à 5 satoshis : 4 articles « Blabla » de démonstration</span>
-      <span class="pl-only">📰 Mikro-Paywall za 5 satoshi: 4 oczywiste artykuły „Blabla”</span>
-    </h2>
-    <p class="section-sub">
-      <span class="de-only">Was sonst an 35 Cent Kreditkartengebühr scheitert, geht mit „Sign in with lightningmail“ für 5 Satoshis (~0,0025 €): Klicke auf einen Artikel, bestätige im OIDC-Fenster die 5 Satoshis aus deinem Postfach-Guthaben, und der Server gibt den Volltext frei.</span>
-      <span class="en-only">What usually fails due to 35-cent credit card fees works for 5 satoshis (~€0.0025) with “Sign in with lightningmail”: click an article, approve 5 satoshis from your mailbox balance in the OIDC prompt, and the server unlocks the full text.</span>
-      <span class="es-only">Lo que suele fracasar por las comisiones de 35 céntimos de las tarjetas funciona por 5 satoshis (~0,0025 €) con «Sign in with lightningmail»: pulsa un artículo, confirma 5 satoshis desde el saldo de tu buzón y el servidor desbloquea el texto completo.</span>
-      <span class="fr-only">Ce qui échoue habituellement à cause des 35 centimes de frais bancaires fonctionne pour 5 satoshis (~0,0025 €) avec « Sign in with lightningmail » : cliquez sur un article, validez 5 satoshis depuis le solde de votre boîte et le serveur débloque le texte complet.</span>
-      <span class="pl-only">To, co zwykle przegrywa z 35-centową prowizją kartową, działa za 5 satoshi (~0,0025 €) z „Sign in with lightningmail”: kliknij artykuł, potwierdź 5 satoshi z salda swojej skrzynki w oknie OIDC, a serwer odblokuje pełny tekst.</span>
-    </p>
-    <div class="articles-grid" id="articles-list"></div>
   </section>
 </main>
 
@@ -661,48 +643,6 @@ async function loadForum() {
       <a class="reply-link" href="/app/?an=${encodeURIComponent(p.author.split('@')[0])}">✉ Per lightningmail anschreiben</a>
     </article>`;
   }).join('');
-
-  // Render 4 Blabla Paywall Articles
-  const al = document.getElementById('articles-list');
-  al.innerHTML = (data.articles || []).map(a => {
-    const just = newlyUnlockedItem && newlyUnlockedItem === a.id;
-    if (a.unlocked) {
-      return `<article class="art-card unlocked${just ? ' just-unlocked' : ''}" id="art-card-${esc(a.id)}">
-        <div>
-          <h3>✅ ${esc(a.title)}</h3>
-          <p class="art-teaser">${esc(a.teaser)}</p>
-          <div class="art-content">${a.content_html || esc(a.content || '')}</div>
-        </div>
-        <div class="art-foot">
-          <span class="unlocked-tag">✓ Freigeschaltet (${a.price_sats} Satoshis bezahlt)</span>
-        </div>
-      </article>`;
-    }
-    return `<article class="art-card" id="art-card-${esc(a.id)}">
-      <div>
-        <h3>🔒 ${esc(a.title)}</h3>
-        <p class="art-teaser">${esc(a.teaser)}</p>
-      </div>
-      <div class="art-foot">
-        <span class="price-tag">⚡ ${a.price_sats} Satoshis</span>
-        <button class="btn" type="button" data-unlock="${esc(a.id)}" data-sats="${a.price_sats}">
-          ⚡ Für ${a.price_sats} Sat freischalten &amp; lesen
-        </button>
-      </div>
-    </article>`;
-  }).join('');
-
-  document.querySelectorAll('button[data-unlock]').forEach(btn => {
-    btn.onclick = () => startOIDC(+btn.getAttribute('data-sats'), btn.getAttribute('data-unlock'));
-  });
-
-  if (newlyUnlockedItem) {
-    const targetEl = document.getElementById('art-card-' + newlyUnlockedItem);
-    newlyUnlockedItem = '';
-    if (targetEl) {
-      setTimeout(() => targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-    }
-  }
 }
 
 document.getElementById('post-form').onsubmit = async (ev) => {

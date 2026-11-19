@@ -17,7 +17,8 @@
 ## Key URLs & Resources
 - Landing Page (DE/EN/ES/FR/PL): https://lightningmail.app/
 - 10 Architecture Decisions & Client Porting Guide: https://lightningmail.app/architecture
-- Live OIDC Community Forum & 5-Sat Micro-Paywall Demo: https://lightningmail.app/forum
+- Live OIDC Forum Sign-in Demo: https://lightningmail.app/forum
+- Live 5-Satoshi Micro-Paywall Demo: https://lightningmail.app/paywall
 - Web App (PWA): https://lightningmail.app/app/
 - GitHub Repository (MIT License): https://github.com/normalo77/lightningmail
 - Native Linux Client (x86_64 Binary, 1080p/4K GUI + CLI): https://lightningmail.app/lightningmail-linux-amd64
