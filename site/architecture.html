@@ -77,6 +77,41 @@ nav a:hover { text-decoration: underline; }
   border-radius: 6px;
 }
 .lang:hover { background: var(--accent); }
+.menu-toggle {
+  display: none;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1.5px solid rgba(18,35,56,0.2);
+  border-radius: 7px;
+  padding: 0.45rem 0.8rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (max-width: 820px) {
+  header.top { flex-wrap: wrap; padding: 0.85rem var(--margin); gap: 0.65rem; }
+  .brand-wrap { margin-right: auto; font-size: 1.15rem; }
+  .menu-toggle { display: inline-flex; align-items: center; }
+  nav {
+    display: none;
+    order: 3;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    background: var(--surface);
+    padding: 0.7rem;
+    border-radius: 10px;
+  }
+  nav.open { display: flex; }
+  nav a { padding: 0.6rem 0.75rem; background: rgba(255,255,255,0.6); border-radius: 6px; }
+  h1 { font-size: clamp(1.7rem, 6.5vw, 2.5rem); overflow-wrap: break-word; hyphens: auto; }
+  h2 { font-size: clamp(1.35rem, 5.2vw, 1.9rem); overflow-wrap: break-word; hyphens: auto; margin-top: 2.2rem; }
+  .adr { padding: 1.15rem 1.2rem; }
+  .dl-strip { flex-direction: column; align-items: stretch; }
+  .dl-strip .btn { justify-content: center; text-align: center; }
+}
 
 main {
   max-width: 1440px;
@@ -229,19 +264,23 @@ footer {
 <body>
 <header class="top">
   <a href="/" class="brand-wrap">⚡ lightningmail</a>
-  <nav>
+  <div style="display:flex;align-items:center;gap:0.5rem">
+    <select class="lang" id="langSel" aria-label="Language">
+      <option value="de">🇩🇪 DE</option>
+      <option value="en">🇬🇧 EN</option>
+      <option value="es">🇪🇸 ES</option>
+      <option value="fr">🇫🇷 FR</option>
+      <option value="pl">🇵🇱 PL</option>
+    </select>
+    <button type="button" class="menu-toggle" onclick="document.getElementById('archNav').classList.toggle('open')">☰ Menü</button>
+  </div>
+  <nav id="archNav" onclick="if(event.target.tagName==='A')this.classList.remove('open')">
     <a href="/"><span class="de-only">← Startseite</span><span class="en-only">← Home</span><span class="es-only">← Inicio</span><span class="fr-only">← Accueil</span><span class="pl-only">← Strona główna</span></a>
     <a href="#decisions"><span class="de-only">10 Entscheidungen</span><span class="en-only">10 Decisions</span><span class="es-only">10 decisiones</span><span class="fr-only">10 décisions</span><span class="pl-only">10 decyzji</span></a>
     <a href="#clients"><span class="de-only">Clients &amp; Portierung</span><span class="en-only">Clients &amp; Porting</span><span class="es-only">Clientes y portabilidad</span><span class="fr-only">Clients et portage</span><span class="pl-only">Klienty i portowanie</span></a>
+    <a href="/forum">🔐 Forum &amp; Paywall</a>
     <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a>
     <a href="/app/"><span class="de-only">Web-App öffnen</span><span class="en-only">Open Web App</span><span class="es-only">Abrir app web</span><span class="fr-only">Ouvrir l’app Web</span><span class="pl-only">Otwórz aplikację webową</span></a>
-    <select class="lang" id="langSel" aria-label="Language">
-      <option value="de">🇩🇪 Deutsch</option>
-      <option value="en">🇬🇧 English</option>
-      <option value="es">🇪🇸 Español</option>
-      <option value="fr">🇫🇷 Français</option>
-      <option value="pl">🇵🇱 Polski</option>
-    </select>
   </nav>
 </header>
 

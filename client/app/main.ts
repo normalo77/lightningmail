@@ -599,60 +599,117 @@ const ERRROW = `<p id="w-err" class="meta" style="color:#8b0000"></p>`;
 
 async function openWizard() {
   base = ($('l-relay') as HTMLSelectElement).value; // vor Login ist base noch der Default
-  // §27-Währungsfrage: Relay sagt via /health, was es besiedelt (heute: nur btc)
-  let currencies: string[] = ['btc'];
-  try { currencies = (await (await fetch(base + '/health')).json()).currencies || currencies; } catch { /* Default btc */ }
   const mn = newMnemonic();
-  const { body, close } = wizOverlay('Neues Konto — Einrichtung');
+  const { body, close } = wizOverlay('✨ Neues lightningmail-Postfach anlegen', 540);
   const setErr = (t: string) => { const e = $('w-err'); if (e) e.textContent = t; };
-  const wireCancel = () => { $('w-x').onclick = close; };
+  const wireCancel = () => { const x = document.getElementById('w-x'); if (x) x.onclick = close; };
+  const stepsBar = (step: 1 | 2 | 3) => `<div class="wiz-steps">
+    <span class="wiz-step ${step === 1 ? 'active' : 'done'}">1. Wunschadresse</span>
+    <span class="wiz-step ${step === 2 ? 'active' : step > 2 ? 'done' : ''}">2. 24 Backup-Wörter</span>
+    <span class="wiz-step ${step === 3 ? 'active' : ''}">3. Kurzer Check</span>
+  </div>`;
 
-  // Schritt 1: Name + Währung
-  const relaySel = ($('l-relay') as HTMLSelectElement).value;
-  const relayName = relaySel.startsWith('/') ? location.hostname + relaySel : relaySel;
-  body.innerHTML = `<p class="meta">Schritt 1/4 — Konto &amp; Währung</p>
-    <label>Kontoname (klein, a-z 0-9 . _ -, 2–32 Zeichen)</label><input id="w-name" value="${esc(($('l-acct') as HTMLInputElement).value.trim())}">
-    <label>Relay</label><input value="${esc(relayName)}" disabled>
-    <p class="meta">Womit zahlst du Porto? ${currencies.map(c => '⚡ ' + c.toUpperCase()).join(' · ')}
-    — in der aktuellen Regtest-Testphase wird jedes neue Konto mit <b>10.000 Test-Satoshis</b> initialisiert.</p>
-    ${ERRROW}<div class="row"><button id="w-next">Weiter</button><button id="w-x">Abbrechen</button></div>`;
+  // Schritt 1: Wunschadresse
+  const hostLabel = location.hostname || 'lightningmail.app';
+  const curVal = (($('l-acct') as HTMLInputElement).value.trim() || '');
+  const initName = curVal === 'alice' ? '' : curVal;
+  body.innerHTML = `${stepsBar(1)}
+    <div style="background:#fff7dc;border:1.5px solid #f4b71a;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:0.9em">
+      ⚡ <b>10.000 Test-Satoshis Startguthaben</b> inklusive — kein Passwort, keine E-Mail-Bestätigung, sofort startklar.
+    </div>
+    <label for="w-name">Dein gewünschter Kontoname (2–32 Zeichen, a–z, 0–9, . _ -)</label>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+      <input id="w-name" value="${esc(initName)}" placeholder="z. B. satoshi" autocapitalize="none" autocomplete="off" style="flex:1;font-weight:700;font-size:1.05em">
+      <span style="font-weight:700;color:var(--muted);white-space:nowrap">@${esc(hostLabel)}</span>
+    </div>
+    ${ERRROW}
+    <div class="row" style="margin-top:14px">
+      <button id="w-next" type="button" style="flex:2;padding:11px 16px">Weiter zu deinen 24 Wörtern →</button>
+      <button id="w-x" type="button">Abbrechen</button>
+    </div>`;
   wireCancel();
-  $('w-next').onclick = () => {
+  setTimeout(() => ($('w-name') as HTMLInputElement)?.focus(), 30);
+  const goStep2 = () => {
     const nm = ($('w-name') as HTMLInputElement).value.trim().toLowerCase();
-    if (!/^[a-z0-9][a-z0-9._-]{1,31}$/.test(nm)) { setErr('Kontoname: 2–32 Zeichen, klein, a-z 0-9 . _ -'); return; }
+    if (!/^[a-z0-9][a-z0-9._-]{1,31}$/.test(nm)) { setErr('Bitte 2–32 kleine Zeichen wählen (a-z, 0-9, Punkt, Unterstrich oder Bindestrich).'); return; }
     ($('l-acct') as HTMLInputElement).value = nm;
-    stepWords();
+    stepWords(nm);
   };
+  $('w-next').onclick = goStep2;
+  ($('w-name') as HTMLInputElement).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); goStep2(); } };
 
   // Schritt 2: die 24 Wörter
-  function stepWords() {
+  function stepWords(nm: string) {
     const words = mn.split(' ');
-    body.innerHTML = `<p class="meta">Schritt 2/4 — Deine 24 Wörter (BIP39, englische Standardliste)</p>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px 8px;background:#fff;border:2px inset #dfdfdf;padding:8px;font-size:12px">
-        ${words.map((w, i) => `<span><b style="color:#8a8271">${i + 1}.</b> ${esc(w)}</span>`).join('')}</div>
-      <p class="meta" style="color:#8b0000">⚠ Jetzt offline auf Papier notieren. Wer diese Wörter hat, kann dein Konto jederzeit übernehmen — kein Screenshot, keine Cloud, niemandem vorlesen.</p>
-      <div class="row"><button id="w-copy" type="button">Kopieren</button></div>
-      <label style="font-weight:400"><input type="checkbox" id="w-noted" style="width:auto"> Ich habe die 24 Wörter offline notiert</label>
-      ${ERRROW}<div class="row"><button id="w-next" disabled>Weiter</button><button id="w-x">Abbrechen</button></div>`;
+    body.innerHTML = `${stepsBar(2)}
+      <p class="meta" style="margin:0 0 6px">Für <b>${esc(nm)}@${esc(hostLabel)}</b> wurde direkt auf deinem Gerät dieser Schlüssel aus 24 Wörtern erzeugt:</p>
+      <div class="seed-grid">
+        ${words.map((w, i) => `<span class="seed-word"><b>${i + 1}.</b> ${esc(w)}</span>`).join('')}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0">
+        <button id="w-copy" type="button" style="flex:0 0 auto">📋 24 Wörter kopieren</button>
+        <span class="meta" style="color:var(--danger);flex:1;min-width:200px">⚠ Dein einziges Backup bei Geräteverlust (der Server kennt deinen Schlüssel nicht).</span>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;background:var(--surface-alt);padding:10px 12px;border-radius:8px;cursor:pointer;font-weight:600;margin-top:6px">
+        <input type="checkbox" id="w-noted" style="width:20px;height:20px;margin:0">
+        <span>Ich habe die 24 Wörter sicher notiert oder gespeichert</span>
+      </label>
+      ${ERRROW}
+      <div class="row" style="margin-top:14px">
+        <button id="w-next" type="button" disabled style="flex:2;padding:11px 16px">Weiter zum 3-Wort-Check →</button>
+        <button id="w-x" type="button">Abbrechen</button>
+      </div>`;
     wireCancel();
     $('w-copy').onclick = async () => {
-      try { await navigator.clipboard.writeText(mn); $('w-copy').textContent = '✓ kopiert — Zwischenablage danach leeren!'; }
-      catch { setErr('Kopieren nicht erlaubt — Wörter manuell abschreiben.'); }
+      try { await navigator.clipboard.writeText(mn); $('w-copy').textContent = '✓ Kopiert!'; }
+      catch { setErr('Kopieren nicht erlaubt — Wörter bitte manuell notieren.'); }
     };
     ($('w-noted') as HTMLInputElement).onchange = (ev) => { ($('w-next') as HTMLButtonElement).disabled = !(ev.target as HTMLInputElement).checked; };
-    $('w-next').onclick = stepQuiz;
+    $('w-next').onclick = () => stepQuiz(nm);
   }
 
-  // Schritt 3: Wortquiz — Backup-Beweis
-  function stepQuiz() {
+  // Schritt 3: Wortquiz -> legt nach dem 3. richtigen Wort sofort das Konto an
+  function stepQuiz(nm: string) {
     const words = mn.split(' ');
     const qs = quizPositions(mn, 3);
     let done = 0;
-    body.innerHTML = `<p class="meta">Schritt 3/4 — Zur Kontrolle: was hast du notiert?</p>
-      ${qs.map((p, qi) => `<p style="margin:8px 0 4px">Wort <b>#${p + 1}</b>?</p>
-        <div class="row" id="wq-${qi}">${quizOptions(mn, p).map(o => `<button type="button" data-w="${esc(o)}">${esc(o)}</button>`).join('')}</div>`).join('')}
-      ${ERRROW}<div class="row"><button id="w-next" disabled>Weiter</button><button id="w-x">Abbrechen</button></div>`;
+    body.innerHTML = `${stepsBar(3)}
+      <p class="meta" style="margin:0 0 10px">Tippe zur kurzen Kontrolle die 3 gesuchten Wörter an — danach öffnet sich dein Postfach sofort:</p>
+      ${qs.map((p, qi) => `<div class="quiz-card">
+        <div style="font-weight:700;font-size:0.9em;margin-bottom:6px">Welches ist Wort <span style="color:var(--navy)">#${p + 1}</span>?</div>
+        <div class="row" id="wq-${qi}" style="margin-top:0">${quizOptions(mn, p).map(o => `<button type="button" data-w="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+      </div>`).join('')}
+      ${ERRROW}
+      <div class="row" style="margin-top:12px">
+        <button id="w-next" type="button" disabled style="flex:2;padding:11px 16px">🚀 Postfach jetzt eröffnen</button>
+        <button id="w-back" type="button">← Wörter nochmal zeigen</button>
+        <button id="w-x" type="button">Abbrechen</button>
+      </div>`;
     wireCancel();
+    $('w-back').onclick = () => stepWords(nm);
+
+    async function createAccountNow() {
+      const btn = $('w-next') as HTMLButtonElement;
+      btn.disabled = true;
+      btn.textContent = '⏳ Postfach wird angelegt…';
+      setErr('');
+      const pem = sec1PEM(keyFromMnemonic(mn));
+      const r = await fetch(base + '/v1/account', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nm, pubkey: toHex(pubFromPriv(parseSec1PEM(pem))) }) });
+      if (!r.ok) {
+        const t = await r.text();
+        btn.disabled = false;
+        btn.textContent = '🚀 Postfach jetzt eröffnen';
+        setErr(/reserv/i.test(t) ? `„${nm}" ist ein reservierter Name.`
+          : r.status === 409 ? `Name „${nm}“ ist auf diesem Relay schon vergeben — bitte anderen Namen wählen.` : errText(r.status, t));
+        return;
+      }
+      pemCache = pem; close();
+      await login(pem);
+    }
+
+    $('w-next').onclick = createAccountNow;
+
     qs.forEach((p, qi) => {
       document.querySelectorAll(`#wq-${qi} button`).forEach(btn => {
         btn.addEventListener('click', () => {
@@ -661,56 +718,21 @@ async function openWizard() {
           if (b.getAttribute('data-w') === words[p]) {
             b.dataset.done = '1';
             b.style.background = '#bbf7d0';
+            b.style.borderColor = '#16a34a';
+            b.style.color = '#064e3b';
             document.querySelectorAll(`#wq-${qi} button`).forEach(x => { (x as HTMLButtonElement).disabled = true; });
-            if (++done === qs.length) ($('w-next') as HTMLButtonElement).disabled = false;
+            setErr('');
+            if (++done === qs.length) {
+              ($('w-next') as HTMLButtonElement).disabled = false;
+              createAccountNow();
+            }
           } else {
             b.style.background = '#fecaca';
-            setErr('Falsches Wort — schau auf deinen Zettel.');
+            setErr('Nicht ganz — schau kurz auf deine 24 Wörter (oder klicke auf „← Wörter nochmal zeigen").');
           }
         });
       });
     });
-    $('w-next').onclick = stepKeyfile;
-  }
-
-  // Schritt 4: .lmkey-Datei optional, dann Konto-Anlage + Auto-Login
-  function stepKeyfile() {
-    const nm = ($('l-acct') as HTMLInputElement).value.trim();
-    const pem = sec1PEM(keyFromMnemonic(mn));
-    body.innerHTML = `<p class="meta">Schritt 4/4 — Schlüsseldatei (optional)</p>
-      <p class="meta">Deine 24 Wörter sind das Haupt-Backup — Recovery geht jederzeit. Zusätzlich kannst du eine verschlüsselte .lmkey-Datei speichern: Login per Datei statt Wörter-Tippen. (Später auch über 🔐 im App-Kopf möglich.)</p>
-      <input type="password" id="w-p1" placeholder="Passphrase (min. 8 Zeichen)">
-      <input type="password" id="w-p2" placeholder="zur Kontrolle erneut">
-      ${ERRROW}
-      <div class="row"><button id="w-save" type="button">💾 Datei speichern &amp; anlegen</button>
-        <button id="w-skip" type="button">Überspringen — nur Wörter</button>
-        <button id="w-x">Abbrechen</button></div>`;
-    wireCancel();
-    $('w-save').onclick = async () => {
-      const p1 = ($('w-p1') as HTMLInputElement).value;
-      if (p1.length < 8) { setErr('Passphrase zu kurz (min. 8 Zeichen).'); return; }
-      if (p1 !== ($('w-p2') as HTMLInputElement).value) { setErr('Passphrasen stimmen nicht überein.'); return; }
-      try {
-        const blob = new Blob([wrapKey(pem, p1)], { type: 'text/plain' });
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = `lightningmail-${nm}.lmkey`; a.click();
-      } catch { setErr('Download fehlgeschlagen — Datei später über 🔐 möglich. Konto wird angelegt.'); }
-      await create();
-    };
-    $('w-skip').onclick = () => create();
-    async function create() {
-      setErr('lege Konto an…');
-      const r = await fetch(base + '/v1/account', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: nm, pubkey: toHex(pubFromPriv(parseSec1PEM(pem))) }) });
-      if (!r.ok) {
-        const t = await r.text();
-        setErr(/reserv/i.test(t) ? `„${nm}" ist ein reservierter Name (Service-/Impressumsadresse).`
-          : r.status === 409 ? `Name „${nm}“ ist auf diesem Relay schon vergeben.` : errText(r.status, t));
-        return;
-      }
-      pemCache = pem; close();
-      await login(pem);
-    }
   }
 }
 

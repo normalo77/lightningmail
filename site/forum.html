@@ -317,6 +317,42 @@ h2 {
   font-size: 0.88rem;
   color: var(--ok);
 }
+.menu-toggle {
+  display: none;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1.5px solid rgba(18,35,56,0.2);
+  border-radius: 7px;
+  padding: 0.45rem 0.8rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (max-width: 760px) {
+  header.top { flex-wrap: wrap; padding: 0.85rem var(--margin); gap: 0.65rem; }
+  .brand-wrap { margin-right: auto; font-size: 1.15rem; }
+  .menu-toggle { display: inline-flex; align-items: center; }
+  nav {
+    display: none;
+    order: 3;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    background: var(--surface);
+    padding: 0.7rem;
+    border-radius: 10px;
+  }
+  nav.open { display: flex; }
+  nav a { padding: 0.6rem 0.75rem; background: rgba(255,255,255,0.6); border-radius: 6px; }
+  .auth-bar { padding: 1.15rem; }
+  .auth-controls { width: 100%; flex-direction: column; align-items: stretch; }
+  .auth-controls select, .auth-controls .btn { width: 100%; justify-content: center; }
+  .art-foot { flex-direction: column; align-items: stretch; }
+  .art-foot .btn { width: 100%; justify-content: center; }
+  .art-figs { grid-template-columns: 1fr; }
+}
 
 footer {
   max-width: 1320px;
@@ -334,18 +370,21 @@ footer {
 <body>
 <header class="top">
   <a href="/" class="brand-wrap">⚡ lightningmail</a>
-  <nav>
+  <div style="display:flex;align-items:center;gap:0.5rem">
+    <select class="lang" id="langSel" aria-label="Language">
+      <option value="de">🇩🇪 DE</option>
+      <option value="en">🇬🇧 EN</option>
+      <option value="es">🇪🇸 ES</option>
+      <option value="fr">🇫🇷 FR</option>
+      <option value="pl">🇵🇱 PL</option>
+    </select>
+    <button type="button" class="menu-toggle" onclick="document.getElementById('forumNav').classList.toggle('open')">☰ Menü</button>
+  </div>
+  <nav id="forumNav" onclick="if(event.target.tagName==='A')this.classList.remove('open')">
     <a href="/"><span class="de-only">← Startseite</span><span class="en-only">← Home</span><span class="es-only">← Inicio</span><span class="fr-only">← Accueil</span><span class="pl-only">← Strona główna</span></a>
     <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektur</span></a>
     <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a>
     <a href="/app/">Webmail</a>
-    <select class="lang" id="langSel" aria-label="Language">
-      <option value="de">🇩🇪 Deutsch</option>
-      <option value="en">🇬🇧 English</option>
-      <option value="es">🇪🇸 Español</option>
-      <option value="fr">🇫🇷 Français</option>
-      <option value="pl">🇵🇱 Polski</option>
-    </select>
   </nav>
 </header>
 
