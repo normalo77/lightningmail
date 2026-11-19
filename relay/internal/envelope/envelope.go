@@ -26,6 +26,7 @@ const (
 	TagReceipt           = 0x07
 	TagPayloadCiphertext = 0x08
 	TagEphemeralPubkey   = 0x09
+	TagSignup            = 0x0A // optional: Erstkontakt, Wert 0x01 → Willkommensporto
 
 	MaxBlobRefs  = 16
 	SignatureLen = 64 // BIP340 schnorr
@@ -60,6 +61,7 @@ type Envelope struct {
 	Receipt           *PostageReceipt // optional
 	PayloadCiphertext []byte          // 24B nonce + XChaCha20-Poly1305 ct||tag
 	EphemeralPubkey   [33]byte
+	Signup            bool // optional tag 0x0A: Erstkontakt (welcome_sats)
 }
 
 func (e *Envelope) validate(requireSig bool) error {
@@ -130,6 +132,9 @@ func (e *Envelope) encode(includeSig bool) []byte {
 	}
 	field(TagPayloadCiphertext, e.PayloadCiphertext)
 	field(TagEphemeralPubkey, e.EphemeralPubkey[:])
+	if e.Signup {
+		field(TagSignup, []byte{0x01})
+	}
 	return b.Bytes()
 }
 
@@ -155,7 +160,7 @@ func Decode(raw []byte) (*Envelope, error) {
 			return nil, fmt.Errorf("%w: 0x%02x after 0x%02x", ErrOrder, tag, prev)
 		}
 		prev = tag
-		if tag < TagRecipientHash || tag > TagEphemeralPubkey {
+		if tag < TagRecipientHash || tag > TagSignup {
 			return nil, fmt.Errorf("%w: 0x%02x", ErrUnknownTag, tag)
 		}
 		if i+3 > len(raw) {
@@ -204,6 +209,11 @@ func Decode(raw []byte) (*Envelope, error) {
 			e.PayloadCiphertext = append([]byte(nil), val...)
 		case TagEphemeralPubkey:
 			err = copy33(&e.EphemeralPubkey, val)
+		case TagSignup:
+			if len(val) != 1 || val[0] != 1 {
+				return nil, fmt.Errorf("%w: signup must be 0x01", ErrSize)
+			}
+			e.Signup = true
 		}
 		if err != nil {
 			return nil, err

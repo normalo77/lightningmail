@@ -130,7 +130,7 @@ const _b64d = (s: string): Uint8Array =>
 export const fromB64 = (s: string): Uint8Array => _b64d(s);
 const bytesToNumber = (b: Uint8Array): bigint => BigInt("0x" + toHex(b));
 
-export const TAG = { RecipientHash: 1, MsgID: 2, BlobRefs: 3, SenderPubkey: 4, Signature: 5, Timestamp: 6, Receipt: 7, Payload: 8, Ephemeral: 9 } as const;
+export const TAG = { RecipientHash: 1, MsgID: 2, BlobRefs: 3, SenderPubkey: 4, Signature: 5, Timestamp: 6, Receipt: 7, Payload: 8, Ephemeral: 9, Signup: 10 } as const;
 export const blobCount = (refs: Uint8Array): number => refs[0];
 export const blobRef = (refs: Uint8Array, i: number): Uint8Array => refs.slice(1 + 32 * i, 33 + 32 * i);
 export { schnorr, sha256 };

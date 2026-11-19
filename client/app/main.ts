@@ -70,7 +70,7 @@ const spamAdd = (k: string) => { if (sync) sync.toggleSpam(k, true); else { cons
 const spamDel = (k: string) => { if (sync) sync.toggleSpam(k, false); else { const x = new Set(spamSet()); x.delete(k); localStorage.setItem(spamKey(), JSON.stringify([...x])); } };
 
 // Gesendet-Ordner (lokal, synchronisiert wird ab M2.5)
-type MsgRow = { seq: number; msgId: string; subject: string; body: string; sender: string; pub: string; ts: number; atts: { sha256: string; name: string; chunked?: boolean }[] };
+type MsgRow = { seq: number; msgId: string; subject: string; body: string; sender: string; pub: string; ts: number; signup?: boolean; atts: { sha256: string; name: string; chunked?: boolean }[] };
 type SentRow = { ts: number; to: string; subject: string; msg_id: string; bytes: number };
 const sentKey = () => `lm_out_${base.slice(1)}_${acct}`;
 const sentList = (): SentRow[] => JSON.parse(localStorage.getItem(sentKey()) || '[]');
@@ -160,7 +160,7 @@ async function refresh() {
       const p = JSON.parse(new TextDecoder().decode(pt));
       const atts = (p.attachments || []).map((a: any) => ({ sha256: a.sha256, name: a.name, chunked: !!a.chunked }));
       const refs = env[TAG.BlobRefs] ? Array.from({ length: blobCount(env[TAG.BlobRefs]) }, (_, i) => toHex(blobRef(env[TAG.BlobRefs]!, i))) : [];
-      msgs.push({ seq: m.seq, msgId: toHex(env[TAG.MsgID]), subject: p.subject, body: p.body, sender: toHex(env[TAG.SenderPubkey]).slice(0, 12), pub: toHex(env[TAG.SenderPubkey]), ts: m.received_at, atts: atts.length ? atts : refs.map((r, i) => ({ sha256: r, name: `anhang-${i + 1}` })) });
+      msgs.push({ seq: m.seq, msgId: toHex(env[TAG.MsgID]), subject: p.subject, body: p.body, sender: toHex(env[TAG.SenderPubkey]).slice(0, 12), pub: toHex(env[TAG.SenderPubkey]), ts: m.received_at, signup: !!(env[TAG.Signup] && env[TAG.Signup][0] === 1), atts: atts.length ? atts : refs.map((r, i) => ({ sha256: r, name: `anhang-${i + 1}` })) });
     } catch (e: any) { (window as any).__decodeErr = String(e && e.stack || e); }
   }
   render();
@@ -182,7 +182,7 @@ function render() {
   if (folder == 'dra') { renderDrafts(); return; }
   const list = visible().slice().reverse();
   $('list').innerHTML = list.map(m => `<div class="row ${m.seq === sel ? 'sel' : ''}" data-seq="${m.seq}">
-    <div class="subj" ${sync && sync.doc.read[m.msgId] ? 'style="font-weight:400;color:#8a8271"' : ''}>${esc(m.subject)}</div>
+    <div class="subj" ${sync && sync.doc.read[m.msgId] ? 'style="font-weight:400;color:#8a8271"' : ''}>${m.signup ? '[🔑 Registrierung] ' : ''}${esc(m.subject)}</div>
     <div class="meta">${esc(m.sender)}… · ${new Date(m.ts * 1000).toLocaleString('de')} ${m.atts.length ? '📎' : ''}</div></div>`).join('') ||
     '<div class="meta" style="padding:12px">— leer —</div>';
   document.querySelectorAll('#list .row').forEach(el =>
@@ -235,7 +235,7 @@ function renderDetail() {
   const sp = spamSet().has(m.sender);
   const cn = contactFor(m.pub);
   $('detail').innerHTML = `<div class="card">
-    <div class="subj" style="font-size:17px">${esc(m.subject)}</div>
+    <div class="subj" style="font-size:17px">${m.signup ? '[🔑 Registrierung] ' : ''}${esc(m.subject)}</div>
     <div class="meta">Von ${cn ? esc(abLabel(cn)) : esc(m.sender) + '…'} · ${new Date(m.ts * 1000).toLocaleString('de')}</div>
     <pre style="white-space:pre-wrap;font:inherit;margin:14px 0">${esc(m.body)}</pre>
     ${m.atts.map(a => `<span class="attach" data-sha="${a.sha256}" data-name="${esc(a.name)}" data-chunked="${a.chunked ? 1 : 0}">↓ ${esc(a.name)}${a.chunked ? ' 📦' : ''}</span>`).join('')}
@@ -413,6 +413,7 @@ async function renderCompose() {
     <textarea id="c-body" placeholder="Nachricht…"></textarea>
     <input type="file" id="c-file" multiple>
     <label style="font-size:13px;color:var(--faint)"><input type="checkbox" id="c-orig"> Original senden (Fotos sonst auf 1600px JPEG komprimiert)</label>
+    <label style="font-size:13px;color:var(--faint)"><input type="checkbox" id="c-signup"> Als Dienst-Registrierung senden (Tag 0x0A, zahlt Willkommensporto)</label>
     <div id="portofuss" class="meta">Empfänger wählen — Porto und Fingerprint erscheinen hier.</div>
     <div><button type="submit">Senden</button> <button type="button" id="c-save">Als Entwurf speichern</button> <span id="c-msg" class="meta"></span></div>
   </form></div>`;
@@ -424,10 +425,17 @@ async function renderCompose() {
     if (!r.ok) { el.textContent = errText(r.status); return; }
     const p = await r.json() as any;
     const fp = String(p.pubkey || '');
-    el.textContent = `Empfänger-Key ${fp.slice(0, 6)}…${fp.slice(-4)} · Porto ${p.foreign_sats} sats` +
+    el.textContent = `Empfänger-Key ${fp.slice(0, 6)}…${fp.slice(-4)} · Porto ${p.foreign_sats} sats (Registrierung: ${p.welcome_sats ?? p.foreign_sats * 3} sats)` +
       (fp.slice(0, 2) === '02' || fp.slice(0, 2) === '03' ? '' : ' · WARNUNG: seltsamer Key');
   };
   $('c-to').addEventListener('change', lookup);
+  // Etappe I (§28): Deep-Link ?an=<adresse>&signup=1 → Dienst-Registrierung vorbefüllen
+  const cq = new URLSearchParams(location.search);
+  if (cq.get('signup') === '1' || cq.get('an')) {
+    ($('c-signup') as HTMLInputElement).checked = true;
+    const an = cq.get('an');
+    if (an) { ($('c-to') as HTMLInputElement).value = an; lookup(); }
+  }
   $('c-ab').onclick = () => openPicker((addrs) => {
     if (!addrs.length) return;
     const el = $('c-to') as HTMLInputElement;
@@ -475,7 +483,7 @@ async function renderCompose() {
         } else atts.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
       }
       const total = atts.reduce((a, x) => a + x.bytes.length, 0);
-      const out = await composeAndSend(base, token, priv!, { to: ($('c-to') as HTMLInputElement).value, subject: ($('c-subj') as HTMLInputElement).value, body: ($('c-body') as HTMLTextAreaElement).value, attachments: atts,
+      const out = await composeAndSend(base, token, priv!, { to: ($('c-to') as HTMLInputElement).value, subject: ($('c-subj') as HTMLInputElement).value, body: ($('c-body') as HTMLTextAreaElement).value, attachments: atts, signup: ($('c-signup') as HTMLInputElement).checked,
         onProgress: (m) => { const e = $('c-msg'); if (e) e.textContent = m; } });
       sentPush({ ts: Math.floor(Date.now() / 1000), to: $('c-to').value, subject: $('c-subj').value, msg_id: String(out.msg_id || ''), bytes: total });
       if (draftId && sync) { sync.delDraft(draftId); draftId = ''; }

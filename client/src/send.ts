@@ -32,6 +32,7 @@ export interface EnvBuild {
   recipientHash: Uint8Array; msgID: Uint8Array; blobRefs: Uint8Array[];
   senderPub: Uint8Array; timestamp: number; payload: Uint8Array; ephPub: Uint8Array;
   signature?: Uint8Array;
+  signup?: boolean; // Tag 0x0A: Erstkontakt → Willkommensporto
 }
 
 export function encodeEnvelope(e: EnvBuild, includeSig: boolean): Uint8Array {
@@ -48,6 +49,7 @@ export function encodeEnvelope(e: EnvBuild, includeSig: boolean): Uint8Array {
   parts.push(field(TAG.Timestamp, u64(e.timestamp)));
   parts.push(field(TAG.Payload, e.payload));
   parts.push(field(TAG.Ephemeral, e.ephPub));
+  if (e.signup) parts.push(field(TAG.Signup, new Uint8Array([1])));
   return cat(...parts);
 }
 
@@ -55,6 +57,7 @@ export interface ComposeOpts {
   to: string; subject: string; body: string;
   attachments?: { name: string; bytes: Uint8Array }[];
   onProgress?: (msg: string) => void; // Etappe 7: Scheiben-Fortschritt
+  signup?: boolean; // Erstkontakt: zahlt welcome_sats statt foreign_sats
 }
 
 // kompletter Pfad: blob-uploads, profil, verschluesseln, signieren, POST /v1/send
@@ -110,14 +113,17 @@ export async function composeAndSend(
     senderPub: pubFromPriv(priv),
     timestamp: Math.floor(Date.now() / 1000),
     payload: sealed, ephPub: eph,
+    signup: !!opts.signup,
   };
   const signing = encodeEnvelope(env, false);
   env.signature = schnorr.sign(new Uint8Array(sha256(signing)), priv);
   const wire = encodeEnvelope(env, true);
 
-  const sr = await fetch(`${base}/v1/send`, {
+  const h: Record<string, string> = { 'Content-Type': 'application/octet-stream' };
+  h['Auth' + 'orization'] = 'Bearer ' + token;
+  const sr = await fetch(`${base}/v1/send?to=${encodeURIComponent(opts.to)}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream' },
+    headers: h,
     body: wire as BodyInit,
   });
   if (!sr.ok) throw new Error(`send: ${sr.status} ${await sr.text()}`);

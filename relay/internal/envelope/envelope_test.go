@@ -88,6 +88,60 @@ func TestSigningBytesOmitsSignature(t *testing.T) {
 	}
 }
 
+func TestSignupTagRoundTrip(t *testing.T) {
+	e := testEnv(t)
+	e.Signup = true
+	raw, err := e.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Decode(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Signup {
+		t.Fatal("signup lost in round trip")
+	}
+	reRaw, err := got.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(raw, reRaw) {
+		t.Fatal("signup re-encode differs")
+	}
+	// without the tag, Signup must stay false
+	plain, err := testEnv(t).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g2, err := Decode(plain); err != nil || g2.Signup {
+		t.Fatalf("signup set without tag (err=%v)", err)
+	}
+	// signup must be covered by SigningBytes
+	sbOn, err := e.SigningBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sbOff, err := testEnv(t).SigningBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(sbOn, sbOff) {
+		t.Fatal("signup not covered by SigningBytes")
+	}
+	// invalid value (0x02) and wrong lengths must be rejected
+	body := raw[:len(raw)-4] // strip tag|len|val of the trailing signup field
+	for _, bad := range [][]byte{
+		{TagSignup, 0x00, 0x01, 0x02},       // value != 1
+		{TagSignup, 0x00, 0x02, 0x01, 0x01}, // len 2
+		{TagSignup, 0x00, 0x00},             // len 0
+	} {
+		if _, err := Decode(append(append([]byte(nil), body...), bad...)); err == nil {
+			t.Fatalf("bad signup field %v accepted", bad)
+		}
+	}
+}
+
 func TestTruncation(t *testing.T) {
 	raw, err := testEnv(t).MarshalBinary()
 	if err != nil {

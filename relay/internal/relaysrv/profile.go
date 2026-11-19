@@ -159,5 +159,6 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 		"address":      acct.Name,
 		"pubkey":       hex.EncodeToString(acct.MailboxPubkey),
 		"foreign_sats": s.postage.ForeignSats(),
+		"welcome_sats": s.postage.WelcomeSats(),
 	})
 }

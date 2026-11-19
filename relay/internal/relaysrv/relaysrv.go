@@ -243,6 +243,9 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	postageAmt := s.postage.ForeignSats()
+	if env.Signup {
+		postageAmt = s.postage.WelcomeSats() // Erstkontakt zahlt Willkommensporto (§28)
+	}
 	postageMsat := postageAmt * 1000
 
 	if err := s.ledger.ApplyDeltaMeta(account, -postageMsat, ledger.KindPostageOut, hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr()); err != nil {
@@ -273,25 +276,57 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 
 	var destNode string
 	var destName string
-	if _, err := s.ledger.LookupByRecipientHash(env.RecipientHash); err == nil {
-		// Empfaenger liegt auf diesem Relay → Selbst-Keysend an eigenen Node
-		destNode = info.IdentityPubkey
-		destName = s.cfg.Name
-	} else {
-		peer := &s.cfg.Peers[0]
-		if len(s.cfg.Peers) > 1 {
-			if target := strings.TrimSpace(r.URL.Query().Get("to")); target != "" {
-				for i := range s.cfg.Peers {
-					if strings.EqualFold(s.cfg.Peers[i].Name, target) || strings.Contains(strings.ToLower(s.cfg.Peers[i].URL), strings.ToLower(target)) {
-						peer = &s.cfg.Peers[i]
-						break
-					}
-				}
+	targetHint := strings.TrimSpace(r.URL.Query().Get("to"))
+	targetRelay := ""
+	if i := strings.Index(targetHint, "@"); i >= 0 {
+		targetRelay = targetHint[i+1:]
+	}
+	// Lokale Direktzustellung (ohne LND-Self-Payment-Loop), wenn der Empfaenger
+	// auf diesem Relay existiert UND nicht explizit ein Peer-Relay adressiert wurde.
+	isExplicitPeer := false
+	if targetRelay != "" && !strings.EqualFold(targetRelay, s.cfg.Name) {
+		for i := range s.cfg.Peers {
+			if strings.EqualFold(s.cfg.Peers[i].Name, targetRelay) || strings.Contains(strings.ToLower(s.cfg.Peers[i].URL), strings.ToLower(targetRelay)) {
+				isExplicitPeer = true
+				break
 			}
 		}
-		destNode = peer.NodePubkey
-		destName = peer.Name
 	}
+	if localAcct, err := s.ledger.LookupByRecipientHash(env.RecipientHash); err == nil && !isExplicitPeer {
+		_, inserted, err2 := s.ledger.PutMessage(env.MsgID, localAcct.ID, envBin, postageMsat)
+		if err2 != nil {
+			s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
+			http.Error(w, fmt.Sprintf(`{"error":"mailbox put: %v"}`, err2), 500)
+			return
+		}
+		if inserted {
+			creditRef := hex.EncodeToString(env.MsgID[:])
+			if err2 := s.ledger.ApplyDeltaMeta(localAcct.Name, postageMsat, ledger.KindPostageIn, creditRef, "btc", s.ratePtr()); err2 != nil {
+				log.Printf("local send: credit error for %s: %v", localAcct.Name, err2)
+			}
+		}
+		w.WriteHeader(202)
+		json.NewEncoder(w).Encode(map[string]any{
+			"msg_id": hex.EncodeToString(env.MsgID[:]),
+			"receipt": map[string]any{
+				"amount_sats":  postageAmt,
+				"preimage_b64": base64.StdEncoding.EncodeToString(env.MsgID[:]),
+			},
+		})
+		log.Printf("send: %s -> local %s, %d sats", account, localAcct.Name, postageAmt)
+		return
+	}
+	peer := &s.cfg.Peers[0]
+	if targetRelay != "" {
+		for i := range s.cfg.Peers {
+			if strings.EqualFold(s.cfg.Peers[i].Name, targetRelay) || strings.Contains(strings.ToLower(s.cfg.Peers[i].URL), strings.ToLower(targetRelay)) {
+				peer = &s.cfg.Peers[i]
+				break
+			}
+		}
+	}
+	destNode = peer.NodePubkey
+	destName = peer.Name
 
 	now := time.Now().Unix()
 	ts := make([]byte, 8)

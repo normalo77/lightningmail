@@ -32,6 +32,9 @@ type LND struct {
 type Postage struct {
 	ForeignSats  int64 `yaml:"foreign_sats"`
 	ContactSats  int64 `yaml:"contact_sats"`
+	// Willkommensporto fuer Erstkontakte (Envelope-Tag 0x0A signup);
+	// 0 = Default 3x foreign_sats (wird in ParseConfig gesetzt).
+	WelcomeSats int64 `yaml:"welcome_sats"`
 	MinSats      int64 `yaml:"min_sats"`
 	BlobMaxBytes int64 `yaml:"blob_max_bytes"`
 	// Etappe 7 (§22): Byte-Porto — Storage-Preis in Milli-EUR pro MiB beim
@@ -131,6 +134,9 @@ func ParseConfig(data []byte) (*Config, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
+	if c.Postage.WelcomeSats == 0 {
+		c.Postage.WelcomeSats = c.Postage.ForeignSats * 3
+	}
 	if c.Retention.GraceDays == 0 {
 		c.Retention.GraceDays = 7
 	}
@@ -168,6 +174,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Postage.ContactSats < 0 {
 		errs = append(errs, "postage.contact_sats must be >= 0")
+	}
+	if c.Postage.WelcomeSats < 0 {
+		errs = append(errs, "postage.welcome_sats must be >= 0")
 	}
 	if c.Postage.BlobMaxBytes <= 0 {
 		errs = append(errs, "postage.blob_max_bytes must be > 0")
