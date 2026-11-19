@@ -47,4 +47,12 @@ A.delDraft("d1"); await A.push();
 await C.pull();
 ok(C.liveDrafts().length === 0, "Tombstone: geloeschter Entwurf bleibt weg");
 
+// Gesendet-Ordner (Stern-Sync): Geraet A "sendet" -> Relay -> Geraet B sieht den Eintrag
+A.addSent({ msg_id: "sent-1", ts: 1700000001, to: "gisela", subject: "Hallo", body: "Text der gesendeten Mail", bytes: 123 });
+await A.push();
+await B.pull();
+const sl = B.liveSent();
+ok(sl.length === 1 && sl[0].to === "gisela" && sl[0].subject === "Hallo" && sl[0].body === "Text der gesendeten Mail",
+  "addSent/liveSent: Gesendete Mail (Empfaenger, Betreff, Body) kommt auf Geraet B an");
+
 console.log("EXITCODE", process.exitCode || 0);

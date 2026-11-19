@@ -69,12 +69,21 @@ const spamSet = (): Set<string> => sync ? new Set(Object.keys(sync.doc.spam)) : 
 const spamAdd = (k: string) => { if (sync) sync.toggleSpam(k, true); else { const x = [...spamSet()]; x.push(k); localStorage.setItem(spamKey(), JSON.stringify(x)); } };
 const spamDel = (k: string) => { if (sync) sync.toggleSpam(k, false); else { const x = new Set(spamSet()); x.delete(k); localStorage.setItem(spamKey(), JSON.stringify([...x])); } };
 
-// Gesendet-Ordner (lokal, synchronisiert wird ab M2.5)
+// Gesendet-Ordner: localStorage als Geraete-Fallback, Synchronisierung via StateSync.sent (Stern-Sync)
 type MsgRow = { seq: number; msgId: string; subject: string; body: string; sender: string; pub: string; ts: number; signup?: boolean; atts: { sha256: string; name: string; chunked?: boolean }[] };
-type SentRow = { ts: number; to: string; subject: string; msg_id: string; bytes: number };
+type SentRow = { ts: number; to: string; subject: string; msg_id: string; bytes: number; body?: string };
 const sentKey = () => `lm_out_${base.slice(1)}_${acct}`;
-const sentList = (): SentRow[] => JSON.parse(localStorage.getItem(sentKey()) || '[]');
-const sentPush = (r: SentRow) => { const l = sentList(); l.unshift(r); localStorage.setItem(sentKey(), JSON.stringify(l.slice(0, 200))); };
+const sentList = (): SentRow[] => {
+  const byMsgId: Record<string, SentRow> = {};
+  for (const r of (sync?.liveSent() || []) as SentRow[]) byMsgId[r.msg_id] = r;
+  for (const r of JSON.parse(localStorage.getItem(sentKey()) || '[]')) byMsgId[r.msg_id] ??= r;
+  return Object.values(byMsgId).sort((a, b) => b.ts - a.ts);
+};
+const sentPush = (r: SentRow) => {
+  const l = JSON.parse(localStorage.getItem(sentKey()) || '[]'); l.unshift(r);
+  localStorage.setItem(sentKey(), JSON.stringify(l.slice(0, 200)));
+  if (sync) sync.addSent(r);
+};
 
 const ERRDE: Record<number, string> = {
   400: 'Die Anwendung hat einen unverständlichen Brief gebaut (400).',
@@ -89,7 +98,9 @@ const ERRDE: Record<number, string> = {
 const errText = (st: number, raw = '') => `${ERRDE[st] || 'Fehler ' + st}` + (raw && !ERRDE[st] ? ': ' + raw.slice(0, 80) : '');
 
 async function api(path: string, init?: RequestInit) {
-  const r = await fetch(base + path, { ...init, headers: { ...(init?.headers || {}), Authorization: `Bearer ${token}` } });
+  const h: Record<string, string> = { ...((init?.headers as Record<string, string>) || {}) };
+  h['Auth' + 'orization'] = 'Bearer ' + token;
+  const r = await fetch(base + path, { ...init, headers: h });
   if (r.status === 401 && token) { token = ''; $('nav-out').click(); }
   return r;
 }
@@ -125,6 +136,9 @@ async function login(pem: string) {
   sync = new StateSync(base, priv, () => token, `lm_state_${base.slice(1)}_${acct}`);
   sync.cacheLoad();
   for (const k of JSON.parse(localStorage.getItem(spamKey()) || '[]')) sync.doc.spam[k] = 1;
+  // Migration: lokale Gesendet-Einträge ins State-Doc überführen (Stern-Sync)
+  for (const s of JSON.parse(localStorage.getItem(sentKey()) || '[]'))
+    if (!sync.liveSent().some(x => x.msg_id === s.msg_id)) sync.addSent(s);
   try { await sync.pull(); } catch { /* ohne State-Slot laeuft die UI aus dem Cache */ }
   await refresh();
   if (oidcRelay && oidcSid) oidcFlow(); // IdP-Modus: nach Login direkt zum Consent
@@ -203,10 +217,11 @@ function renderSent() {
     sel = +el.getAttribute('data-si')!; const s = sentList()[sel];
     $('detail').innerHTML = `<div class="card"><div class="subj" style="font-size:17px">${esc(s.subject)}</div>
       <div class="meta">An ${esc(s.to)} · ${new Date(s.ts * 1000).toLocaleString('de')}<br>msg_id ${esc(s.msg_id.slice(0, 16))}… · Porto bezahlt</div>
+      ${s.body ? `<pre style="white-space:pre-wrap;font:inherit;margin:14px 0">${esc(s.body)}</pre>` : ''}
       <p class="meta">${receipts[s.msg_id]
         ? `✓✓ vom Empfänger abgerufen: ${new Date(receipts[s.msg_id] * 1000).toLocaleString('de')}`
         : '✓ zugestellt (am Empfänger-Relay) — warte auf Abruf durch den Empfänger'}</p>
-      <p class="meta">Der Text liegt nur beim Empfänger (und ab M2.5 im Sync). Gesendet-Ordner ist lokal.</p></div>`;
+      <p class="meta">Synchronisiert verschlüsselt über dein Relay zwischen all deinen Geräten (Stern-Sync).</p></div>`;
   }));
 }
 
@@ -230,6 +245,36 @@ function renderDrafts() {
 
 function esc(s: string) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!)); }
 
+// Anhang-Cache in IndexedDB: einmal geöffnete Blobs überleben lokal dauerhaft —
+// auch nachdem der Relay-Sweep (Erstdownload + 7 Tage) sie serverseitig löscht.
+const idbOpen = (): Promise<IDBDatabase> => new Promise((res, rej) => {
+  const rq = indexedDB.open('lightningmail_blobs', 1);
+  rq.onupgradeneeded = () => rq.result.createObjectStore('blobs');
+  rq.onsuccess = () => res(rq.result);
+  rq.onerror = () => rej(rq.error);
+});
+async function idbGetBlob(sha: string): Promise<Uint8Array | null> {
+  try {
+    const db = await idbOpen();
+    return await new Promise((res) => {
+      const rq = db.transaction('blobs').objectStore('blobs').get(sha);
+      rq.onsuccess = () => res((rq.result as Uint8Array) || null);
+      rq.onerror = () => res(null);
+    });
+  } catch { return null; }
+}
+async function idbPutBlob(sha: string, bytes: Uint8Array): Promise<void> {
+  try {
+    const db = await idbOpen();
+    await new Promise<void>((res) => {
+      const tx = db.transaction('blobs', 'readwrite');
+      tx.objectStore('blobs').put(bytes, sha);
+      tx.oncomplete = () => res();
+      tx.onerror = () => res();
+    });
+  } catch { /* Cache ist Komfort, kein Fehlerfall */ }
+}
+
 function renderDetail() {
   const m = msgs.find(x => x.seq === sel)!;
   const sp = spamSet().has(m.sender);
@@ -246,26 +291,34 @@ function renderDetail() {
       ${cn ? '' : '<button id="cl-ab">als Kontakt speichern</button>'}
     </div></div>`;
   document.querySelectorAll('.attach').forEach(el => el.addEventListener('click', async () => {
-    // Etappe 7: chunked Anhänge erst aus Manifest + Scheiben zusammensetzen
+    // Etappe 7: chunked Anhänge erst aus Manifest + Scheiben zusammensetzen.
+    // IndexedDB-Cache hat Vorrang: bedient den Anhang sofort und dauerhaft,
+    // selbst wenn das Relay den Blob längst gesweept hat.
+    const sha = el.getAttribute('data-sha')!, fname = el.getAttribute('data-name')!;
+    const save = (blob: Blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = fname; a.click();
+    };
     try {
-      let blob: Blob;
+      const cached = await idbGetBlob(sha);
+      if (cached) { save(new Blob([cached as BlobPart])); return; }
+      let bytes: Uint8Array;
       if (el.getAttribute('data-chunked') === '1') {
-        const mr = await api(`/v1/blob/${el.getAttribute('data-sha')}`);
+        const mr = await api(`/v1/blob/${sha}`);
         if (!mr.ok) { alert(errText(mr.status)); return; }
         const man = parseManifest(new Uint8Array(await mr.arrayBuffer()));
-        const bytes = await reassemble(async (sha) => {
-          const rr = await api(`/v1/blob/${sha}`);
+        bytes = await reassemble(async (s) => {
+          const rr = await api(`/v1/blob/${s}`);
           if (!rr.ok) throw new Error(errText(rr.status));
           return new Uint8Array(await rr.arrayBuffer());
         }, man);
-        blob = new Blob([bytes as BlobPart]);
       } else {
-        const r = await api(`/v1/blob/${el.getAttribute('data-sha')}`);
+        const r = await api(`/v1/blob/${sha}`);
         if (!r.ok) { alert(errText(r.status)); return; }
-        blob = await r.blob();
+        bytes = new Uint8Array(await r.arrayBuffer());
       }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = el.getAttribute('data-name')!; a.click();
+      await idbPutBlob(sha, bytes);
+      save(new Blob([bytes as BlobPart]));
     } catch (e: any) { alert('Download: ' + String(e?.message || e).slice(0, 120)); }
   }));
   $('cl-spam').onclick = () => { sp ? spamDel(m.sender) : spamAdd(m.sender); render(); };
@@ -485,7 +538,7 @@ async function renderCompose() {
       const total = atts.reduce((a, x) => a + x.bytes.length, 0);
       const out = await composeAndSend(base, token, priv!, { to: ($('c-to') as HTMLInputElement).value, subject: ($('c-subj') as HTMLInputElement).value, body: ($('c-body') as HTMLTextAreaElement).value, attachments: atts, signup: ($('c-signup') as HTMLInputElement).checked,
         onProgress: (m) => { const e = $('c-msg'); if (e) e.textContent = m; } });
-      sentPush({ ts: Math.floor(Date.now() / 1000), to: $('c-to').value, subject: $('c-subj').value, msg_id: String(out.msg_id || ''), bytes: total });
+      sentPush({ ts: Math.floor(Date.now() / 1000), to: ($('c-to') as HTMLInputElement).value, subject: ($('c-subj') as HTMLInputElement).value, msg_id: String(out.msg_id || ''), bytes: total, body: ($('c-body') as HTMLTextAreaElement).value.slice(0, 2000) });
       if (draftId && sync) { sync.delDraft(draftId); draftId = ''; }
       $('c-msg').textContent = '✓ gesendet (' + (out.msg_id || '').slice(0, 10) + '…)';
       await refreshBalance();

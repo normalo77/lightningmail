@@ -4,6 +4,9 @@
 import { encryptPayload, decryptPayload, toHex, fromHex, pubFromPriv } from "./crypto";
 
 export type Draft = { id: string; ts: number; to: string; subject: string; body: string; gone?: 1 };
+// Gesendet-Ordner im State-Doc (Stern-Sync). body max. 2000 Zeichen — der
+// 256-kB-Slot muss schlank bleiben; 150 neueste Einträge.
+export type SentItem = { msg_id: string; ts: number; to: string; subject: string; body?: string; bytes: number };
 // Etappe A: privates Adressbuch. Feldnamen ~ vCard 4.0 (N/FN/ORG/TITLE/...).
 // shortcut: State-Slot cappt 256 kB (Relay) -> ~500 Kontakte; bei Überlauf
 // Einzelfeld-Subtiles noetig, nicht vor der Beta.
@@ -19,9 +22,10 @@ export type StateDoc = {
   spam: Record<string, 1>;
   deleted: Record<string, 1>;
   drafts: Draft[];
+  sent: SentItem[];
   contacts: Record<string, Contact>;
 };
-export const emptyDoc = (): StateDoc => ({ read: {}, spam: {}, deleted: {}, drafts: [], contacts: {} });
+export const emptyDoc = (): StateDoc => ({ read: {}, spam: {}, deleted: {}, drafts: [], sent: [], contacts: {} });
 
 const cat = (a: Uint8Array, b: Uint8Array): Uint8Array => {
   const o = new Uint8Array(a.length + b.length); o.set(a, 0); o.set(b, a.length); return o;
@@ -35,6 +39,7 @@ export function mergeDocs(a: StateDoc, b: StateDoc): StateDoc {
     spam: { ...a.spam, ...b.spam },
     deleted: { ...a.deleted, ...b.deleted },
     drafts: [],
+    sent: [],
     contacts: {},
   };
   const byId: Record<string, Draft> = {};
@@ -47,6 +52,14 @@ export function mergeDocs(a: StateDoc, b: StateDoc): StateDoc {
     if (wins(d, byId[d.id])) byId[d.id] = d;
   }
   out.drafts = Object.values(byId).sort((x, y) => x.ts - y.ts).slice(-30);
+  // sent: ein Eintrag pro msg_id; längerer body gewinnt (Migration/Upgrade),
+  // sonst neuerer ts. Neueste 150, absteigend.
+  const bySent: Record<string, SentItem> = {};
+  for (const s of [...(a.sent || []), ...(b.sent || [])]) {
+    const cur = bySent[s.msg_id];
+    if (!cur || (s.body || "").length > (cur.body || "").length || s.ts > cur.ts) bySent[s.msg_id] = s;
+  }
+  out.sent = Object.values(bySent).sort((x, y) => y.ts - x.ts).slice(0, 150);
   // contacts: Gleiches Muster wie drafts, nur als Map.
   for (const k of new Set([...Object.keys(a.contacts || {}), ...Object.keys(b.contacts || {})])) {
     const x = a.contacts?.[k], y = b.contacts?.[k];
@@ -86,7 +99,7 @@ export class StateSync {
       const eph = b.slice(0, 33), sealed = b.slice(33);
       const pt = decryptPayload(this.priv, eph, sealed, new Uint8Array(0));
       const d = JSON.parse(new TextDecoder().decode(pt));
-      return { read: d.read || {}, spam: d.spam || {}, deleted: d.deleted || {}, drafts: d.drafts || [], contacts: d.contacts || {} };
+      return { read: d.read || {}, spam: d.spam || {}, deleted: d.deleted || {}, drafts: d.drafts || [], sent: d.sent || [], contacts: d.contacts || {} };
     } catch { return null; }
   }
 
@@ -146,6 +159,13 @@ export class StateSync {
   }
   delDraft(id: string) { this.saveDraft({ id, to: "", subject: "", body: "", gone: 1 }); }
   liveDrafts(): Draft[] { return this.doc.drafts.filter(d => !d.gone); }
+  addSent(s: SentItem) {
+    const item = { ...s, body: s.body ? s.body.slice(0, 2000) : s.body };
+    this.doc.sent = [item, ...(this.doc.sent || []).filter(x => x.msg_id !== item.msg_id)]
+      .sort((x, y) => y.ts - x.ts).slice(0, 150);
+    this.cacheWrite(); this.schedule();
+  }
+  liveSent(): SentItem[] { return [...(this.doc.sent || [])].sort((a, b) => b.ts - a.ts); }
   saveContact(c: { id: string } & Partial<Contact>) {
     const { gone: _alt, ...prev } = this.doc.contacts[c.id] || ({} as Contact); // lebendiger Save erweckt
     const ts = Math.max(Math.floor(Date.now() / 1000), prev.ts || 0) + 1;

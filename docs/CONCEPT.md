@@ -344,51 +344,44 @@ Dünner stdio-/HTTP-MCP-Server auf der Relay-API (Go), kein Eigen-system:
 - Plan: MCP-Server ab M2 parallel zur Webmail (Relay-API existiert dann);
   erster Referenz-Client: Hermes selbst als MCP-Host.
 
-## 16. Client-Sync über mehrere Geräte (Planungsthema, M2.5)
+## 16. Client-Sync über mehrere Geräte (Stern-Struktur, M2.5)
 
 Realfall (Bernd): 1 Konto, 3+ Clients (Privatrechner, Büro, Handy). Sync muss
 **kostenlos und ohne Lightning** laufen — es ist der eigene Account, keine
 Fremd-Mail.
 
-Optionen:
-- **A) Relay-zentriert, "blind IMAP" (Empfehlung Hermes):** Client-Status
-  (Ordner, Klassifizierung, Labels, Entwürfe) als **verschlüsseltes
-  State-Dokument** im bestehenden Blob-Store des eigenen Relays; Clients
-  tauschen es per CAS (compare-and-swap auf Version/Hash), Konflikt =
-  letzterwinscht mit Merge-Log. Kein Porto, keine neue Infrastruktur,
-  funktioniert durch jede Firewall (der Relay ist ohnehin erreichbar).
-  Aufwand klein: 1 Endpunkt + versioniertes JSON, AEAD wie Mails.
-- **B) Syncthing-artig P2P:** verschlüsselte State-CRDT direkt zwischen
-  Clients. Datenschutz-schön, aber CGNAT/NAT-Partner-Suche, Geräte-
-  Pairing-UX, Verfügbarkeit ohne Server — für "Oma" der bessere Weg zum
-  Abbruch. Als Power-User-Option später denkbar.
-- C) beides: A als Grundschicht (immer da), B als optionaler Accelerator.
+Entschieden: **saubere Stern-Struktur über das eigene Relay** — kein P2P, kein
+Syncthing, keine NAT-Lochbohrung, kein Geräte-Pairing. Jeder Client spricht
+ausschließlich mit seinem Relay, der ohnehin immer erreichbar ist. Zwei
+Schichten, getrennt nach Datengröße:
 
-Entschieden (Bernd, 12.11.): **C** — verschlüsseltes State-Doc über den
-eigenen Relay als Grundschicht (M2.5-Bau), P2P(Syncthing-artiger)
-Accelerator als optionale Power-User-Erweiterung. v0.1-Client bleibt derweil
-rein lokal mit exportierbarer Backup-Datei.
+**Schicht 1 — dauerhaft auf dem Relay (klein, heiß):**
+- **Briefe (Envelopes ≤ 600 B)** bleiben als eigentliche Mailbox liegen.
+- Das **State-Doc** — `read`, `spam`, `deleted`, `drafts`, `sent`,
+  `contacts` — liegt als ein selbst-ECIES-verschlüsselter Slot (256-kB-Cap,
+  CAS über `expect_version`; Merge: Flags OR, Drafts/Kontakte/Gesendet LWW
+  pro Id) daneben.
+- Größenordnung: 10.000 Mails ≈ 4 MB SQLite — den Relay juckt das nicht.
+- Folge: jedes neue Gerät, ebenso die 24-Wort-Seed-Recovery, hat sofort das
+  komplette Postfach — Eingang, Gelesen-Status, Spam-Klassifikation,
+  Entwürfe, Adressbuch **und Gesendet-Ordner** (Empfänger, Betreff,
+  Zeitstempel, Body bis 2000 Zeichen, die neuesten 150 Einträge).
 
-P2P-Wahl **Syncthing** (MPL-2.0, aktiv; Android via gepflegtem Syncthing-Fork,
-~Aug 2026 — Upstream-Wrapper tot; Resilio/BTSync abgelehnt: closed/dead).
-Integrationsmuster: kein In-Place-Edit — jeder Client schreibt immutable
-`state-<device>-<version>.json` in den Sync-Ordner, Merge/Conflict-Resolution
-leistet der CAS-Layer der App.
-
-**Architektur-Rollenteilung (Bernd, 12.11.):**
-- Server/Relay = **Zeitlimit-Frachtbahnhof (POP3-Semantik)**: Anhänge
-  überleben bis **Erstdownload des Empfängers + 7 Tage Nachladesperre**
-  (Bernd, 12.11.), absolute Obergrenze 30–90 d konfigurierbar für
-  Niemals-Geladenes. Dedup-Regel: Content-Addressierung heißt Löschung erst,
-  wenn ALLE blob_refs auf dieselbe sha downloadet/abgelaufen sind — sonst
-  frisst Nutzer A dem Nutzer B die Anlage weg.
-- Clients = **Dauerarchiv**: Syncthingclient↔client trägt Staat, herunter-
-  geladene Blobs UND lokale Archive; einmal heruntergeladene Anhänge brauchen
-  den Server nicht erneut. Solo-Gerät: Server-Fallback innerhalb Frist (P2P =
-  Accelerator, nie Voraussetzung).
-- Verfallene Anhänge beim Weiterleiten: Client hat Original lokal (sha bekannt)
-  → re-Upload, Adressierung bleibt intakt.
-- UI-Regeln: "läuft ab in X Tagen" + Download-Status pro Mail, sichtbar.
+**Schicht 2 — Relay als Frachtbahnhof, Clients als Dauerarchiv (groß, kalt):**
+- Große Anhänge (`blob_refs`, content-adressiert) bleiben nur bis
+  **Erstdownload + 7 Tage** (`grace_days`) auf dem Relay, absolute Obergrenze
+  90 Tage — Frachtbahnhof, kein Lager. Auf dem eigenen Heim-Relay bedeutet
+  `grace_days: -1` unbegrenzte Aufbewahrung.
+- Jeder Client, der einen Anhang öffnet, legt die Bytes in einem lokalen
+  **IndexedDB-Cache** (`lightningmail_blobs`, Schlüssel = sha256) ab. Damit
+  hat nach dem serverseitigen Sweep jedes Gerät, das den Anhang je geladen
+  hat, ihn dauerhaft lokal — der Sweep vernichtet nie die einzige Kopie.
+- Dedup-Regel: Löschung einer sha erst, wenn ALLE blob_refs darauf
+  downloadet/abgelaufen sind — sonst frisst Nutzer A dem Nutzer B die Anlage
+  weg.
+- Verfallene Anhänge beim Weiterleiten: Client hat das Original lokal (sha
+  bekannt) → Re-Upload, Adressierung bleibt intakt.
+- UI-Regeln: „läuft ab in X Tagen“ + Download-Status pro Mail, sichtbar.
 - Späteres Geschäftsmodell: verlängerte Aufbewahrung = Eur-Dienstleistung
   (§18 sauber: Dienstleistung, kein Fiat→Sats). Blob-Mirror relay↔relay
   (6.4) bleibt für Übertrag, e2e-seitig; Frist-Cleanup = M3.

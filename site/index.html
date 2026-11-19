@@ -838,9 +838,9 @@ html[lang="en"] .de-only { display: none !important; }
         <span class="en-only">A single Go binary backed by SQLite handles inbox storage, postage debiting, OIDC login, device sync and blob storage. As a <b>Light Relay</b> it runs with LND in Neutrino mode without needing its own Bitcoin full node (~10&nbsp;GB disk, ideal for home NAS, Raspberry Pi or small VPS); as a <b>Full Relay</b> it connects to a dedicated <code>bitcoind</code>.</span>
       </li>
       <li>
-        <b><span class="de-only">Clients für Android, Apple, Linux, Windows &amp; Web</span><span class="en-only">Clients for Android, Apple, Linux, Windows &amp; Web</span></b>
-        <span class="de-only">Ein gemeinsamer TypeScript-Kryptokern bedient alle Systeme: als direkt installierbare Web-App (PWA), als Android-App (APK) sowie für iOS/macOS, Linux und Windows. Der Client braucht keinen eigenen Lightning-Node.</span>
-        <span class="en-only">A shared TypeScript crypto core powers every platform: as an installable Progressive Web App (PWA), as an Android app (APK), and for iOS/macOS, Linux and Windows. Clients never need to run a Lightning node.</span>
+        <b><span class="de-only">Clients für Android, Apple, Linux, Windows, Web &amp; Thunderbird</span><span class="en-only">Clients for Android, Apple, Linux, Windows, Web &amp; Thunderbird</span></b>
+        <span class="de-only">Ein gemeinsamer TypeScript-Kryptokern bedient alle Systeme: als direkt installierbare Web-App (PWA), als Android-App (APK), als <a href="/lightningmail-thunderbird.xpi" style="color:var(--gold)">Thunderbird-Tab-Add-on (.xpi)</a> sowie für iOS/macOS, Linux und Windows. Alle Geräte eines Nutzers synchronisieren Posteingang, Gesendet-Ordner, Entwürfe und Adressbuch in einer Stern-Struktur verschlüsselt über das eigene Relay; Anhänge werden zusätzlich lokal im Gerät gecacht.</span>
+        <span class="en-only">A shared TypeScript crypto core powers every platform: as an installable Progressive Web App (PWA), as an Android app (APK), as a <a href="/lightningmail-thunderbird.xpi" style="color:var(--gold)">Thunderbird tab add-on (.xpi)</a>, and for iOS/macOS, Linux and Windows. All of a user’s devices sync inbox, sent folder, drafts and address book in a star topology encrypted via their own relay, while opened attachments are cached locally on the device.</span>
       </li>
       <li>
         <b>Envelope LM1 &amp; Chunked Blobs</b>
