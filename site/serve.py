@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # bmail-site: Landing Page (apex) + PWA unter /app/ + Relay-Proxy unter /relay-a|/relay-b.
 # Inkl. cookielosem, DSGVO-konformem 100%-anonymem Besucherzaehler (/stats & /stats.json).
-import datetime, hashlib, http.client, json, mimetypes, os, posixpath, sqlite3, sys, threading, time
+import base64, datetime, hashlib, hmac, http.client, json, mimetypes, os, posixpath, secrets, sqlite3, sys, threading, time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, unquote
 
@@ -70,26 +70,28 @@ ARTICLES = [
   <figure class="art-fig">
     <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
       <rect width="320" height="135" rx="8" fill="#122338"/>
-      <text x="24" y="26" fill="#cbd5e1" font-size="11" font-weight="bold">Kontostand von Spam-Bot #9000 (10 Sat / Mail)</text>
+      <text x="160" y="24" fill="#cbd5e1" font-size="10.5" font-weight="bold" text-anchor="middle">Kontostand Spam-Bot #9000 (10 Sat / Mail)</text>
       <polyline points="28,42 95,48 145,75 195,105 285,108" fill="none" stroke="#f87171" stroke-width="3.5"/>
       <circle cx="195" cy="105" r="5" fill="#f4b71a"/>
       <line x1="28" y1="108" x2="295" y2="108" stroke="#475569" stroke-width="1"/>
-      <text x="195" y="93" fill="#fde68a" font-size="10" font-weight="bold" text-anchor="middle">HTTP 402: Pleite nach 3 Sek.</text>
+      <text x="195" y="92" fill="#fde68a" font-size="10" font-weight="bold" text-anchor="middle">HTTP 402: Pleite nach 3 Sek.</text>
       <text x="32" y="122" fill="#94a3b8" font-size="9">08:00:00</text>
-      <text x="260" y="122" fill="#94a3b8" font-size="9">08:00:03</text>
+      <text x="255" y="122" fill="#94a3b8" font-size="9">08:00:03</text>
     </svg>
     <figcaption>Abb. 2a: Finanzielle Lebenserwartung eines Spammers mit Vorkasse-Porto.</figcaption>
   </figure>
   <figure class="art-fig">
     <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
       <rect width="320" height="135" rx="8" fill="#1b2e47"/>
-      <text x="75" y="45" fill="#6ee7b7" font-size="11" font-weight="bold" text-anchor="middle">Echter Dialog</text>
-      <text x="75" y="72" fill="#fff" font-size="13" text-anchor="middle">Alice ⇄ Bob</text>
-      <text x="75" y="96" fill="#a7f3d0" font-size="11" text-anchor="middle">±0 Sat Netto (Porto fließt zurück)</text>
-      <line x1="160" y1="22" x2="160" y2="114" stroke="#334155" stroke-width="1.5"/>
-      <text x="242" y="45" fill="#fca5a5" font-size="11" font-weight="bold" text-anchor="middle">Massen-Spam</text>
-      <text x="242" y="72" fill="#fff" font-size="13" text-anchor="middle">Bot ⇒ 100.000 User</text>
-      <text x="242" y="96" fill="#f87171" font-size="11" text-anchor="middle">−1.000.000 Sat (0 Antworten!)</text>
+      <text x="80" y="42" fill="#6ee7b7" font-size="11" font-weight="bold" text-anchor="middle">Echter Dialog</text>
+      <text x="80" y="68" fill="#fff" font-size="12.5" text-anchor="middle">Alice ⇄ Bob</text>
+      <text x="80" y="92" fill="#a7f3d0" font-size="9.5" text-anchor="middle">±0 Sat Netto</text>
+      <text x="80" y="106" fill="#a7f3d0" font-size="8.5" text-anchor="middle">(Porto fließt zurück)</text>
+      <line x1="160" y1="20" x2="160" y2="116" stroke="#334155" stroke-width="1.5"/>
+      <text x="240" y="42" fill="#fca5a5" font-size="11" font-weight="bold" text-anchor="middle">Massen-Spam</text>
+      <text x="240" y="68" fill="#fff" font-size="12.5" text-anchor="middle">Bot ⇒ 100.000 User</text>
+      <text x="240" y="92" fill="#f87171" font-size="9.5" text-anchor="middle">−1.000.000 Sat</text>
+      <text x="240" y="106" fill="#fca5a5" font-size="8.5" text-anchor="middle">(0 Antworten!)</text>
     </svg>
     <figcaption>Abb. 2b: Warum höfliche Menschen umsonst mailen und Bots bluten.</figcaption>
   </figure>
@@ -298,11 +300,48 @@ a{{color:#122338;font-weight:600}}
 
     # --- Forum + 5-Sat-Paywall (OIDC-Mikrozahlung) ---
 
+    @staticmethod
+    def _forum_secret():
+        kp = os.path.join(os.path.dirname(STATS_DB), "forum_hmac.key")
+        try:
+            if os.path.isfile(kp):
+                return open(kp, "rb").read()
+            os.makedirs(os.path.dirname(kp), exist_ok=True)
+            k = secrets.token_bytes(32)
+            with open(kp, "wb") as f:
+                f.write(k)
+            os.chmod(kp, 0o600)
+            return k
+        except Exception:
+            return b"bmail-forum-fallback-key"
+
+    def _mint_forum_session(self, u):
+        payload = base64.urlsafe_b64encode(json.dumps({
+            "sub": u["sub"], "pubkey": u.get("pubkey", ""), "relay": u.get("relay", "alpha"),
+            "exp": int(time.time()) + 30 * 86400
+        }).encode("utf-8")).decode("ascii").rstrip("=")
+        sig = hmac.new(self._forum_secret(), payload.encode("ascii"), hashlib.sha256).hexdigest()
+        return f"fses:{payload}.{sig}"
+
     def _verify_forum_token(self):
-        """X-Forum-Token 'alpha|beta:ACCESS_TOKEN' gegen /oidc/userinfo pruefen.
+        """X-Forum-Token 'fses:...' (persistent) oder 'alpha|beta:ACCESS_TOKEN' gegen /oidc/userinfo pruefen.
         Nebenwirkung: bezahlte Paywall (paid_sats>=5) als Unlock verbuchen.
-        Return {sub,pubkey,relay} oder None."""
+        Return {sub,pubkey,relay,session_token?} oder None."""
         hdr = self.headers.get("X-Forum-Token", "")
+        if hdr.startswith("fses:"):
+            try:
+                body = hdr[5:]
+                payload, _, sig = body.partition(".")
+                exp_sig = hmac.new(self._forum_secret(), payload.encode("ascii"), hashlib.sha256).hexdigest()
+                if not hmac.compare_digest(sig, exp_sig):
+                    return None
+                pad = "=" * ((4 - len(payload) % 4) % 4)
+                j = json.loads(base64.urlsafe_b64decode(payload + pad))
+                if int(j.get("exp") or 0) < int(time.time()) or not j.get("sub"):
+                    return None
+                return {"sub": j["sub"], "pubkey": j.get("pubkey", ""), "relay": j.get("relay", "alpha")}
+            except Exception:
+                return None
         relay, _, tok = hdr.partition(":")
         port = FORUM_RELAYS.get(relay)
         if not port or not tok:
@@ -325,7 +364,9 @@ a{{color:#122338;font-weight:600}}
                                   (data["sub"], bm["paid_item"], int(time.time()), bm.get("paid_sats") or 0))
                 except Exception:
                     pass
-            return {"sub": data["sub"], "pubkey": bm.get("pubkey", ""), "relay": relay}
+            u = {"sub": data["sub"], "pubkey": bm.get("pubkey", ""), "relay": relay}
+            u["session_token"] = self._mint_forum_session(u)
+            return u
         except Exception:
             return None
 
@@ -346,7 +387,10 @@ a{{color:#122338;font-weight:600}}
                     arts.append(d)
         except Exception as e:
             return self._json({"error": str(e)}, 500)
-        self._json({"user": user, "posts": posts, "articles": arts})
+        resp = {"user": user, "relay": u.get("relay") if u else None, "posts": posts, "articles": arts}
+        if u and u.get("session_token"):
+            resp["session_token"] = u["session_token"]
+        self._json(resp)
 
     def _api_forum_post(self):
         u = self._verify_forum_token()
@@ -395,6 +439,15 @@ a{{color:#122338;font-weight:600}}
         self.wfile.write(data)
 
     def _proxy(self, port):
+        if self.command == "OPTIONS":
+            self.send_response(204)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Relay-Secret")
+            self.send_header("Access-Control-Max-Age", "86400")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         ln = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(ln) if ln else None
         up = urlparse(self.path)

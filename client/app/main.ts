@@ -1018,6 +1018,18 @@ const decodeUtf8B64 = (b64: string): string =>
   setLoginStatus('✗ Datei-Auswahl fehlgeschlagen: ' + msg);
 };
 
+// Auf Android direkt den nativen Dateipicker auf #l-file-wrap binden (ohne WebView-<input>-Umweg)
+if ((window as any).AndroidNative?.pickKeyFile) {
+  ($('l-file') as HTMLInputElement).style.display = 'none';
+  const fw = document.getElementById('l-file-wrap');
+  if (fw) {
+    fw.removeAttribute('for');
+    fw.onclick = (ev) => {
+      ev.preventDefault();
+      (window as any).AndroidNative.pickKeyFile();
+    };
+  }
+}
 $('l-file').addEventListener('click', (ev) => {
   const an = (window as any).AndroidNative;
   if (an?.pickKeyFile) {
@@ -1026,7 +1038,6 @@ $('l-file').addEventListener('click', (ev) => {
     an.pickKeyFile();
     return;
   }
-  // Reset vor dem Öffnen, damit auch dieselbe Datei beim 2. Mal zuverlässig onchange feuert
   (ev.currentTarget as HTMLInputElement).value = '';
 });
 

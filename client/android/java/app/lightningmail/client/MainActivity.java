@@ -22,16 +22,20 @@ import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.security.KeyStore;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -93,9 +97,41 @@ public class MainActivity extends Activity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
+                Uri uri = r.getUrl();
+                if (uri != null && "https".equals(uri.getScheme()) && "lightningmail.app".equals(uri.getHost())) {
+                    String path = uri.getPath();
+                    if (path != null && (path.equals("/app") || path.startsWith("/app/"))) {
+                        String rel = path.length() <= 5 ? "index.html" : path.substring(5);
+                        if (rel.isEmpty() || rel.endsWith("/")) rel += "index.html";
+                        Map<String, String> hdrs = new HashMap<>();
+                        hdrs.put("Access-Control-Allow-Origin", "https://lightningmail.app");
+                        hdrs.put("Cache-Control", "no-store");
+                        try {
+                            InputStream in = getAssets().open(rel);
+                            String mime = "application/octet-stream";
+                            String enc = null;
+                            if (rel.endsWith(".html")) { mime = "text/html"; enc = "UTF-8"; }
+                            else if (rel.endsWith(".js") || rel.endsWith(".mjs")) { mime = "text/javascript"; enc = "UTF-8"; }
+                            else if (rel.endsWith(".css")) { mime = "text/css"; enc = "UTF-8"; }
+                            else if (rel.endsWith(".json")) { mime = "application/json"; enc = "UTF-8"; }
+                            else if (rel.endsWith(".svg")) { mime = "image/svg+xml"; enc = "UTF-8"; }
+                            else if (rel.endsWith(".png")) { mime = "image/png"; }
+                            else if (rel.endsWith(".woff")) { mime = "font/woff"; }
+                            return new WebResourceResponse(mime, enc, 200, "OK", hdrs, in);
+                        } catch (Exception notFound) {
+                            return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found",
+                                    hdrs, new ByteArrayInputStream(new byte[0]));
+                        }
+                    }
+                }
+                return null;
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 String u = r.getUrl().toString();
-                if (u.startsWith("file:///android_asset/") || u.startsWith("about:")) return false;
+                if (u.startsWith("https://lightningmail.app/app") || u.startsWith("about:")) return false;
                 // externe Links (Impressum etc.) im Systembrowser öffnen
                 try { startActivity(new Intent(Intent.ACTION_VIEW, r.getUrl())); } catch (Exception ignored) { }
                 return true;
@@ -103,7 +139,9 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView v, String url) {
-                if (url.startsWith("file:///android_asset/")) v.evaluateJavascript(BLOB_HOOK, null);
+                if (url != null && url.startsWith("https://lightningmail.app/app")) {
+                    v.evaluateJavascript(BLOB_HOOK, null);
+                }
             }
         });
 
@@ -133,7 +171,7 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF);
         }
 
-        webView.loadUrl("file:///android_asset/index.html");
+        webView.loadUrl("https://lightningmail.app/app/index.html");
     }
 
     @Override
