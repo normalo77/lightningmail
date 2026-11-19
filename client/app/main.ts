@@ -43,6 +43,7 @@ let pendingWrap = '';
 const $ = (id: string) => document.getElementById(id)!;
 let base = '/relay-b', token = '', priv: Uint8Array | null = null, acct = '';
 let msgs: MsgRow[] = [];
+let tipSats = 0, myForeign = 0, myWelcome = 0, portoBase = ''; // §30.4 Beilage + Test/Mainnet-Kennung
 let receipts: Record<string, number> = {}; // msg_id(hex) -> ✓✓-Zeitstempel (Etappe 6b)
 let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' | 'ab' | 'ums' = 'in';
 let pemCache = '';
@@ -93,7 +94,7 @@ const spamAdd = (k: string) => { if (sync) sync.toggleSpam(k, true); else { cons
 const spamDel = (k: string) => { if (sync) sync.toggleSpam(k, false); else { const x = new Set(spamSet()); x.delete(k); localStorage.setItem(spamKey(), JSON.stringify([...x])); } };
 
 // Gesendet-Ordner: localStorage als Geraete-Fallback, Synchronisierung via StateSync.sent (Stern-Sync)
-type MsgRow = { seq: number; msgId: string; subject: string; body: string; sender: string; pub: string; ts: number; signup?: boolean; atts: { sha256: string; name: string; chunked?: boolean }[] };
+type MsgRow = { seq: number; msgId: string; subject: string; body: string; sender: string; pub: string; ts: number; signup?: boolean; recv?: number; atts: { sha256: string; name: string; chunked?: boolean }[] };
 type SentRow = { ts: number; to: string; subject: string; msg_id: string; bytes: number; body?: string };
 const sentKey = () => `lm_out_${base.slice(1)}_${acct}`;
 const sentList = (): SentRow[] => {
@@ -215,6 +216,11 @@ async function finishLogin(pem: string, privBytes: Uint8Array, resolvedAcct: str
   const kw = $('btn-keywrap');
   if (kw) { kw.style.display = ''; kw.onclick = openExportKeyModal; }
   $('who').textContent = `${acct}@${hostLabelOf(base)} · `;
+  applyNetBadge(base);
+  // eigene Porto-Normen: Badge im Posteingang nur, wenn real MEHR als das Standardporto einging (§30.4)
+  fetch(`${base}/v1/profile/${acct}`).then(r => r.ok ? r.json() : null).then((p: any) => {
+    if (p && p.foreign_sats) { myForeign = p.foreign_sats; myWelcome = p.welcome_sats ?? p.foreign_sats * 3; render(); }
+  }).catch(() => { /* Badge-Komfort, kein Fehlerfall */ });
   sync = new StateSync(base, priv, () => token, `lm_state_${base.slice(1)}_${acct}`);
   sync.cacheLoad();
   for (const k of JSON.parse(localStorage.getItem(spamKey()) || '[]')) sync.doc.spam[k] = 1;
@@ -342,7 +348,7 @@ async function refresh() {
       const p = JSON.parse(new TextDecoder().decode(pt));
       const atts = (p.attachments || []).map((a: any) => ({ sha256: a.sha256, name: a.name, chunked: !!a.chunked }));
       const refs = env[TAG.BlobRefs] ? Array.from({ length: blobCount(env[TAG.BlobRefs]) }, (_, i) => toHex(blobRef(env[TAG.BlobRefs]!, i))) : [];
-      msgs.push({ seq: m.seq, msgId: toHex(env[TAG.MsgID]), subject: p.subject, body: p.body, sender: toHex(env[TAG.SenderPubkey]).slice(0, 12), pub: toHex(env[TAG.SenderPubkey]), ts: m.received_at, signup: !!(env[TAG.Signup] && env[TAG.Signup][0] === 1), atts: atts.length ? atts : refs.map((r, i) => ({ sha256: r, name: `anhang-${i + 1}` })) });
+      msgs.push({ seq: m.seq, msgId: toHex(env[TAG.MsgID]), subject: p.subject, body: p.body, sender: toHex(env[TAG.SenderPubkey]).slice(0, 12), pub: toHex(env[TAG.SenderPubkey]), ts: m.received_at, signup: !!(env[TAG.Signup] && env[TAG.Signup][0] === 1), recv: Number(m.received_sats) || undefined, atts: atts.length ? atts : refs.map((r, i) => ({ sha256: r, name: `anhang-${i + 1}` })) });
     } catch (e: any) { (window as any).__decodeErr = String(e && e.stack || e); }
   }
   render();
@@ -363,9 +369,11 @@ function render() {
   if (folder === 'out') { renderSent(); return; }
   if (folder == 'dra') { renderDrafts(); return; }
   const list = visible().slice().reverse();
+  const recvTip = (m: MsgRow) => (m.recv && myForeign && m.recv > myForeign && m.recv !== myWelcome)
+    ? ` <b class="recv" title="real eingegangen, vom eigenen Relay bestaetigt">⚡ ${m.recv} Sats</b>` : '';
   $('list').innerHTML = list.map(m => `<div class="row ${m.seq === sel ? 'sel' : ''}" data-seq="${m.seq}">
     <div class="subj" ${sync && sync.doc.read[m.msgId] ? 'style="font-weight:400;color:#8a8271"' : ''}>${m.signup ? '[🔑 Registrierung] ' : ''}${esc(m.subject)}</div>
-    <div class="meta">${esc(m.sender)}… · ${new Date(m.ts * 1000).toLocaleString('de')} ${m.atts.length ? '📎' : ''}</div></div>`).join('') ||
+    <div class="meta">${esc(m.sender)}… · ${new Date(m.ts * 1000).toLocaleString('de')} ${m.atts.length ? '📎' : ''}${recvTip(m)}</div></div>`).join('') ||
     '<div class="meta" style="padding:12px">— leer —</div>';
   document.querySelectorAll('#list .row').forEach(el =>
     el.addEventListener('click', () => { sel = +el.getAttribute('data-seq')!; const mm = msgs.find(x => x.seq === sel); if (mm && sync) { sync.markRead(mm.msgId); } render(); renderDetail(); }));
@@ -449,7 +457,7 @@ function renderDetail() {
   const cn = contactFor(m.pub);
   $('detail').innerHTML = `<div class="card">
     <div class="subj" style="font-size:17px">${m.signup ? '[🔑 Registrierung] ' : ''}${esc(m.subject)}</div>
-    <div class="meta">Von ${cn ? esc(abLabel(cn)) : esc(m.sender) + '…'} · ${new Date(m.ts * 1000).toLocaleString('de')}</div>
+    <div class="meta">Von ${cn ? esc(abLabel(cn)) : esc(m.sender) + '…'} · ${new Date(m.ts * 1000).toLocaleString('de')}${(m.recv && myForeign && m.recv > myForeign && m.recv !== myWelcome) ? ` · <span class="recv">⚡ ${m.recv} Sats erhalten</span>` : ''}</div>
     <pre style="white-space:pre-wrap;font:inherit;margin:14px 0">${esc(m.body)}</pre>
     ${m.atts.map(a => `<span class="attach" data-sha="${a.sha256}" data-name="${esc(a.name)}" data-chunked="${a.chunked ? 1 : 0}">↓ ${esc(a.name)}${a.chunked ? ' 📦' : ''}</span>`).join('')}
     <div class="classify">Absender:
@@ -627,12 +635,62 @@ async function shrinkImage(file: File): Promise<{ bytes: Uint8Array; name: strin
   } catch { return { bytes: raw, name: file.name, note: '(Bild nicht lesbar — Original)' }; }
 }
 
+// --- §30.4 Satoshis-Beilage: Footer, Chip, Menu, Dialog ---
+const setPorto = () => {
+  const el = $('portofuss'); if (!el) return;
+  el.textContent = portoBase + (tipSats ? ` · ⚡ +${tipSats.toLocaleString('de')} Sats Beilage` : '');
+};
+function updateTipChip() {
+  const chip = $('tip-chip'); if (!chip) return setPorto();
+  chip.hidden = !tipSats;
+  chip.innerHTML = `⚡ +${tipSats.toLocaleString('de')} Sats beigelegt <b>✕</b>`;
+  chip.onclick = () => { tipSats = 0; updateTipChip(); };
+  setPorto();
+}
+const attMenu = () => {
+  const { body, close } = wizOverlay('📎 Beilegen', 340);
+  body.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">
+    <button id="am-file" style="padding:12px">📄 Datei anhängen</button>
+    <button id="am-tip" style="padding:12px">⚡ Satoshis beilegen (max. 5.000)</button></div>`;
+  body.querySelector('#am-file')!.addEventListener('click', () => { close(); ($('c-file') as HTMLInputElement).click(); });
+  body.querySelector('#am-tip')!.addEventListener('click', () => { close(); openTipDialog(); });
+};
+const openTipDialog = () => {
+  const { body, close } = wizOverlay('⚡ Satoshis beilegen', 360);
+  body.innerHTML = `<p class="meta" style="margin:0 0 10px">Einmaliger Aufschlag im selben Brief — z. B. Rückporto für Antworten oder ein kleines Trinkgeld. Obergrenze 5.000 Sats.</p>
+    <div style="display:flex;gap:6px"><input id="tip-in" type="number" min="0" max="5000" step="50" value="${tipSats || 500}" style="flex:1"><button id="tip-ok">OK</button></div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button class="tip-q" data-v="100">100</button><button class="tip-q" data-v="500">500</button><button class="tip-q" data-v="1000">1.000</button><button class="tip-q" data-v="5000">5.000</button></div>
+    <p id="tip-err" style="margin:8px 0 0;color:#b00020;font-size:13px"></p>`;
+  body.querySelectorAll('.tip-q').forEach(q => q.addEventListener('click', () => { (body.querySelector('#tip-in') as HTMLInputElement).value = (q as HTMLElement).dataset.v!; }));
+  body.querySelector('#tip-ok')!.addEventListener('click', () => {
+    const v = Math.floor(Number((body.querySelector('#tip-in') as HTMLInputElement).value));
+    if (!Number.isFinite(v) || v < 0 || v > 5000) { (body.querySelector('#tip-err') as HTMLElement).textContent = 'Bitte 0–5.000 Sats eintragen.'; return; }
+    tipSats = v; close(); updateTipChip();
+  });
+};
+
+// Test/Produkt-Kennung: die Regtest-Relays bleiben als Spielwiese online — der Client
+// hebt sie deutlich vom Mainnet-Postfach ab. Das Netzwerk holt sich die UI direkt vom Relay.
+async function applyNetBadge(b: string) {
+  let net = '';
+  try { net = String(((await fetch(b + '/health').then(r => r.json())) as any).network || ''); } catch { return; }
+  const test = !!net && net !== 'mainnet';
+  const nb = document.getElementById('netbadge'); if (nb) nb.hidden = !test;
+  const hdr = document.getElementById('hdr-net'); if (hdr) hdr.textContent = test ? `🧪 TEST (${net}) · Spielgeld` : (net === 'mainnet' ? '⚡ Mainnet' : '');
+  const note = document.getElementById('w-signup-note'); if (note) note.hidden = !test;
+}
+
 async function renderCompose() {
+  tipSats = 0; portoBase = 'Empfänger wählen — Porto und Fingerprint erscheinen hier.';
   $('detail').innerHTML = `<div class="card"><form class="compose" id="cform">
     <div style="display:flex;gap:6px"><input id="c-to" placeholder="An: name@domain" required style="flex:1"><button type="button" id="c-ab" title="Aus Adressbuch">📇</button></div>
     <input id="c-subj" placeholder="Betreff" required>
     <textarea id="c-body" placeholder="Nachricht…"></textarea>
-    <input type="file" id="c-file" multiple>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="att-split"><button type="button" id="c-att">📎 Anhang</button><button type="button" id="c-att-caret" title="Datei oder Satoshis beilegen" aria-label="Beilage-Menu">▾</button></span>
+      <span id="tip-chip" class="tipchip" hidden></span>
+    </div>
+    <input type="file" id="c-file" multiple hidden>
     <label style="font-size:13px;color:var(--faint)"><input type="checkbox" id="c-orig"> Original senden (Fotos sonst auf 1600px JPEG komprimiert)</label>
     <label style="font-size:13px;color:var(--faint)"><input type="checkbox" id="c-signup"> Als Dienst-Registrierung senden (Tag 0x0A, zahlt Porto-Vorschuss)</label>
     <div id="portofuss" class="meta">Empfänger wählen — Porto und Fingerprint erscheinen hier.</div>
@@ -642,14 +700,26 @@ async function renderCompose() {
   const lookup = async () => {
     const name = $('c-to').value.trim().split('@')[0]; if (!name) return;
     const r = await fetch(`${base}/v1/profile/${name}`);
-    const el = $('portofuss'); if (!el) return;
-    if (!r.ok) { el.textContent = errText(r.status); return; }
+    if (!r.ok) { portoBase = errText(r.status); setPorto(); return; }
     const p = await r.json() as any;
     const fp = String(p.pubkey || '');
-    el.textContent = `Empfänger-Key ${fp.slice(0, 6)}…${fp.slice(-4)} · Porto ${p.foreign_sats} sats (Porto-Vorschuss: ${p.welcome_sats ?? p.foreign_sats * 3} sats)` +
+    portoBase = `Empfänger-Key ${fp.slice(0, 6)}…${fp.slice(-4)} · Porto ${p.foreign_sats} sats (Porto-Vorschuss: ${p.welcome_sats ?? p.foreign_sats * 3} sats)` +
       (fp.slice(0, 2) === '02' || fp.slice(0, 2) === '03' ? '' : ' · WARNUNG: seltsamer Key');
+    setPorto();
   };
   $('c-to').addEventListener('change', lookup);
+  // Split-Button: Klick/Kurztipp = Dateien (wie früher, 0 Extra-Klicks);
+  // Longpress (Touch) oder Caret-Klick = Menu Datei/Beilage.
+  // shortcut: 450 ms Longpress-Schwelle; wenn Menüs wachsen, auf langes Pointerdown-Intent umstellen.
+  let pressT = 0;
+  const att = $('c-att');
+  att.addEventListener('pointerdown', () => { pressT = window.setTimeout(() => { pressT = 0; attMenu(); }, 450); });
+  att.addEventListener('pointerup', () => { if (!pressT) return; clearTimeout(pressT); pressT = 0; ($('c-file') as HTMLInputElement).click(); });
+  const attAbort = () => { if (pressT) { clearTimeout(pressT); pressT = 0; } };
+  att.addEventListener('pointerleave', attAbort);
+  att.addEventListener('pointercancel', attAbort);
+  $('c-att-caret').onclick = attMenu;
+  updateTipChip();
   // Etappe I (§28): Deep-Link ?an=<adresse>&signup=1 → Dienst-Registrierung vorbefüllen
   const cq = new URLSearchParams(location.search);
   if (cq.get('signup') === '1' || cq.get('an')) {
@@ -665,8 +735,7 @@ async function renderCompose() {
   });
   $('c-file').addEventListener('change', async () => {
     const fs = [...($('c-file') as any).files] as File[];
-    const el = $('portofuss') as HTMLElement;
-    if (!fs.length) { el.textContent = 'Empfänger wählen — Porto und Fingerprint erscheinen hier.'; return; }
+    if (!fs.length) { portoBase = 'Empfänger wählen — Porto und Fingerprint erscheinen hier.'; setPorto(); return; }
     // Etappe 7: Byte-Porto-Schätzung aus /health (Preis + Tageskurs)
     let cost = '';
     try {
@@ -679,7 +748,8 @@ async function renderCompose() {
         cost = ` · Byte-Porto ≈ ${Math.ceil(msat / 1000)} sats (${(h.byte_porto_meur_per_mb / 10).toLocaleString('de')} ct/MiB; Fotos ggf. kleiner nach Kompression)`;
       }
     } catch { /* Schätzung ist Komfort, kein Fehlerfall */ }
-    el.textContent = `${fs.length} Anhang: ` + fs.map(f => `${f.name} (${f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.round(f.size / 1024) + ' kB'})`).join(', ') + cost;
+    portoBase = `${fs.length} Anhang: ` + fs.map(f => `${f.name} (${f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.round(f.size / 1024) + ' kB'})`).join(', ') + cost;
+    setPorto();
   });
 
   $('c-save').onclick = () => {
@@ -705,9 +775,11 @@ async function renderCompose() {
       }
       const total = atts.reduce((a, x) => a + x.bytes.length, 0);
       const out = await composeAndSend(base, token, priv!, { to: ($('c-to') as HTMLInputElement).value, subject: ($('c-subj') as HTMLInputElement).value, body: ($('c-body') as HTMLTextAreaElement).value, attachments: atts, signup: ($('c-signup') as HTMLInputElement).checked,
+        tipSats: tipSats || undefined,
         onProgress: (m) => { const e = $('c-msg'); if (e) e.textContent = m; } });
       sentPush({ ts: Math.floor(Date.now() / 1000), to: ($('c-to') as HTMLInputElement).value, subject: ($('c-subj') as HTMLInputElement).value, msg_id: String(out.msg_id || ''), bytes: total, body: ($('c-body') as HTMLTextAreaElement).value.slice(0, 2000) });
       if (draftId && sync) { sync.delDraft(draftId); draftId = ''; }
+      tipSats = 0; updateTipChip(); // shortcut: Beilage ist bewusst nicht im Entwurf persistiert
       $('c-msg').textContent = '✓ gesendet (' + (out.msg_id || '').slice(0, 10) + '…)';
       await refreshBalance();
     } catch (e: any) {
@@ -1464,6 +1536,9 @@ async function oidcFlow() {
 }
 
 // Letzten bekannten Kontonamen (ohne Geheimnis) für Passkey-Komfort vorbelegen
+const relSel0 = document.getElementById('l-relay') as HTMLSelectElement | null;
+relSel0?.addEventListener('change', () => applyNetBadge(relSel0.value));
+applyNetBadge(relSel0 ? relSel0.value : base);
 const rememberedUser = loadLastUser();
 if (rememberedUser) {
   ($('l-acct') as HTMLInputElement).value = rememberedUser.acct;

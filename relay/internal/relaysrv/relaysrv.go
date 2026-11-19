@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -137,7 +138,8 @@ func (s *Server) ListenAndServe() error {
 		// byte_porto + rate: UI rechnet damit die Byte-Porto-Schätzung im Compose.
 		w.Header().Set("Content-Type", "application/json")
 		resp := map[string]any{"ok": true, "currencies": []string{"btc"},
-			"byte_porto_meur_per_mb": s.cfg.Postage.BytePortoMEurPerMB}
+			"byte_porto_meur_per_mb": s.cfg.Postage.BytePortoMEurPerMB,
+			"network":                s.cfg.LND.Network}
 		if rate, ok := s.rateFeed.Current(); ok {
 			resp["rate_meur_per_btc"] = rate.MEurPerBtc
 		}
@@ -264,6 +266,8 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- POST /v1/send ---
+const maxTipSats = 5000 // §30.4: harte Obergrenze fuer Satoshis-Beilage im Brief
+
 func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, `{"error":"method not allowed"}`, 405)
@@ -299,15 +303,27 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if env.Signup {
 		postageAmt = s.postage.WelcomeSats() // Erstkontakt zahlt Willkommensporto (§28)
 	}
-	postageMsat := postageAmt * 1000
 
-	if err := s.ledger.ApplyDeltaMeta(account, -postageMsat, ledger.KindPostageOut, hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr()); err != nil {
+	// §30.4 Satoshis-Beilage: Porto-Vorschlag im selben Keysend mitbezahlen
+	// (Rückporto/Trinkgeld). Harter Deckel, damit der Brief kein Zahlungsverkehr wird.
+	tipAmt := int64(0)
+	if tsv := strings.TrimSpace(r.URL.Query().Get("tip_sats")); tsv != "" {
+		n, err := strconv.ParseInt(tsv, 10, 64)
+		if err != nil || n < 0 || n > maxTipSats {
+			http.Error(w, fmt.Sprintf(`{"error":"tip_sats must be 0..%d"}`, maxTipSats), 400)
+			return
+		}
+		tipAmt = n
+	}
+	sendMsat := (postageAmt + tipAmt) * 1000
+
+	if err := s.ledger.ApplyDeltaMeta(account, -sendMsat, ledger.KindPostageOut, hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr()); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"insufficient balance: %v"}`, err), 402)
 		return
 	}
 
 	if len(s.cfg.Peers) == 0 {
-		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
+		s.ledger.ApplyDeltaMeta(account, sendMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 		http.Error(w, `{"error":"no peers configured"}`, 500)
 		return
 	}
@@ -316,7 +332,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 
 	info, err := s.ln.GetInfo(r.Context())
 	if err != nil {
-		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
+		s.ledger.ApplyDeltaMeta(account, sendMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 		http.Error(w, fmt.Sprintf(`{"error":"lnd: %v"}`, err), 500)
 		return
 	}
@@ -335,15 +351,15 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	// damit Cross-Relay-Tests (alice@alpha -> bob@beta, auch wenn bob als
 	// Legacy-Stub auf beiden Relays steht) weiter ueber LND + Blob-Mirror laufen.
 	if localAcct, err := s.ledger.LookupByRecipientHash(env.RecipientHash); err == nil && strings.EqualFold(targetRelay, s.cfg.Name) {
-		_, inserted, err2 := s.ledger.PutMessage(env.MsgID, localAcct.ID, envBin, postageMsat)
+		_, inserted, err2 := s.ledger.PutMessage(env.MsgID, localAcct.ID, envBin, sendMsat)
 		if err2 != nil {
-			s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
+			s.ledger.ApplyDeltaMeta(account, sendMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 			http.Error(w, fmt.Sprintf(`{"error":"mailbox put: %v"}`, err2), 500)
 			return
 		}
 		if inserted {
 			creditRef := hex.EncodeToString(env.MsgID[:])
-			if err2 := s.ledger.ApplyDeltaMeta(localAcct.Name, postageMsat, ledger.KindPostageIn, creditRef, "btc", s.ratePtr()); err2 != nil {
+			if err2 := s.ledger.ApplyDeltaMeta(localAcct.Name, sendMsat, ledger.KindPostageIn, creditRef, "btc", s.ratePtr()); err2 != nil {
 				log.Printf("local send: credit error for %s: %v", localAcct.Name, err2)
 			}
 		}
@@ -354,8 +370,9 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 				"amount_sats":  postageAmt,
 				"preimage_b64": base64.StdEncoding.EncodeToString(env.MsgID[:]),
 			},
+			"tip_sats": tipAmt,
 		})
-		log.Printf("send: %s -> local %s, %d sats", account, localAcct.Name, postageAmt)
+		log.Printf("send: %s -> local %s, %d sats (+%d tip)", account, localAcct.Name, postageAmt, tipAmt)
 		return
 	}
 	// Ziel-Ermittlung: ?to=name@domain → erst Peer/DNS-Discovery (§4.2),
@@ -394,13 +411,13 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	// sha256(Envelope-Binary) — vorher 64 Nullbytes (Platzhalter).
 	transportPriv, err := s.relayTransportKey()
 	if err != nil {
-		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
+		s.ledger.ApplyDeltaMeta(account, sendMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 		http.Error(w, fmt.Sprintf(`{"error":"transport key: %v"}`, err), 500)
 		return
 	}
 	transportSig, err := crypto.Sign(transportPriv, envBin)
 	if err != nil {
-		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
+		s.ledger.ApplyDeltaMeta(account, sendMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 		http.Error(w, `{"error":"transport sign"}`, 500)
 		return
 	}
@@ -413,9 +430,9 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		34349343: ts,
 	}
 
-	preimage, err := s.ln.SendKeysend(r.Context(), destNode, postageAmt, customRecords)
+	preimage, err := s.ln.SendKeysend(r.Context(), destNode, postageAmt+tipAmt, customRecords)
 	if err != nil {
-		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
+		s.ledger.ApplyDeltaMeta(account, sendMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 		http.Error(w, fmt.Sprintf(`{"error":"keysend: %v"}`, err), 502)
 		return
 	}
@@ -426,10 +443,11 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 			"amount_sats":  postageAmt,
 			"preimage_b64": base64.StdEncoding.EncodeToString([]byte(preimage)),
 		},
+		"tip_sats": tipAmt,
 	}
 	w.WriteHeader(202)
 	json.NewEncoder(w).Encode(resp)
-	log.Printf("send: %s -> peer %s, %d sats, preimage=%s", account, destName, postageAmt, preimage[:16])
+	log.Printf("send: %s -> peer %s, %d sats (+%d tip), preimage=%s", account, destName, postageAmt, tipAmt, preimage[:16])
 }
 
 // --- GET /v1/inbox ---
@@ -456,18 +474,20 @@ func (s *Server) handleInbox(w http.ResponseWriter, r *http.Request) {
 	// Etappe 6b: Client-Abruf = ✓✓ (Receipt-Stempel, async-Mirror an Peers)
 	s.stampInboxFetch(acct.ID, msgs)
 	type inboxMsg struct {
-		Seq         int64  `json:"seq"`
-		MsgID       string `json:"msg_id_b64"`
-		ReceivedAt  int64  `json:"received_at"`
-		EnvelopeB64 string `json:"envelope_b64"`
+		Seq          int64  `json:"seq"`
+		MsgID        string `json:"msg_id_b64"`
+		ReceivedAt   int64  `json:"received_at"`
+		ReceivedSats int64  `json:"received_sats"` // §30.4: real per Keysend eingegangen (Porto+Beilage), faelschungssicher
+		EnvelopeB64  string `json:"envelope_b64"`
 	}
 	out := make([]inboxMsg, 0, len(msgs))
 	for _, m := range msgs {
 		out = append(out, inboxMsg{
-			Seq:         m.Seq,
-			MsgID:       base64.StdEncoding.EncodeToString(m.MsgID[:]),
-			ReceivedAt:  m.CreatedAt,
-			EnvelopeB64: base64.StdEncoding.EncodeToString(m.Envelope),
+			Seq:          m.Seq,
+			MsgID:        base64.StdEncoding.EncodeToString(m.MsgID[:]),
+			ReceivedAt:   m.CreatedAt,
+			ReceivedSats: m.ReceivedMsat / 1000,
+			EnvelopeB64:  base64.StdEncoding.EncodeToString(m.Envelope),
 		})
 	}
 	nextSeq := int64(0)

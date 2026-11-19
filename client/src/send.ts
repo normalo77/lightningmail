@@ -58,6 +58,7 @@ export interface ComposeOpts {
   attachments?: { name: string; bytes: Uint8Array }[];
   onProgress?: (msg: string) => void; // Etappe 7: Scheiben-Fortschritt
   signup?: boolean; // Erstkontakt: zahlt welcome_sats statt foreign_sats
+  tipSats?: number; // §30.4: optionale Satoshis-Beilage (0..5000) im selben Keysend
 }
 
 // kompletter Pfad: blob-uploads, profil, verschluesseln, signieren, POST /v1/send
@@ -121,7 +122,7 @@ export async function composeAndSend(
 
   const h: Record<string, string> = { 'Content-Type': 'application/octet-stream' };
   h['Auth' + 'orization'] = 'Bearer ' + token;
-  const sr = await fetch(`${base}/v1/send?to=${encodeURIComponent(opts.to)}`, {
+  const sr = await fetch(`${base}/v1/send?to=${encodeURIComponent(opts.to)}${(opts.tipSats ?? 0) > 0 ? `&tip_sats=${opts.tipSats}` : ''}`, {
     method: 'POST',
     headers: h,
     body: wire as BodyInit,

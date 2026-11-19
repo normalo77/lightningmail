@@ -88,6 +88,30 @@ header h1 {
   box-shadow: 0 1px 4px rgba(0,0,0,0.2);
 }
 #balance:empty { display: none; }
+#hdr-net { color: #b9c7d8 !important; font-size: 0.78em; white-space: nowrap; }
+#netbadge {
+  background: #c2410c;
+  color: #fff;
+  text-align: center;
+  padding: 8px 12px;
+  font-size: 0.9em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.tipchip {
+  background: rgba(244, 183, 26, 0.16);
+  border: 1px solid var(--accent);
+  color: #8a6d10;
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.att-split { display: inline-flex; }
+.att-split button { margin: 0; border-radius: 0; }
+.att-split button:first-of-type { border-radius: 8px 0 0 8px; }
+.att-split button:last-of-type { border-radius: 0 8px 8px 0; padding-left: 9px; padding-right: 11px; border-left: 1px solid rgba(18, 35, 56, 0.25); }
+.recv { color: #9a7b06; }
 header button {
   background: rgba(255,255,255,0.12);
   color: #f5f3ec;
@@ -656,10 +680,12 @@ form.compose textarea {
 <header>
   <h1>⚡ lightningmail</h1>
   <span id="who" class="meta"></span>
+  <span id="hdr-net" class="meta"></span>
   <button id="btn-keywrap" style="display:none">🔐 Key-Tresor (.lmkey)</button>
   <button id="btn-passkey" style="display:none" title="Fingerabdruck, FaceID oder YubiKey hinzufügen">🔑 Passkey</button>
   <span id="balance"></span>
 </header>
+<div id="netbadge" hidden>🧪 TEST-WELT: Regtest-Relay — Guthaben ist Spielgeld, keine echten Satoshis</div>
 <div id="login" class="login window">
   <div class="title-bar"><div class="title-bar-text">⚡ lightningmail — Postfach</div></div>
   <div class="window-body">
@@ -699,7 +725,7 @@ form.compose textarea {
     <div class="login-divider">Noch kein Postfach?</div>
 
     <button id="l-signup" class="signup-hero-btn" type="button">
-      ✨ Neues Konto in 30 Sek. anlegen (+10.000 Test-Sats)
+      ✨ Neues Konto in 30 Sek. anlegen<span id="w-signup-note"> (+10.000 Test-Sats)</span>
     </button>
 
     <details class="alt-methods" id="l-adv">

@@ -694,3 +694,14 @@ Das Relay wird kostendeckend als Infrastruktur betrieben, nicht zur Gewinnmaximi
   - **Über 1 MB bis 100 MB:** **0,3 Cent / MB** (z. B. 10 MB ≈ 2,7 Cent; 100 MB ≈ 30 Cent).
   - **Über 100 MB bis 1.000 MB:** **0,1 Cent / MB** (1.000 MB ≈ 1,20 €; dank 7-Tage-Sweep nach Erstdownload liegen die realen Grenzkosten unter 0,5 Cent/GB, sodass bereits wenige große Transfers pro Monat den gesamten Relay-Betrieb tragen).
 - **Offene Umsetzung vor Mainnet:** Zweistufige Byte-Porto-Staffel in `postage.go` ergänzen sowie für Dateien bis 1.000 MB die Chunk-Größe (z. B. 4 MiB statt 1 MiB) bzw. das 255-Ref-Limit im Envelope erweitern.
+
+**3. Satoshis-Beilage im Brief (§30.4, gebaut 19.11.2026):**
+- Der Anhang-Button ist ein Split-Button `📎 Anhang | ▾`: Klick/Kurztipp öffnet sofort die Dateiauswahl, Longpress bzw. Caret-Klick wählt zwischen **📄 Datei anhängen** und **⚡ Satoshis beilegen**.
+- `POST /v1/send?to=…&tip_sats=N` legt 0–**5.000** Sats Aufschlag auf das normale Porto und zahlt `postage + tip` in **ein und demselben Keysend** — kein neues Protokollfeld, keine neue Datenbankspalte.
+- Harte Deckelung am Relay (400 bei >5.000): Mit Betragsdeckel bleibt die Beilage Porto-/Trinkgeld-Charakter (digitale Briefmarke bzw. „20-DM-Schein in Omas Geburtstagskarte“) und wird kein übertragener Zahlungsverkehr.
+- Der Empfänger sieht ein vom **eigenen Relay bestätigtes** goldnes Badge `⚡ N Sats erhalten` (real gezahltes `received_msat` aus der mailbox-Tabelle, Liste + Briefkopf) — nicht die Textbehauptung des Absenders.
+- Sinn: Rückporto für Antworten mitspendieren, Neulingen das Start-Porto schenken, kleines Trinkgeld — ohne eine einzige Wallet-Maske.
+
+**4. Test- und Mainnet-Welt im selben Client (§30.5, gebaut 19.11.2026):**
+- Die Regtest-Relais bleiben öffentlich als Spielwiese online, damit Leute den Ablauf ohne Risiko testen können.
+- Der Client fragt `network` am `/health` des gewählten Relais ab und hebt Nicht-Mainnet-Postfächer deutlich ab: orangefarbene **TEST-WELT**-Balken unter der Kopfzeile, Header-Kennung `🧪 TEST (regtest) · Spielgeld`, und das „+10.000 Test-Sats“ nur, solange das Relay wirklich Regtest ist (fällt auf Mainnet unsichtbar weg). Mainnet-Relais zeigen `⚡ Mainnet` und keinen Test-Banner.
