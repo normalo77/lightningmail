@@ -7,3 +7,14 @@ test/e2e-home/
 client/app/dist/
 client/node_modules/
 client/app/public/keys/
+client/android/keystore.jks
+client/android/kscred.dat
+client/android/build/
+site/__pycache__/
+site/lightningmail-linux-amd64
+site/lightningmail.apk
+site/lightningmail.apk.idsig
+site/lightningmail-thunderbird.xpi
+docs/marketing/video.mp4
+test/interop-home/
+client/app/tls/

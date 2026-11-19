@@ -1,40 +1,66 @@
-# lightningmail
+# ⚡ lightningmail
 
-Lightning-Porto-Mail (Arbeitstitel). Docs: docs/CONCEPT.md, docs/PRECODING.md,
-**docs/spec.md** (verbindliche M0-Spec: Wire-Format, Receipt-Flow, Discovery,
-Ledger, Relay-API — Basis gegen die Etappe 2/3 baut).
+**E-Mail mit eigenem Lightning-Porto & passwortlosem Login (OpenID Connect) / E-mail with Lightning postage & passwordless OIDC login.**
 
-## Bauen & Testen: Relay-Core (Go, Etappe 2a)
+- 🌐 **Live-Webseite & Prototyp:** [https://lightningmail.app](https://lightningmail.app)
+- 🏛️ **Architekturentscheidungen & Client-Portierung:** [https://lightningmail.app/architecture](https://lightningmail.app/architecture)
+- 📬 **Web-App (PWA):** [https://lightningmail.app/app/](https://lightningmail.app/app/)
+- 📜 **Protokoll-Spezifikation (`LM1`):** [`docs/spec.md`](docs/spec.md) · **Gesamtkonzept:** [`docs/CONCEPT.md`](docs/CONCEPT.md)
+- ⚖️ **Lizenz:** [MIT](LICENSE)
 
-Voraussetzung: Go >= 1.22 (offizielles Tarball nach `/usr/local/go`, PATH via
-`/etc/profile.d/go.sh`; kein apt-golang). Kein CGO noetig (SQLite-Treiber
-`modernc.org/sqlite`).
+---
 
+## Deutsch — Überblick (v1.0)
+
+Die Idee hinter **lightningmail**: Jede Nachricht kostet den Absender ein kleines Porto (einige Satoshis per Lightning-Keysend), das direkt dem Postfach-Guthaben des Empfängers gutgeschrieben wird.
+- **Spam wird zum Verlustgeschäft:** Einseitige Massenpost kostet ab dem ersten Brief echtes Geld.
+- **Gespräche kosten netto null:** Antworten schicken das Porto einfach mit der Antwort zurück.
+- **Kein öffentliches Adressbuch, kein Konversationsfenster:** Die Empfängeradresse (`name@domain`) reicht. Ein DNS-Eintrag (`_bmail._tcp.<domain>`) verrät das Ziel-Relay, und `GET /v1/profile/{name}` liefert kostenlos Public Key und Portosatz.
+- **Ein Schlüssel, zwei Aufgaben (Mail + Login):** Jedes Postfach ist ein `secp256k1`-Schlüsselpaar (abgeleitet aus 24 BIP39-Wörtern). Es entschlüsselt Ende-zu-Ende-verschlüsselte Briefe (`ECIES + XChaCha20-Poly1305`) und dient gleichzeitig über den im Relay eingebauten **OpenID-Connect-Provider (OIDC)** als passwortloser Login (*„Sign in with lightningmail"*). Bei Neuanmeldungen mit Bestätigungsbrief zahlt der Nutzer einen **Porto-Vorschuss** (Tag `0x0A`), aus dem der **Service-Connector** (`client/src/connector.ts`) die Bestätigungsmail bezahlt.
+- **Zwei Relay-Betriebsmodi:**
+  - **Light-Relay:** `relayd` + `lnd` im **Neutrino-Modus** (BIP 157/158 Compact Block Filters über öffentliche Bitcoin-Nodes, ~10 GB Speicher, kein eigener `bitcoind` nötig).
+  - **Full-Relay:** `relayd` + `lnd` + eigener `bitcoind`.
+
+### Fertige Downloads & Clients
+
+- 🐧 **Nativer Linux-Client (x86_64 Desktop-GUI für 1080p/4K + CLI):** [https://lightningmail.app/lightningmail-linux-amd64](https://lightningmail.app/lightningmail-linux-amd64)
+- 🤖 **Native Android-App (`.apk`, Portrait/Landscape Touch + Hardware-Keystore):** [https://lightningmail.app/lightningmail.apk](https://lightningmail.app/lightningmail.apk)
+- 🦅 **Thunderbird Tab-Add-on (`.xpi`):** [https://lightningmail.app/lightningmail-thunderbird.xpi](https://lightningmail.app/lightningmail-thunderbird.xpi)
+- 🌐 **Web-App (PWA):** [https://lightningmail.app/app/](https://lightningmail.app/app/)
+
+### Eigenes Relay installieren (Light oder Full)
+
+```bash
+cd deploy
+./install-relay.sh --mode light --domain example.org --foreign-sats 10 --welcome-sats 30
+docker compose -f docker-compose.light-relay.yml up -d
 ```
-cd relay && make all        # fmt-check + vet + test + build
-go vet ./... && go test ./...   # dasselbe direkt
+
+### Aus dem Quellcode bauen & testen
+
+```bash
+# 1. Go-Relay & Linux-Client bauen (Go >= 1.22, kein CGO nötig)
+cd relay
+go test ./...
+CGO_ENABLED=0 go build -o ../bin/relayd ./cmd/relayd
+CGO_ENABLED=0 go build -o ../bin/lightningmail-linux ./cmd/lmcli
+
+# 2. Web-PWA & Thunderbird-Add-on bauen
+cd ../client
+npm install
+cd app && npx vite build
+bash ../thunderbird/build-xpi.sh
 ```
 
-Pakete: `internal/envelope` (Wire-Format v0.1, §3 Spec), `internal/config`
-(relay.yaml/relays.yaml, §6), `internal/crypto` (btcec/XChaCha20/Schnorr, §5),
-`internal/ledger` (SQLite-WAL-Ledger, §8). `proto/bmail/v1/envelope.proto` ist
-nur Doku (kein Codegen in v0.1). `cmd/relayd`, `lnclient`, HTTP-Server folgen
-in Etappe 3.
+---
 
-Wurzeln Makefile delegiert: `make relay-check` (fmt+vet+test+build),
-`make relay-test` usw.
+## English — Overview (v1.0)
 
-## Dev: regtest-Stack + Smoke-Test
+**lightningmail** attaches a small Bitcoin Lightning postage payment (via keysend) to every message and credits it directly to the recipient’s mailbox balance:
+- **Spam becomes unprofitable:** One-way bulk mail costs real money from message one.
+- **Conversations net out to zero:** Replies carry the postage back to the original sender.
+- **No public directory, no conversation window:** Knowing `name@domain` is enough. A `_bmail._tcp.<domain>` DNS TXT record locates the destination relay, and `GET /v1/profile/{name}` returns the recipient’s public encryption key and postage rates for free.
+- **Dual function (Mailbox + Passwordless Login):** Every mailbox is a `secp256k1` keypair backed up by 24 BIP39 recovery words. That single key decrypts end-to-end encrypted letters (`LM1` envelope: `ECIES + XChaCha20-Poly1305` + 1 MiB chunked attachments) and powers passwordless **OpenID Connect (OIDC)** logins (*“Sign in with lightningmail”* — including zero-registration stateless HTTPS origins). For service registrations requiring a confirmation letter, the user sends a **postage advance** (tag `0x0A`), funding the reply via our headless **Service Connector** (`client/src/connector.ts`).
+- **Star-topology device sync (`/v1/state`):** Inbox, sent folder, drafts, read flags and the private address book sync encrypted across all devices via the user’s own relay; large attachments expire on the relay 7 days after first download and are cached locally on the client (`IndexedDB`).
 
-`make smoke` (auf dem Dev-CT, Docker erforderlich): bringt bitcoind + 2 LND-Knoten
-(alpha/beta) via `test/docker/docker-compose.yml` hoch, eroeffnet einen 6-BTC-Kanal
-alpha->beta und beweist einen keysend-Payment-Roundtrip mit bmail-Custom-TLV
-(34349334..34349343). Idempotent, Exit-Code 0 = gruen.
-Stack abbauen: `make smoke-down` (Daten bleiben in `test/docker/data/`, git-ignoriert).
-
-## Release (v0.1.x)
-
-Statisches Binary: `cd relay && CGO_ENABLED=0 go build ./...`
-(NAS/Umbrel/Start9-tauglich, auch ARM: GOOS/GOARCH setzen). Go/Go-Modul
-dokumentiert in `relay/go.mod` + `go.sum`; Releases als Tag `v0.1.0` auf main,
-Backup-Remote `backup` (NAS-Bare-Repo). Deployment-Assets (Docker) = Etappe 3.
+See [https://lightningmail.app/architecture](https://lightningmail.app/architecture) and [`docs/spec.md`](docs/spec.md) for the 10 core architecture decisions and the 4-step guide to building native clients for iOS, macOS or Windows.
