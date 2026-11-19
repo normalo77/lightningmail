@@ -57,15 +57,18 @@ func main() {
 	}
 
 	// Connect to LND REST + lncli
-	// Derive gRPC port from REST port: REST 8081→gRPC 10001, REST 8082→gRPC 10002
+	// Derive gRPC port from REST port: REST 8080→gRPC 10009 (mainnet-Standard),
+	// REST 8081→gRPC 10001, REST 8082→gRPC 10002 (regtest-Compose)
 	rpcAddr := strings.Replace(cfg.LND.RPCHost, ":8081", ":10001", 1)
 	rpcAddr = strings.Replace(rpcAddr, ":8082", ":10002", 1)
+	rpcAddr = strings.Replace(rpcAddr, ":8080", ":10009", 1)
 	ln := lnclient.New(lnclient.Config{
 		RESTHost:     cfg.LND.RPCHost,
 		Macaroon:     macHex,
 		TLSCert:      cfg.LND.TLSCertPath,
 		MacaroonPath: cfg.LND.MacaroonPath,
 		RPCAddr:      rpcAddr,
+		Network:      cfg.LND.Network,
 	})
 
 	p := postage.New(cfg)

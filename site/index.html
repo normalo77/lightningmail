@@ -724,9 +724,9 @@ html[lang="en"] .de-only { display: none !important; }
       </div>
 
       <div class="status">
-        <b><span class="de-only">Status heute:</span><span class="en-only">Status today:</span></b>
-        <span class="de-only">Der Portokreislauf läuft produktiv im Code: Der Absender wird am eigenen Relay abgebucht, die Porto-Zahlung wandert per Lightning-Keysend zum Relay des Empfängers und wird dort direkt auf das Guthaben des Empfängerkontos gebucht (inklusive Tageskurs-Stempel für den Steuer-Export). Als nächster Ausbauschritt folgt die automatische Relay-zu-Relay-Auflösung über DNS für fremde Domains.</span>
-        <span class="en-only">The postage cycle runs in today’s code: the sender is debited at their own relay, the postage payment travels via Lightning keysend to the recipient’s relay and is credited directly to the recipient account’s balance (including a daily exchange-rate stamp for tax export). The next step in progress is automatic relay-to-relay resolution via DNS across external domains.</span>
+        <b><span class="de-only">Status heute (v1.0):</span><span class="en-only">Status today (v1.0):</span></b>
+        <span class="de-only">Der komplette Portokreislauf läuft produktiv im Code: Der Absender wird am eigenen Relay abgebucht, die Porto-Zahlung wandert per Lightning-Keysend zum Ziel-Relay (aufgelöst über Peer-Konfiguration oder <code>_bmail._tcp</code>-DNS) und wird direkt auf das Guthaben des Empfängerkontos gebucht — inklusive LUD-16-Lightning-Adresse (<code>/.well-known/lnurlp/name</code>), Ein-/Auszahlung per Bolt11 und Tageskurs-Stempel für den Steuer-Export.</span>
+        <span class="en-only">The complete postage cycle runs in production code: the sender is debited at their own relay, the postage payment travels via Lightning keysend to the destination relay (resolved via peer config or <code>_bmail._tcp</code> DNS) and is credited directly to the recipient account’s balance — including a LUD-16 Lightning Address (<code>/.well-known/lnurlp/name</code>), Bolt11 top-up/withdrawal and a daily exchange-rate stamp for tax export.</span>
       </div>
     </div>
   </section>
@@ -789,9 +789,9 @@ html[lang="en"] .de-only { display: none !important; }
     </div>
 
     <div class="status">
-      <b><span class="de-only">Status heute:</span><span class="en-only">Status today:</span></b>
-      <span class="de-only">Beide Grundfunktionen laufen heute im Code: (1) Briefversand inkl. 1-MiB-Chunking für große Anhänge, Byte-Porto, ✓/✓✓-Empfangsbestätigung und Euro-Steuerexport sind aktiv. (2) Der OIDC-Identity-Provider („Sign in with lightningmail“ mit BIP340-Schlüsselsignatur im Browser) ist im Relay eingebaut und live testbar. Der optionale Service-Connector für bezahlte Registrierungsbriefe (Etappe&nbsp;I) folgt als nächster Baustein.</span>
-      <span class="en-only">Both core functions run in today’s code: (1) Mail delivery including 1&nbsp;MiB chunking for large attachments, byte-postage, ✓/✓✓ delivery receipts and EUR tax CSV export are live. (2) The OIDC Identity Provider (“Sign in with lightningmail” with in-browser BIP340 key signature) is built into the relay and testable today. The optional Service Connector for paid registration letters (stage&nbsp;I) follows next.</span>
+      <b><span class="de-only">Status heute (v1.0):</span><span class="en-only">Status today (v1.0):</span></b>
+      <span class="de-only">Beide Funktionen sind komplett gebaut und live im Code: (1) Briefversand inkl. 1-MiB-Chunking für große Anhänge, Byte-Porto, ✓/✓✓-Empfangsbestätigung und Euro-Steuerexport sind aktiv. (2) Der OIDC-Identity-Provider („Sign in with lightningmail“ — auch ohne Vorab-Registrierung für jede HTTPS-Domain) sowie das Willkommensporto (Tag <code>0x0A</code>) samt Headless <b>Service-Connector</b> (<code>client/src/connector.ts</code> &amp; Daemon) laufen produktiv.</span>
+      <span class="en-only">Both functions are completely built and live in code: (1) Mail delivery including 1&nbsp;MiB chunking for large attachments, byte-postage, ✓/✓✓ delivery receipts and EUR tax CSV export are active. (2) The OIDC Identity Provider (“Sign in with lightningmail” — including zero-registration stateless HTTPS origins) as well as welcome postage (tag <code>0x0A</code>) and the headless <b>Service Connector</b> (<code>client/src/connector.ts</code> &amp; daemon) are running in production code.</span>
     </div>
   </section>
 
@@ -971,15 +971,15 @@ const SCENARIOS = {
   signup: {
     de: {
       sender: '−6 ct Willkommensporto (Nutzer)',
-      today: 'OIDC-Login live (0 ct) · Brief-Porto aktiv',
+      today: 'OIDC-Login (0 ct) + Tag 0x0A live',
       planned: '+4 ct Netto beim Dienst (6 ct rein, 2 ct Antwort)',
-      note: 'Reiner Login per OIDC ist heute schon kostenlos eingebaut. Beim geplanten Registrierungsbrief (Etappe I) zahlt der Nutzer z. B. 6 Cent Willkommensporto, und der Dienst schickt die Bestätigung für 2 Cent Standardporto zurück.'
+      note: 'Beides läuft im Code: Reiner Login per OIDC ist kostenlos eingebaut, und beim Registrierungsbrief (Tag 0x0A) zahlt der Nutzer das Willkommensporto (z. B. 6 Cent), worauf der Service-Connector für 2 Cent Standardporto antwortet.'
     },
     en: {
       sender: '−6 ct welcome postage (user)',
-      today: 'OIDC login live (0 ct) · mail postage active',
+      today: 'OIDC login (0 ct) + tag 0x0A live',
       planned: '+4 ct net for service (6 ct in, 2 ct reply)',
-      note: 'Pure OIDC login is already built in and free. With the planned registration letter (stage I), the user pays e.g. 6 cents welcome postage and the service sends the confirmation back for 2 cents standard postage.'
+      note: 'Both run in today’s code: pure OIDC login is built in for free, and with a registration letter (tag 0x0A) the user pays welcome postage (e.g. 6 cents) while the Service Connector replies at 2 cents standard postage.'
     }
   }
 };

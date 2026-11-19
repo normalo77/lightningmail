@@ -22,6 +22,44 @@ func TestRelayConfigValid(t *testing.T) {
 	}
 }
 
+func TestLNDNetwork(t *testing.T) {
+	yaml := func(mac, network string) []byte {
+		s := "name: alpha\nlisten_addr: 127.0.0.1:8443\ndata_dir: /var/lib/bmail\nlnd:\n" +
+			"  rpc_host: 127.0.0.1:8080\n  tls_cert_path: /lnd/tls.cert\n  macaroon_path: " + mac + "\n"
+		if network != "" {
+			s += "  network: " + network + "\n"
+		}
+		return []byte(s + "postage: {foreign_sats: 10, min_sats: 1}\n")
+	}
+	// Auto-Detect aus dem Macaroon-Pfad
+	for mac, want := range map[string]string{
+		"/lnd/data/chain/bitcoin/mainnet/admin.macaroon": "mainnet",
+		"/lnd/data/chain/bitcoin/testnet/admin.macaroon": "testnet",
+		"/lnd/data/chain/bitcoin/regtest/admin.macaroon": "regtest",
+		"/x/admin.macaroon": "regtest",
+	} {
+		c, err := ParseConfig(yaml(mac, ""))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.LND.Network != want {
+			t.Fatalf("mac %s: want %s, got %s", mac, want, c.LND.Network)
+		}
+	}
+	// Explizites network gewinnt ueber Auto-Detect
+	c, err := ParseConfig(yaml("/lnd/data/chain/bitcoin/mainnet/admin.macaroon", "signet"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.LND.Network != "signet" {
+		t.Fatalf("explicit network not honored: %s", c.LND.Network)
+	}
+	// Ungueltiges network -> ErrValidation
+	if _, err := ParseConfig(yaml("/x/admin.macaroon", "litecoin")); !errors.Is(err, ErrValidation) {
+		t.Fatalf("want ErrValidation for bad network, got %v", err)
+	}
+}
+
 func TestRelayConfigBad(t *testing.T) {
 	_, err := LoadConfigFile("testdata/relay_bad.yaml")
 	if !errors.Is(err, ErrValidation) {

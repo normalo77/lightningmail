@@ -27,6 +27,9 @@ type LND struct {
 	RPCHost      string `yaml:"rpc_host"`
 	TLSCertPath  string `yaml:"tls_cert_path"`
 	MacaroonPath string `yaml:"macaroon_path"`
+	// Network (Etappe O): regtest|testnet|signet|mainnet; leer = Auto-Detect
+	// aus dem Macaroon-Pfad (…/chain/bitcoin/<net>/…).
+	Network string `yaml:"network"`
 }
 
 type Postage struct {
@@ -131,6 +134,16 @@ func ParseConfig(data []byte) (*Config, error) {
 	if c.Postage.BlobMaxBytes == 0 {
 		c.Postage.BlobMaxBytes = DefaultBlobMaxBytes // the one explicit default
 	}
+	if c.LND.Network == "" {
+		switch {
+		case strings.Contains(c.LND.MacaroonPath, "/mainnet/"):
+			c.LND.Network = "mainnet"
+		case strings.Contains(c.LND.MacaroonPath, "/testnet/"):
+			c.LND.Network = "testnet"
+		default:
+			c.LND.Network = "regtest"
+		}
+	}
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
@@ -163,6 +176,11 @@ func (c *Config) Validate() error {
 	req("lnd.rpc_host", c.LND.RPCHost)
 	req("lnd.tls_cert_path", c.LND.TLSCertPath)
 	req("lnd.macaroon_path", c.LND.MacaroonPath)
+	switch c.LND.Network {
+	case "", "regtest", "testnet", "signet", "mainnet":
+	default:
+		errs = append(errs, "lnd.network must be one of regtest|testnet|signet|mainnet, got "+c.LND.Network)
+	}
 
 	if c.Postage.ForeignSats <= 0 {
 		errs = append(errs, "postage.foreign_sats must be > 0")

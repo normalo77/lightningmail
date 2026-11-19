@@ -27,6 +27,7 @@ type Config struct {
 	TLSCert      string // path to tls.cert for lncli
 	MacaroonPath string // path to admin.macaroon for lncli
 	RPCAddr      string // host:port of LND gRPC for lncli
+	Network      string // lncli --network (regtest|testnet|signet|mainnet)
 }
 
 type NodeInfo struct {
@@ -49,6 +50,9 @@ type Client struct {
 }
 
 func New(cfg Config) *Client {
+	if cfg.Network == "" {
+		cfg.Network = "regtest"
+	}
 	return &Client{
 		cfg: cfg,
 		client: &http.Client{
@@ -119,7 +123,7 @@ func (c *Client) SendKeysend(ctx context.Context, dest string, amt int64, custom
 	dataStr := strings.Join(parts, ",")
 
 	args := []string{
-		"--network=regtest",
+		"--network=" + c.cfg.Network,
 		"--rpcserver=" + c.cfg.RPCAddr,
 	}
 	if c.cfg.TLSCert != "" {
@@ -293,7 +297,7 @@ func (c *Client) AddInvoice(ctx context.Context, amtSats int64, memo string) (st
 // wie SendKeysend — robust gegen LND-REST-Deprecation in v0.21+).
 func (c *Client) PayInvoice(ctx context.Context, payReq string) (string, int64, error) {
 	args := []string{
-		"--network=regtest",
+		"--network=" + c.cfg.Network,
 		"--rpcserver=" + c.cfg.RPCAddr,
 	}
 	if c.cfg.TLSCert != "" {
