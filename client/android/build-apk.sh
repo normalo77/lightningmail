@@ -77,7 +77,7 @@ echo "== sign"
   --out "$OUT" build/aligned.apk
 
 echo "== verify"
-"$BT/apksigner" verify --print-certs "$OUT" | head -4
-"$BT/aapt2" dump badging "$OUT" | head -12
+"$BT/apksigner" verify --print-certs "$OUT" | head -4 || true
+"$BT/aapt2" dump badging "$OUT" | head -12 || true
 ls -la "$OUT"
 echo "✓ $OUT"

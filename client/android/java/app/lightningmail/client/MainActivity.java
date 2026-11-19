@@ -157,6 +157,50 @@ public class MainActivity extends Activity {
         return kg.generateKey();
     }
 
+    /** Nativen Android-Fingerabdruck-/PIN-Dialog öffnen (BiometricPrompt, API 28+). */
+    private void promptBiometric() {
+        if (Build.VERSION.SDK_INT < 28) {
+            webView.evaluateJavascript("window.onNativeBioResult&&window.onNativeBioResult(true,'')", null);
+            return;
+        }
+        try {
+            android.os.CancellationSignal sig = new android.os.CancellationSignal();
+            android.hardware.biometrics.BiometricPrompt.Builder b =
+                    new android.hardware.biometrics.BiometricPrompt.Builder(this)
+                            .setTitle("lightningmail entsperren")
+                            .setSubtitle("Fingerabdruck bestätigen");
+            if (Build.VERSION.SDK_INT >= 30) {
+                b.setAllowedAuthenticators(
+                        android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK
+                      | android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+            } else {
+                b.setNegativeButton("Abbrechen", getMainExecutor(),
+                        (d, w) -> webView.evaluateJavascript(
+                                "window.onNativeBioResult&&window.onNativeBioResult(false,'Abgebrochen')", null));
+            }
+            b.build().authenticate(sig, getMainExecutor(),
+                    new android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                        @Override
+                        public void onAuthenticationSucceeded(
+                                android.hardware.biometrics.BiometricPrompt.AuthenticationResult result) {
+                            webView.evaluateJavascript(
+                                    "window.onNativeBioResult&&window.onNativeBioResult(true,'')", null);
+                        }
+
+                        @Override
+                        public void onAuthenticationError(int errorCode, CharSequence errString) {
+                            String msg = String.valueOf(errString).replace("'", "").replace("\n", " ");
+                            webView.evaluateJavascript(
+                                    "window.onNativeBioResult&&window.onNativeBioResult(false,'" + msg + "')", null);
+                        }
+                    });
+        } catch (Exception e) {
+            String msg = String.valueOf(e.getMessage()).replace("'", "");
+            webView.evaluateJavascript(
+                    "window.onNativeBioResult&&window.onNativeBioResult(false,'" + msg + "')", null);
+        }
+    }
+
     private void postNotification(String title, String text) {
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -219,6 +263,12 @@ public class MainActivity extends Activity {
             try {
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove("vault").apply();
             } catch (Exception ignored) { }
+        }
+
+        /** Fingerabdruck-/Gerätesperre anfordern -> ruft window.onNativeBioResult(ok, err) auf. */
+        @JavascriptInterface
+        public void requestBiometricAuth() {
+            runOnUiThread(() -> promptBiometric());
         }
 
         /** Native Notification (Kanal lm_mail). */

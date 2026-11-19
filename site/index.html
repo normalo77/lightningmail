@@ -1099,6 +1099,14 @@ html[lang="pl"] .pl-only { display: inline !important; }
         <span class="es-only">Un núcleo criptográfico común impulsa nuestros cuatro clientes de referencia: el <a href="/lightningmail-linux-amd64" style="color:var(--ink);font-weight:700">cliente nativo de Linux (binario x86_64)</a>, la <a href="/lightningmail.apk" style="color:var(--ink);font-weight:700">app de Android (.apk)</a> con keystore de hardware, el <a href="/lightningmail-thunderbird.xpi" style="color:var(--ink);font-weight:700">complemento de pestaña para Thunderbird (.xpi)</a> y la app web (PWA). Cómo construir clientes para iOS, macOS o Windows se explica en la subpágina <a href="/architecture#clients" style="color:var(--ink);font-weight:700">Decisiones de arquitectura y portabilidad de clientes</a>.</span>
         <span class="fr-only">Un noyau cryptographique commun alimente nos quatre clients de référence : le <a href="/lightningmail-linux-amd64" style="color:var(--ink);font-weight:700">client Linux natif (binaire x86_64)</a>, l’<a href="/lightningmail.apk" style="color:var(--ink);font-weight:700">app Android (.apk)</a> avec keystore matériel, l’<a href="/lightningmail-thunderbird.xpi" style="color:var(--ink);font-weight:700">add-on d’onglet Thunderbird (.xpi)</a> et l’app Web (PWA). La construction de clients pour iOS, macOS ou Windows est documentée sur la page <a href="/architecture#clients" style="color:var(--ink);font-weight:700">Décisions d’architecture et portage des clients</a>.</span>
         <span class="pl-only">Wspólny rdzeń kryptograficzny napędza nasze cztery klienty referencyjne: <a href="/lightningmail-linux-amd64" style="color:var(--ink);font-weight:700">natywnego klienta Linuksowego (binarium x86_64)</a>, <a href="/lightningmail.apk" style="color:var(--ink);font-weight:700">aplikację na Androida (.apk)</a> ze sprzętowym keystore, <a href="/lightningmail-thunderbird.xpi" style="color:var(--ink);font-weight:700">dodatek-kartę dla Thunderbirda (.xpi)</a> oraz aplikację webową (PWA). Jak budować klienty na iOS, macOS czy Windows, opisuje podstrona <a href="/architecture#clients" style="color:var(--ink);font-weight:700">Decyzje architektoniczne i portowanie klientów</a>.</span>
+        <div style="margin-top:0.85rem;background:#fff7dc;border-left:4px solid #d97706;padding:0.65rem 0.85rem;border-radius:6px;font-size:0.9rem;color:#78350f">
+          ⚠️ <b><span class="de-only">Experimentelle Software!</span><span class="en-only">Experimental software!</span><span class="es-only">¡Software experimental!</span><span class="fr-only">Logiciel expérimental !</span><span class="pl-only">Oprogramowanie eksperymentalne!</span></b>
+          <span class="de-only">Für den Verlust echter Satoshis wird keine Verantwortung übernommen. Sparsam aufladen.</span>
+          <span class="en-only">No responsibility is assumed for the loss of real satoshis. Top up sparingly.</span>
+          <span class="es-only">No se asume ninguna responsabilidad por la pérdida de satoshis reales. Recarga con moderación.</span>
+          <span class="fr-only">Aucune responsabilité n’est engagée en cas de perte de vrais satoshis. Rechargez avec modération.</span>
+          <span class="pl-only">Nie ponosimy żadnej odpowiedzialności za utratę prawdziwych satoshi. Doładowuj ostrożnie.</span>
+        </div>
       </li>
       <li>
         <b>Envelope LM1 &amp; Chunked Blobs</b>
@@ -1374,6 +1382,21 @@ function tickCountdown() {
 }
 tickCountdown();
 setInterval(tickCountdown, 1000);
+
+// Warnung vor jedem App-Download
+const DL_WARN = {
+  de: '⚠️ Experimentelle Software!\nFür den Verlust echter Satoshis wird keine Verantwortung übernommen. Sparsam aufladen.\n\nDownload jetzt starten?',
+  en: '⚠️ Experimental software!\nNo responsibility is assumed for the loss of real satoshis. Top up sparingly.\n\nStart download now?',
+  es: '⚠️ ¡Software experimental!\nNo se asume ninguna responsabilidad por la pérdida de satoshis reales. Recarga con moderación.\n\n¿Iniciar descarga ahora?',
+  fr: '⚠️ Logiciel expérimental !\nAucune responsabilité n’est engagée en cas de perte de vrais satoshis. Rechargez avec modération.\n\nLancer le téléchargement maintenant ?',
+  pl: '⚠️ Oprogramowanie eksperymentalne!\nNie ponosimy żadnej odpowiedzialności za utratę prawdziwych satoshi. Doładowuj ostrożnie.\n\nRozpocząć pobieranie?'
+};
+document.querySelectorAll('a[href$=".apk"], a[href$="-amd64"], a[href$=".xpi"]').forEach(function(a) {
+  a.addEventListener('click', function(ev) {
+    const l = document.documentElement.lang || 'de';
+    if (!confirm(DL_WARN[l] || DL_WARN.de)) ev.preventDefault();
+  });
+});
 </script>
 </body>
 </html>

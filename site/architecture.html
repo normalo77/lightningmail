@@ -565,6 +565,15 @@ footer {
       </div>
     </div>
 
+    <div style="margin-top:1.5rem;background:rgba(244,183,26,0.14);border:1.5px solid #f4b71a;border-left:6px solid #f4b71a;border-radius:10px;padding:0.95rem 1.2rem;color:#fde68a;font-size:0.95rem">
+      ⚠️ <b><span class="de-only">Experimentelle Software!</span><span class="en-only">Experimental software!</span><span class="es-only">¡Software experimental!</span><span class="fr-only">Logiciel expérimental !</span><span class="pl-only">Oprogramowanie eksperymentalne!</span></b>
+      <span class="de-only">Für den Verlust echter Satoshis wird keine Verantwortung übernommen. Sparsam aufladen.</span>
+      <span class="en-only">No responsibility is assumed for the loss of real satoshis. Top up sparingly.</span>
+      <span class="es-only">No se asume ninguna responsabilidad por la pérdida de satoshis reales. Recarga con moderación.</span>
+      <span class="fr-only">Aucune responsabilité n’est engagée en cas de perte de vrais satoshis. Rechargez avec modération.</span>
+      <span class="pl-only">Nie ponosimy żadnej odpowiedzialności za utratę prawdziwych satoshi. Doładowuj ostrożnie.</span>
+    </div>
+
     <div class="dl-strip">
       <a class="btn" href="/lightningmail-linux-amd64" download>🐧 <span class="de-only">Linux-Client herunterladen (x86_64 Binary)</span><span class="en-only">Download Linux Client (x86_64 Binary)</span><span class="es-only">Descargar cliente Linux (binario x86_64)</span><span class="fr-only">Télécharger le client Linux (binaire x86_64)</span><span class="pl-only">Pobierz klienta Linuksowego (binarium x86_64)</span></a>
       <a class="btn" href="/lightningmail.apk" download>🤖 <span class="de-only">Android-App herunterladen (.apk)</span><span class="en-only">Download Android App (.apk)</span><span class="es-only">Descargar app Android (.apk)</span><span class="fr-only">Télécharger l’app Android (.apk)</span><span class="pl-only">Pobierz aplikację Android (.apk)</span></a>
@@ -598,6 +607,20 @@ try {
   if (LANGS.includes(saved)) setLang(saved);
 } catch {}
 langSel.addEventListener('change', () => setLang(langSel.value));
+
+const DL_WARN = {
+  de: '⚠️ Experimentelle Software!\nFür den Verlust echter Satoshis wird keine Verantwortung übernommen. Sparsam aufladen.\n\nDownload jetzt starten?',
+  en: '⚠️ Experimental software!\nNo responsibility is assumed for the loss of real satoshis. Top up sparingly.\n\nStart download now?',
+  es: '⚠️ ¡Software experimental!\nNo se asume ninguna responsabilidad por la pérdida de satoshis reales. Recarga con moderación.\n\n¿Iniciar descarga ahora?',
+  fr: '⚠️ Logiciel expérimental !\nAucune responsabilité n’est engagée en cas de perte de vrais satoshis. Rechargez avec modération.\n\nLancer le téléchargement maintenant ?',
+  pl: '⚠️ Oprogramowanie eksperymentalne!\nNie ponosimy żadnej odpowiedzialności za utratę prawdziwych satoshi. Doładowuj ostrożnie.\n\nRozpocząć pobieranie?'
+};
+document.querySelectorAll('a[href$=".apk"], a[href$="-amd64"], a[href$=".xpi"]').forEach((a) => {
+  a.addEventListener('click', (ev) => {
+    const l = document.documentElement.lang || 'de';
+    if (!confirm(DL_WARN[l] || DL_WARN.de)) ev.preventDefault();
+  });
+});
 </script>
 </body>
 </html>

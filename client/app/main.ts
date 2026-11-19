@@ -138,7 +138,11 @@ async function login(pem: string) {
   }
   localStorage.removeItem(NOAUTO_KEY);
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
-  const bp = $('btn-passkey'); if (bp && passkeyAvailable()) { bp.style.display = ''; bp.onclick = passkeyRegister; }
+  const bp = $('btn-passkey');
+  if (bp && (passkeyAvailable() || !!(window as any).AndroidNative?.requestBiometricAuth)) {
+    bp.style.display = '';
+    bp.onclick = passkeyRegister;
+  }
   const kw = $('btn-keywrap'); if (kw) { kw.style.display = ''; kw.onclick = () => {
     const p1 = prompt('Passphrase fuer die Key-Datei (min. 8 Zeichen):'); if (!p1) return;
     if (p1 !== prompt('zur Kontrolle erneut eingeben:')) { alert('Passphrases stimmen nicht ueberein'); return; }
@@ -566,19 +570,30 @@ async function renderCompose() {
   };
 }
 
-async function useKey(txt: string) {
+async function useKey(txt: string, fname = '') {
   if (isWrapped(txt)) {
     pendingWrap = txt;
     $('l-passrow').style.display = '';
-    $('l-err').textContent = 'Verschluesselte Key-Datei — Passphrase eingeben.';
+    const kr = document.getElementById('l-keyready'); if (kr) kr.style.display = 'none';
+    $('l-err').textContent = (fname ? `Datei „${fname}“ geladen — ` : '') + 'bitte Passphrase eingeben und auf „🔓 OK / Anmelden" klicken.';
+    setTimeout(() => ($('l-pass') as HTMLInputElement)?.focus(), 30);
     return;
   }
-  pemCache = txt; await login(txt);
+  pemCache = txt;
+  const kr = document.getElementById('l-keyready'); if (kr) kr.style.display = '';
+  const btn = document.getElementById('l-login');
+  if (btn) btn.textContent = `✓ Schlüssel bereit (${($('l-acct') as HTMLInputElement).value.trim()}) — OK / Jetzt anmelden`;
+  await login(txt);
 }
 async function tryUnwrap() {
-  try { pemCache = unwrapKey(pendingWrap, ($('l-pass') as HTMLInputElement).value); await login(pemCache); }
+  try {
+    pemCache = unwrapKey(pendingWrap, ($('l-pass') as HTMLInputElement).value);
+    const kr = document.getElementById('l-keyready'); if (kr) kr.style.display = '';
+    await login(pemCache);
+  }
   catch (e: any) { $('l-err').textContent = '✗ ' + e.message; }
 }
+if ($('l-pass')) ($('l-pass') as HTMLInputElement).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); tryUnwrap(); } };
 $('l-demo').onclick = async () => {
   const r = await fetch(`/keys/${$('l-acct').value.trim()}.key`);
   if (!r.ok) { $('l-err').textContent = 'Demo-Key nicht gefunden (' + $('l-acct').value.trim() + ')'; return; }
@@ -764,7 +779,9 @@ $('l-file').onchange = async (ev: Event) => {
   // Kontoname aus Dateinamen: lightningmail-<acct>.lmkey bzw. <acct>.key/.pem
   const m = /^(?:lightningmail-)?([a-z0-9][a-z0-9._-]{1,31})\.(?:lmkey|key|pem)$/i.exec(f.name);
   if (m) ($('l-acct') as HTMLInputElement).value = m[1].toLowerCase();
-  await useKey(await f.text());
+  const lbl = document.getElementById('l-file-lbl');
+  if (lbl) lbl.textContent = '📂 ' + f.name;
+  await useKey(await f.text(), f.name);
 };
 $('l-login').onclick = async () => {
   if (!pemCache) { $('l-err').textContent = 'Erst Schluessel laden (Demo-Knopf oder Datei).'; return; }
@@ -806,13 +823,48 @@ const cred2json = (c: any): any => {
   return { id: c.id, rawId: b64u(c.rawId), type: c.type, response: r, clientExtensionResults: {} };
 };
 
-if (!passkeyAvailable()) {
+if (!passkeyAvailable() && !(window as any).AndroidNative?.requestBiometricAuth) {
   const lp = $('l-passkey') as HTMLButtonElement;
-  lp.disabled = true; lp.title = 'Passkeys brauchen HTTPS (Secure Context)';
+  lp.disabled = true; lp.title = 'Passkeys brauchen HTTPS (Secure Context) oder die Android-App';
+}
+
+// Hilfsfunktion für den nativen Android-Fingerabdruck-Dialog (BiometricPrompt)
+function androidBiometricAuth(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const an = (window as any).AndroidNative;
+    if (!an?.requestBiometricAuth) { resolve(false); return; }
+    (window as any).onNativeBioResult = (ok: boolean, err: string) => {
+      if (!ok && err) $('l-err').textContent = '✗ Fingerabdruck: ' + err;
+      resolve(!!ok);
+    };
+    an.requestBiometricAuth();
+  });
 }
 
 async function passkeyLogin() {
   $('l-err').textContent = '';
+  // 1) In der Android-APK: Nativer Android-Fingerabdruck entsperrt direkt den Hardware-Keystore-Vault
+  const an = (window as any).AndroidNative;
+  if (an?.loadVault) {
+    try {
+      const nv = JSON.parse(an.loadVault() || 'null');
+      if (nv && nv.pem && nv.acct && nv.base) {
+        if (an.requestBiometricAuth) {
+          const ok = await androidBiometricAuth();
+          if (!ok) return;
+        }
+        ($('l-acct') as HTMLInputElement).value = nv.acct;
+        ($('l-relay') as HTMLSelectElement).value = nv.base;
+        pemCache = nv.pem;
+        await login(nv.pem);
+        return;
+      }
+      if (!passkeyAvailable()) {
+        $('l-err').textContent = 'Noch kein Schlüssel im Android-Tresor gespeichert — bitte einmal Konto anlegen oder mit 24 Wörtern / Schlüsseldatei anmelden.';
+        return;
+      }
+    } catch { /* Fallback auf WebAuthn */ }
+  }
   acct = ($('l-acct') as HTMLInputElement).value.trim(); base = ($('l-relay') as HTMLSelectElement).value;
   if (!acct) { $('l-err').textContent = 'Kontoname eingeben.'; return; }
   try {
@@ -835,9 +887,10 @@ async function passkeyLogin() {
     } else if (fin.wrap_pass) {
       pendingWrap = fin.wrap_pass;
       $('l-passrow').style.display = '';
-      $('l-err').textContent = 'Passkey bestätigt. Dieser Browser kann den Schlüssel nicht per PRF entsiegeln — Notfall-Passphrase eingeben.';
+      $('l-err').textContent = 'Passkey bestätigt. Dieser Browser kann den Schlüssel nicht per PRF entsiegeln — bitte Passphrase eingeben und auf „🔓 OK / Anmelden" klicken.';
+      setTimeout(() => ($('l-pass') as HTMLInputElement)?.focus(), 30);
     } else {
-      $('l-err').textContent = '✗ Dieser Passkey hat keinen Schlüssel-Wrap. Einmal mit Schlüsseldatei anmelden und Passkey neu hinzufügen.';
+      $('l-err').textContent = '✗ Dieser Passkey hat keinen Schlüssel-Wrap. Einmal anmelden und oben über „🔑 Passkey" neu hinterlegen.';
     }
   } catch (e: any) {
     $('l-err').textContent = '✗ ' + String(e?.message || e).slice(0, 140);
@@ -846,6 +899,15 @@ async function passkeyLogin() {
 $('l-passkey').onclick = passkeyLogin;
 
 async function passkeyRegister() {
+  // 1) In der Android-APK: Nativen Fingerabdruck prüfen & Schlüssel im AndroidKeyStore versiegeln
+  const an = (window as any).AndroidNative;
+  if (an?.saveVault && an?.requestBiometricAuth) {
+    const ok = await androidBiometricAuth();
+    if (!ok) return;
+    an.saveVault(JSON.stringify({ acct, base, pem: pemCache }));
+    alert(`✓ Fingerabdruck-Tresor für ${acct} im Android-Hardware-Keystore aktiviert!\nBeim nächsten Mal reicht ein Tipp auf „🔑 Mit Passkey / Fingerabdruck anmelden".`);
+    return;
+  }
   try {
     const br = await api('/v1/webauthn/register/begin', { method: 'POST' });
     if (!br.ok) { alert(errText(br.status, await br.text())); return; }
@@ -855,22 +917,20 @@ async function passkeyRegister() {
     const ext: any = (cred as any).getClientExtensionResults?.() || {};
     const prfSecret = ext.prf?.first ? new Uint8Array(ext.prf.first) : null;
     const wrap_prf = prfSecret ? wrapKeyPRF(pemCache, prfSecret) : '';
-    let wrap_pass = pendingWrap || ''; // vorhandener Passphrase-Wrap wird mitgespeichert
-    if (!wrap_pass && confirm('Zusätzlich eine Notfall-Passphrase für diesen Passkey setzen?\n\n(Abbrechen = nur Passkey/PRF — Anmeldung in Browsern ohne PRF-Unterstützung, z.B. Firefox/Safari, ist dann nicht möglich.)')) {
-      const p1 = prompt('Notfall-Passphrase (min. 8 Zeichen):') || '';
-      if (p1) {
-        if (p1 === prompt('zur Kontrolle erneut eingeben:')) wrap_pass = wrapKey(pemCache, p1);
-        else alert('Passphrasen stimmen nicht überein — ohne Notfall-Wrap gespeichert.');
-      }
+    let wrap_pass = pendingWrap || '';
+    if (!wrap_prf && !wrap_pass) {
+      const p1 = prompt('Dein Gerät/Browser unterstützt noch keine direkte Passkey-Schlüsselableitung (PRF).\nBitte vergib eine kurze Passphrase (min. 8 Zeichen), mit der dieser Passkey deinen Schlüssel schützt:') || '';
+      if (p1.length < 8) { alert('Abgebrochen: Passphrase muss mindestens 8 Zeichen lang sein.'); return; }
+      wrap_pass = wrapKey(pemCache, p1);
     }
     const ua = navigator.userAgent;
-    const label = `${new Date().toLocaleDateString('de-DE')} ${/android/i.test(ua) ? 'Android' : /iphone|ipad/i.test(ua) ? 'iOS' : /windows/i.test(ua) ? 'Windows' : /mac os/i.test(ua) ? 'macOS' : /linux/i.test(ua) ? 'Linux' : 'Gerät'} ${prfSecret ? '(PRF ✓)' : '(PRF ✗)'}`;
+    const label = `${new Date().toLocaleDateString('de-DE')} ${/android/i.test(ua) ? 'Android' : /iphone|ipad/i.test(ua) ? 'iOS' : /windows/i.test(ua) ? 'Windows' : /mac os/i.test(ua) ? 'macOS' : /linux/i.test(ua) ? 'Linux' : 'Gerät'} ${prfSecret ? '(Direkt-Fingerabdruck ✓)' : '(Passkey + Passphrase)'}`;
     const fr = await api('/v1/webauthn/register/finish', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sid: begin.sid, name: label, credential: cred2json(cred), wrap_prf, wrap_pass }) });
     const fin = await fr.json().catch(() => ({}));
     if (!fr.ok) { alert('✗ ' + (fin.error || errText(fr.status))); return; }
-    alert(`✓ Passkey hinzugefügt: ${label}${prfSecret ? '' : '\nAchtung: ohne PRF wurde kein Schlüssel-Wrap erzeugt — Notfall-Passphrase nötig für Login.'}`);
+    alert(`✓ Passkey gespeichert: ${label}`);
   } catch (e: any) {
     alert('Passkey-Registrierung fehlgeschlagen: ' + String(e?.message || e).slice(0, 160));
   }
