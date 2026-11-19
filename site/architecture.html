@@ -4,7 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>lightningmail · Architekturentscheidungen &amp; Client-Portierung</title>
-<meta name="description" content="Warum lightningmail genau so gebaut ist: 10 kritische Architekturentscheidungen und der Entwickler-Leitfaden für eigene Clients.">
+<meta name="description" content="Warum lightningmail genau so gebaut ist: 10 kritische Architekturentscheidungen (kein Keyserver, kein Konversationsfenster, Stern-Sync, LND Neutrino Light-Relay, OIDC-Ausweis) und Client-Portierung.">
+<link rel="canonical" href="https://lightningmail.app/architecture">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://lightningmail.app/architecture">
+<meta property="og:title" content="⚡ lightningmail · 10 Architekturentscheidungen &amp; Client-Portierung">
+<meta property="og:description" content="Warum wir auf öffentliche Adressbücher, Konversationsfenster, Syncthing und BTCPay verzichtet haben — und wie man in 4 Schritten eigene Clients baut.">
+<meta property="og:image" content="https://lightningmail.app/og-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#f5f3ec">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cellipse cx='100' cy='100' rx='52' ry='46' fill='%23ffb38f'/%3E%3Cellipse cx='122' cy='92' rx='9' ry='9' fill='white'/%3E%3Ccircle cx='124' cy='93' r='4.6' fill='%23122338'/%3E%3Cellipse cx='81' cy='92' rx='15' ry='13' fill='%23122338'/%3E%3Cpath d='M52 64 Q100 28 148 64 Q100 48 52 64Z' fill='%23122338'/%3E%3C/svg%3E">
 <style>
