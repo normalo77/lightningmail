@@ -185,13 +185,33 @@ func pkceOK(verifier, challenge string) bool {
 
 func (s *Server) oidcIssuer() string { return strings.TrimSuffix(s.cfg.Oidc.Issuer, "/") }
 
-func (s *Server) oidcClient(id string) *config.OidcClient {
+func (s *Server) oidcClient(id, redirectURI string) *config.OidcClient {
 	for i := range s.cfg.Oidc.Clients {
 		if s.cfg.Oidc.Clients[i].ID == id {
 			return &s.cfg.Oidc.Clients[i]
 		}
 	}
-	return nil
+	// Stateless Public Client (Web-Föderation ohne Vorab-Registrierung):
+	// Wenn client_id eine https-URL (oder http auf localhost/127.0.0.1) ist
+	// und redirect_uri exakt dieselbe Origin (Scheme + Host) besitzt, wird
+	// der Dienst dynamisch zugelassen; im Consent-Screen erscheint der Hostname.
+	cu, err1 := url.Parse(id)
+	ru, err2 := url.Parse(redirectURI)
+	if err1 != nil || err2 != nil || cu.Host == "" || ru.Host == "" {
+		return nil
+	}
+	local := cu.Hostname() == "localhost" || strings.HasPrefix(cu.Hostname(), "127.")
+	if cu.Scheme != "https" && !(cu.Scheme == "http" && local) {
+		return nil
+	}
+	if cu.Scheme != ru.Scheme || !strings.EqualFold(cu.Host, ru.Host) {
+		return nil
+	}
+	return &config.OidcClient{
+		ID:           id,
+		Name:         cu.Host,
+		RedirectURIs: []string{redirectURI},
+	}
 }
 
 func (s *Server) oidcDomain() string {
@@ -313,12 +333,12 @@ func (s *Server) oidcAuth(w http.ResponseWriter, r *http.Request) {
 		bad("response_type muss 'code' sein")
 		return
 	}
-	client := s.oidcClient(q.Get("client_id"))
+	ru := q.Get("redirect_uri")
+	client := s.oidcClient(q.Get("client_id"), ru)
 	if client == nil {
-		bad("unbekannter client_id")
+		bad("unbekannter client_id oder redirect_uri-Origin weicht ab")
 		return
 	}
-	ru := q.Get("redirect_uri")
 	okRU := false
 	for _, u := range client.RedirectURIs {
 		if u == ru {
@@ -405,7 +425,7 @@ func (s *Server) oidcAuthLogin(w http.ResponseWriter, r *http.Request) {
 	sess.account = account
 	sess.challenge = challenge
 	st.mu.Unlock()
-	client := s.oidcClient(sess.clientID)
+	client := s.oidcClient(sess.clientID, sess.redirectURI)
 	clientName := sess.clientID
 	if client != nil && client.Name != "" {
 		clientName = client.Name

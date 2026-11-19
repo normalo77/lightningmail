@@ -113,6 +113,40 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	acct, err := s.ledger.GetAccount(addr)
 	if err != nil {
+		// Wenn lokal nicht gefunden und kein Peer-Loop (X-Relay-Hop):
+		// konfigurierte Peer-Relays abfragen (Föderations-Lookup), damit ein Nutzer
+		// auf Relay A auch Konten auf Relay B anschreiben kann, ohne dass das Konto
+		// manuell auf beiden Relays angelegt werden muss.
+		if r.Header.Get("X-Relay-Hop") == "" {
+			cl := &http.Client{Timeout: 5 * time.Second}
+			for _, peer := range s.cfg.Peers {
+				if peer.URL == "" {
+					continue
+				}
+				req, err2 := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimSuffix(peer.URL, "/")+"/v1/profile/"+addr, nil)
+				if err2 != nil {
+					continue
+				}
+				req.Header.Set("X-Relay-Hop", "1")
+				pr, err2 := cl.Do(req)
+				if err2 != nil {
+					continue
+				}
+				if pr.StatusCode == 200 {
+					var pbody map[string]any
+					err3 := json.NewDecoder(pr.Body).Decode(&pbody)
+					pr.Body.Close()
+					if err3 == nil && pbody["pubkey"] != nil {
+						pbody["relay"] = peer.Name
+						w.Header().Set("Content-Type", "application/json")
+						json.NewEncoder(w).Encode(pbody)
+						return
+					}
+				} else {
+					pr.Body.Close()
+				}
+			}
+		}
 		http.Error(w, `{"error":"not found"}`, 404)
 		return
 	}

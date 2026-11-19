@@ -255,7 +255,6 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"no peers configured"}`, 500)
 		return
 	}
-	peer := &s.cfg.Peers[0]
 
 	envBin, _ := env.MarshalBinary()
 
@@ -270,6 +269,28 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 		http.Error(w, `{"error":"bad node pubkey"}`, 500)
 		return
+	}
+
+	var destNode string
+	var destName string
+	if _, err := s.ledger.LookupByRecipientHash(env.RecipientHash); err == nil {
+		// Empfaenger liegt auf diesem Relay → Selbst-Keysend an eigenen Node
+		destNode = info.IdentityPubkey
+		destName = s.cfg.Name
+	} else {
+		peer := &s.cfg.Peers[0]
+		if len(s.cfg.Peers) > 1 {
+			if target := strings.TrimSpace(r.URL.Query().Get("to")); target != "" {
+				for i := range s.cfg.Peers {
+					if strings.EqualFold(s.cfg.Peers[i].Name, target) || strings.Contains(strings.ToLower(s.cfg.Peers[i].URL), strings.ToLower(target)) {
+						peer = &s.cfg.Peers[i]
+						break
+					}
+				}
+			}
+		}
+		destNode = peer.NodePubkey
+		destName = peer.Name
 	}
 
 	now := time.Now().Unix()
@@ -290,7 +311,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		34349343: ts,
 	}
 
-	preimage, err := s.ln.SendKeysend(r.Context(), peer.NodePubkey, postageAmt, customRecords)
+	preimage, err := s.ln.SendKeysend(r.Context(), destNode, postageAmt, customRecords)
 	if err != nil {
 		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
 		http.Error(w, fmt.Sprintf(`{"error":"keysend: %v"}`, err), 502)
@@ -306,7 +327,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(202)
 	json.NewEncoder(w).Encode(resp)
-	log.Printf("send: %s -> peer %s, %d sats, preimage=%s", account, peer.Name, postageAmt, preimage[:16])
+	log.Printf("send: %s -> peer %s, %d sats, preimage=%s", account, destName, postageAmt, preimage[:16])
 }
 
 // --- GET /v1/inbox ---

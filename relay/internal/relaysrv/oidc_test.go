@@ -378,3 +378,64 @@ func TestPkceAndPad(t *testing.T) {
 		t.Fatalf("pad32: %v", got)
 	}
 }
+
+func TestOIDCStatelessOriginClient(t *testing.T) {
+	srv, priv := newOIDCTestServer(t)
+	h := sha256.Sum256([]byte(testVerifier))
+	q := url.Values{
+		"response_type":         {"code"},
+		"client_id":             {"https://shop.example.org"},
+		"redirect_uri":          {"https://shop.example.org/auth/callback"},
+		"scope":                 {"openid email"},
+		"state":                 {"s1"},
+		"nonce":                 {"n2"},
+		"code_challenge":        {base64.RawURLEncoding.EncodeToString(h[:])},
+		"code_challenge_method": {"S256"},
+	}
+	// 1. Gleiche HTTPS-Origin ohne Vorab-Registrierung → 302
+	w := srv.do(t, "GET", "/oidc/auth?"+q.Encode(), nil, nil, "")
+	if w.Code != http.StatusFound {
+		t.Fatalf("stateless client: %d %s", w.Code, w.Body.String())
+	}
+	lu, _ := url.Parse(w.Result().Header.Get("Location"))
+	sid := lu.Query().Get("sid")
+	w = srv.do(t, "POST", "/oidc/auth/login", map[string]string{"sid": sid}, nil, "tok123")
+	var lj map[string]any
+	json.Unmarshal(w.Body.Bytes(), &lj)
+	if lj["client_name"] != "shop.example.org" {
+		t.Fatalf("client_name = %v, want shop.example.org", lj["client_name"])
+	}
+	ch, _ := base64.StdEncoding.DecodeString(lj["challenge_b64"].(string))
+	sig, _ := crypto.Sign(priv, ch)
+	w = srv.do(t, "POST", "/oidc/auth/sign", map[string]string{"sid": sid, "sig": hex.EncodeToString(sig)}, nil, "")
+	var sj map[string]string
+	json.Unmarshal(w.Body.Bytes(), &sj)
+	ru, _ := url.Parse(sj["redirect"])
+	code := ru.Query().Get("code")
+	form := url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code},
+		"redirect_uri":  {"https://shop.example.org/auth/callback"},
+		"client_id":     {"https://shop.example.org"},
+		"code_verifier": {testVerifier},
+	}
+	w = srv.do(t, "POST", "/oidc/token", nil, form, "")
+	if w.Code != 200 {
+		t.Fatalf("stateless token: %d %s", w.Code, w.Body.String())
+	}
+
+	// 2. Abweichende redirect_uri-Origin → 400
+	q.Set("redirect_uri", "https://evil.example.org/cb")
+	w = srv.do(t, "GET", "/oidc/auth?"+q.Encode(), nil, nil, "")
+	if w.Code != 400 {
+		t.Fatalf("cross-origin redirect_uri akzeptiert: %d", w.Code)
+	}
+
+	// 3. Plain HTTP auf fremdem Host → 400
+	q.Set("client_id", "http://shop.example.org")
+	q.Set("redirect_uri", "http://shop.example.org/cb")
+	w = srv.do(t, "GET", "/oidc/auth?"+q.Encode(), nil, nil, "")
+	if w.Code != 400 {
+		t.Fatalf("plain http remote client_id akzeptiert: %d", w.Code)
+	}
+}
