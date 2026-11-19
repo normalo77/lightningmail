@@ -126,6 +126,42 @@ func main() {
 			}
 			envRaw, ok := update.CustomRecords[34349334]
 			if !ok || len(envRaw) == 0 {
+				// Kein bmail-TLV: evtl. Lightning-Top-Up (Bolt11-Invoice mit
+				// Memo "bmail-topup:ACCOUNT", von /v1/topup oder LUD-16 erzeugt).
+				if strings.HasPrefix(update.Memo, "bmail-topup:") {
+					acctName := strings.TrimPrefix(update.Memo, "bmail-topup:")
+					if _, err2 := l.GetAccount(acctName); err2 != nil {
+						log.Printf("topup: unknown account %q", acctName)
+						continue
+					}
+					ref := "topup:" + update.RHashHex
+					hist, err2 := l.History(acctName, 200)
+					if err2 != nil {
+						log.Printf("topup: history %s: %v", acctName, err2)
+						continue
+					}
+					dup := false
+					for _, tx := range hist {
+						if tx.Ref == ref {
+							dup = true
+							break
+						}
+					}
+					if dup {
+						continue // gleiche Invoice schon gutgeschrieben (Replay nach Restart)
+					}
+					// §25 G1: Zufluss mit Tageskurs stempeln, wenn der Feed einen hat
+					if snap, ok := feed.Current(); ok {
+						err2 = l.ApplyDeltaMeta(acctName, update.AmtPaid*1000, ledger.KindTopup, ref, "btc", &snap)
+					} else {
+						err2 = l.ApplyDelta(acctName, update.AmtPaid*1000, ledger.KindTopup, ref)
+					}
+					if err2 != nil {
+						log.Printf("topup: credit %s: %v", acctName, err2)
+						continue
+					}
+					log.Printf("topup: %s +%d sats (r_hash=%s)", acctName, update.AmtPaid, update.RHashHex)
+				}
 				continue
 			}
 			env, err2 := envelope.Decode(envRaw)

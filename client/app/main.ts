@@ -845,6 +845,8 @@ async function renderUms() {
     ? (eurSum(l) > 0 ? '≈' + fmtEur(eurSum(l)) + ' (Teile ungeratet)' : '—')
     : fmtEur(eurSum(l));
   $('list').innerHTML = `<div class="abbar"><button id="ums-csv">⬇ CSV komplett</button>
+      <button id="ums-topup" title="Lightning-Guthaben aufladen">⚡ Aufladen</button>
+      <button id="ums-withdraw" title="Guthaben per Bolt11-Invoice auszahlen">📤 Abheben</button>
       <span class="meta" style="align-self:center" title="Hash-Kette: jeder Export setzt den vorigen fort">Kette: ${esc(String(j.kopf || '').slice(0, 10))}…</span></div>` +
     (keys.map(k => {
       const rs = mon[k];
@@ -854,6 +856,51 @@ async function renderUms() {
         <div class="meta">Ein ${fmtSat(sat(ein))} sats (${eurTxt(ein)}) · Aus ${fmtSat(sat(aus))} sats (${eurTxt(aus)}) · ${rs.length} Zeilen</div></div>`;
     }).join('') || '<div class="meta" style="padding:12px">— keine Buchungen —</div>');
   $('ums-csv').onclick = () => dlCsv('/v1/statement?fmt=csv', `umsaetze-${acct}.csv`);
+
+  // ⚡ Aufladen: Bolt11-Invoice vom Relay holen (Gutschrift erfolgt nach Settlement)
+  $('ums-topup').onclick = async () => {
+    const sats = prompt('Betrag in sats (1–10 000 000):', '1000');
+    if (!sats) return;
+    const r = await api('/v1/topup', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount_sats: +sats }) });
+    const j = await r.json().catch(() => ({})) as any;
+    if (!r.ok) { alert(errText(r.status, j.error || '')); return; }
+    $('detail').innerHTML = `<div class="window" style="max-width:72ch"><div class="title-bar"><div class="title-bar-text">⚡ Aufladen — ${fmtSat(j.amount_sats)} sats</div></div>
+      <div class="window-body">
+        <p class="meta">Mit beliebiger Lightning-Wallet bezahlen — Guthaben wird nach Settlement automatisch gutgeschrieben.</p>
+        <textarea id="tu-pr" readonly rows="5" style="width:100%">${esc(String(j.payment_request || ''))}</textarea>
+        <p><button id="tu-copy">Kopieren</button> <span id="tu-msg" class="meta"></span></p>
+      </div></div>`;
+    $('tu-copy').onclick = async () => {
+      try { await navigator.clipboard.writeText(j.payment_request); $('tu-msg').textContent = '✓ kopiert'; }
+      catch { ($('tu-pr') as HTMLTextAreaElement).select(); $('tu-msg').textContent = 'Strg+C drücken'; }
+    };
+  };
+
+  // 📤 Abheben: Bolt11-Invoice einfügen, Relay bezahlt vom Guthaben
+  $('ums-withdraw').onclick = () => {
+    $('detail').innerHTML = `<div class="window" style="max-width:72ch"><div class="title-bar"><div class="title-bar-text">📤 Abheben</div></div>
+      <div class="window-body">
+        <p class="meta">Bolt11-Invoice einfügen — der Betrag wird vom Guthaben abgebucht und vom Relay-Node bezahlt.</p>
+        <textarea id="wd-pr" rows="5" placeholder="lnbc…" style="width:100%"></textarea>
+        <p><button id="wd-go">Auszahlen</button> <span id="wd-msg" class="meta"></span></p>
+      </div></div>`;
+    $('wd-go').onclick = async () => {
+      const pr = ($('wd-pr') as HTMLTextAreaElement).value.trim();
+      if (!pr) { $('wd-msg').textContent = '✗ keine Invoice eingefügt'; return; }
+      $('wd-go').setAttribute('disabled', '1');
+      $('wd-msg').textContent = 'zahle…';
+      const r = await api('/v1/withdraw', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_request: pr }) });
+      const j = await r.json().catch(() => ({})) as any;
+      await refreshBalance();
+      if (!r.ok) { $('wd-msg').textContent = '✗ ' + errText(r.status, j.error || ''); $('wd-go').removeAttribute('disabled'); return; }
+      await renderUms(); // Umsätze neu laden …
+      $('detail').innerHTML = `<div class="window" style="max-width:72ch"><div class="title-bar"><div class="title-bar-text">📤 Ausgezahlt</div></div>
+        <div class="window-body"><p>✓ ${fmtSat(j.amount_sats)} sats bezahlt.</p>
+        <p class="meta" style="word-break:break-all">Preimage: ${esc(String(j.preimage || ''))}<br>Payment-Hash: ${esc(String(j.payment_hash || ''))}</p></div></div>`;
+    };
+  };
   document.querySelectorAll('#list .row[data-mon]').forEach(el => el.addEventListener('click', () => {
     const k = el.getAttribute('data-mon')!;
     const rs = mon[k].slice().reverse();

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -37,6 +38,8 @@ type InvoiceUpdate struct {
 	AmtPaid         int64  // sats
 	PaymentPreimage string // hex
 	CustomRecords   map[uint64][]byte
+	Memo            string // Bolt11-Memo (z.B. "bmail-topup:ACCOUNT")
+	RHashHex        string // payment_hash der Invoice, hex
 	Error           error
 }
 
@@ -188,6 +191,8 @@ func (c *Client) SubscribeInvoices(ctx context.Context) (<-chan *InvoiceUpdate, 
 				Invoices []struct {
 					State     string `json:"state"`
 					Value     string `json:"value"`
+					Memo      string `json:"memo"`
+					RHash     string `json:"r_hash"` // base64
 					RPreimage string `json:"r_preimage"`
 					AddIndex  string `json:"add_index"`
 					Htlcs     []struct {
@@ -226,8 +231,11 @@ func (c *Client) SubscribeInvoices(ctx context.Context) (<-chan *InvoiceUpdate, 
 						recs[key] = b
 					}
 				}
-				if len(recs) == 0 {
-					continue
+				// Kein TLV-Record ist kein Skip mehr: normale Bolt11-Invoices
+				// (Top-Up, Memo "bmail-topup:ACCOUNT") werden auch emittiert.
+				rHashHex := ""
+				if rh, derr := base64.StdEncoding.DecodeString(inv.RHash); derr == nil {
+					rHashHex = hex.EncodeToString(rh)
 				}
 				var amt int64
 				fmt.Sscanf(inv.Value, "%d", &amt)
@@ -236,6 +244,8 @@ func (c *Client) SubscribeInvoices(ctx context.Context) (<-chan *InvoiceUpdate, 
 					AmtPaid:         amt,
 					PaymentPreimage: inv.RPreimage,
 					CustomRecords:   recs,
+					Memo:            inv.Memo,
+					RHashHex:        rHashHex,
 				}
 				select {
 				case ch <- update:
@@ -253,3 +263,96 @@ func (c *Client) SubscribeInvoices(ctx context.Context) (<-chan *InvoiceUpdate, 
 }
 
 var ErrNotBmail = errors.New("lnclient: no bmail TLV in invoice")
+
+// AddInvoice legt eine Bolt11-Invoice an (Top-Up / LUD-16).
+// Gibt payment_request und r_hash (hex) zurück.
+func (c *Client) AddInvoice(ctx context.Context, amtSats int64, memo string) (string, string, error) {
+	data, err := c.do(ctx, "POST", "/v1/invoices", map[string]any{
+		"value":  fmt.Sprintf("%d", amtSats),
+		"memo":   memo,
+		"expiry": "3600",
+	})
+	if err != nil {
+		return "", "", err
+	}
+	var resp struct {
+		PaymentRequest string `json:"payment_request"`
+		RHash          string `json:"r_hash"` // base64
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return "", "", err
+	}
+	rHashHex := ""
+	if rh, derr := base64.StdEncoding.DecodeString(resp.RHash); derr == nil {
+		rHashHex = hex.EncodeToString(rh)
+	}
+	return resp.PaymentRequest, rHashHex, nil
+}
+
+// PayInvoice bezahlt eine Bolt11-Invoice (via lncli sendpayment --pay_req,
+// wie SendKeysend — robust gegen LND-REST-Deprecation in v0.21+).
+func (c *Client) PayInvoice(ctx context.Context, payReq string) (string, int64, error) {
+	args := []string{
+		"--network=regtest",
+		"--rpcserver=" + c.cfg.RPCAddr,
+	}
+	if c.cfg.TLSCert != "" {
+		args = append(args, "--tlscertpath="+c.cfg.TLSCert)
+	}
+	if c.cfg.MacaroonPath != "" {
+		args = append(args, "--macaroonpath="+c.cfg.MacaroonPath)
+	}
+	args = append(args,
+		"sendpayment",
+		"--force",
+		"--pay_req="+payReq,
+		"--fee_limit=1000",
+		"--timeout=30s",
+		"--json",
+	)
+	cmd := exec.CommandContext(ctx, "lncli", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return "", 0, fmt.Errorf("pay: %v: %s", err, stderr.String())
+	}
+	var result struct {
+		PaymentPreimage string `json:"payment_preimage"`
+		PaymentError    string `json:"payment_error"`
+		ValueSat        string `json:"value_sat"`
+		PaymentRoute    struct {
+			TotalAmt string `json:"total_amt"`
+		} `json:"payment_route"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		return "", 0, fmt.Errorf("pay parse: %v", err)
+	}
+	if result.PaymentError != "" {
+		return "", 0, fmt.Errorf("pay failed: %s", result.PaymentError)
+	}
+	var amtSats int64
+	fmt.Sscanf(result.ValueSat, "%d", &amtSats)
+	if amtSats == 0 {
+		fmt.Sscanf(result.PaymentRoute.TotalAmt, "%d", &amtSats)
+	}
+	return result.PaymentPreimage, amtSats, nil
+}
+
+// DecodePayReq dekodiert eine Bolt11-Invoice: Betrag (sats) + payment_hash (hex).
+func (c *Client) DecodePayReq(ctx context.Context, payReq string) (int64, string, error) {
+	data, err := c.do(ctx, "GET", "/v1/payreq/"+url.PathEscape(payReq), nil)
+	if err != nil {
+		return 0, "", err
+	}
+	var resp struct {
+		NumSatoshis any    `json:"num_satoshis"` // LND liefert string oder Zahl
+		PaymentHash string `json:"payment_hash"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return 0, "", err
+	}
+	var amt int64
+	fmt.Sscanf(fmt.Sprint(resp.NumSatoshis), "%d", &amt)
+	return amt, resp.PaymentHash, nil
+}
