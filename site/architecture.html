@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lightningmail · Architekturentscheidungen &amp; Client-Portierung</title>
+<meta name="description" content="Warum lightningmail genau so gebaut ist: 10 kritische Architekturentscheidungen und der Entwickler-Leitfaden für eigene Clients.">
+<meta name="theme-color" content="#f5f3ec">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cellipse cx='100' cy='100' rx='52' ry='46' fill='%23ffb38f'/%3E%3Cellipse cx='122' cy='92' rx='9' ry='9' fill='white'/%3E%3Ccircle cx='124' cy='93' r='4.6' fill='%23122338'/%3E%3Cellipse cx='81' cy='92' rx='15' ry='13' fill='%23122338'/%3E%3Cpath d='M52 64 Q100 28 148 64 Q100 48 52 64Z' fill='%23122338'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f5f3ec;
+  --surface: #e8e4d8;
+  --card: #ffffff;
+  --ink: #122338;
+  --muted: #4a5a6e;
+  --accent: #f4b71a;
+  --accent-ink: #122338;
+  --margin: clamp(1rem, 2.5vw, 2.5rem);
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: clamp(1rem, 0.96rem + 0.2vw, 1.15rem);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.en-only { display: none; }
+html[lang="en"] .de-only { display: none; }
+html[lang="en"] .en-only { display: inline; }
+div.en-only, p.en-only, section.en-only { display: none; }
+html[lang="en"] div.de-only, html[lang="en"] p.de-only, html[lang="en"] section.de-only { display: none; }
+html[lang="en"] div.en-only, html[lang="en"] p.en-only, html[lang="en"] section.en-only { display: block; }
+
+header.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.25rem var(--margin);
+  max-width: 1440px;
+  margin-inline: auto;
+  border-bottom: 1px solid rgba(18,35,56,0.12);
+}
+.brand-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.3rem;
+  color: var(--ink);
+}
+nav { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap; }
+nav a { color: var(--ink); text-decoration: none; font-weight: 600; font-size: 0.94rem; }
+nav a:hover { text-decoration: underline; }
+.lang {
+  background: var(--surface);
+  color: var(--ink);
+  border: 0;
+  padding: 0.5rem 0.95rem;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.lang:hover { background: var(--accent); }
+
+main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 4.5rem) var(--margin);
+}
+.hero {
+  max-width: 78ch;
+  margin-bottom: clamp(2.5rem, 5vw, 4rem);
+}
+.eyebrow {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  margin-bottom: 1rem;
+}
+h1 {
+  font-size: clamp(2.1rem, 1.4rem + 2.8vw, 3.8rem);
+  line-height: 1.06;
+  letter-spacing: -0.028em;
+  margin: 0 0 1rem;
+}
+h2 {
+  font-size: clamp(1.5rem, 1.2rem + 1.4vw, 2.3rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 3.5rem 0 1.25rem;
+}
+h3 {
+  font-size: 1.22rem;
+  line-height: 1.28;
+  margin: 0 0 0.6rem;
+}
+.lead {
+  font-size: clamp(1.12rem, 1.04rem + 0.35vw, 1.35rem);
+  color: var(--muted);
+  margin: 0;
+}
+
+.decisions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 1.5rem;
+}
+.adr {
+  background: var(--card);
+  border: 1px solid rgba(18,35,56,0.14);
+  border-top: 5px solid var(--ink);
+  border-radius: 10px;
+  padding: 1.5rem 1.6rem;
+  box-shadow: 0 4px 14px rgba(18,35,56,0.05);
+}
+.adr-num {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+.adr p { margin: 0 0 0.8rem; font-size: 0.98rem; }
+.adr p:last-child { margin-bottom: 0; }
+.verdict {
+  background: var(--surface);
+  padding: 0.65rem 0.9rem;
+  border-radius: 7px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.porting {
+  background: var(--ink);
+  color: #f5f3ec;
+  border-radius: 14px;
+  padding: clamp(1.6rem, 3.5vw, 3rem);
+  margin-top: 3.5rem;
+}
+.porting h2 { margin-top: 0; color: #fff; }
+.porting p { color: #cbd5e1; max-width: 75ch; }
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+.step-box {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+.step-box h3 { color: var(--accent); font-size: 1.08rem; }
+.step-box p { font-size: 0.92rem; color: #e2e8f0; margin: 0; }
+code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: rgba(18,35,56,0.08);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+}
+.porting code {
+  background: rgba(0,0,0,0.35);
+  color: #fde68a;
+}
+
+.dl-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-top: 1.75rem;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  text-decoration: none;
+  font-weight: 700;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+}
+.btn.alt {
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.25);
+}
+footer {
+  max-width: 1440px;
+  margin: 3rem auto 0;
+  padding: 1.5rem var(--margin) 3rem;
+  border-top: 1px solid rgba(18,35,56,0.12);
+  font-size: 0.9rem;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <a href="/" class="brand-wrap">⚡ lightningmail</a>
+  <nav>
+    <a href="/"><span class="de-only">← Startseite</span><span class="en-only">← Home</span></a>
+    <a href="#decisions"><span class="de-only">10 Entscheidungen</span><span class="en-only">10 Decisions</span></a>
+    <a href="#clients"><span class="de-only">Clients &amp; Portierung</span><span class="en-only">Clients &amp; Porting</span></a>
+    <a href="/app/"><span class="de-only">Web-App öffnen</span><span class="en-only">Open Web App</span></a>
+    <button class="lang" id="langBtn" type="button">EN</button>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <span class="eyebrow"><span class="de-only">Architektur &amp; Design-Rationalen (v1.0)</span><span class="en-only">Architecture &amp; Design Rationale (v1.0)</span></span>
+    <h1>
+      <span class="de-only">Warum lightningmail genau so gebaut ist — und was wir bewusst weggelassen haben.</span>
+      <span class="en-only">Why lightningmail is built exactly this way — and what we deliberately left out.</span>
+    </h1>
+    <p class="lead">
+      <span class="de-only">Gute Protokolle entstehen durch Weglassen. Jede Komponente, die nicht existiert, hat keine Sicherheitslücken, braucht keinen RAM und verwirrt keinen Nutzer. Hier sind die zehn wichtigsten Architekturentscheidungen von lightningmail.</span>
+      <span class="en-only">Good protocols are forged by subtraction. Every component that does not exist cannot break, consumes no memory, and never confuses a user. Here are the ten core architectural decisions behind lightningmail.</span>
+    </p>
+  </section>
+
+  <section id="decisions" class="decisions">
+    <!-- ADR 01 -->
+    <article class="adr">
+      <span class="adr-num">ADR-01 · <span class="de-only">Schlüssel-Auflösung</span><span class="en-only">Key Resolution</span></span>
+      <h3><span class="de-only">Kein öffentliches Adressbuch — die Empfängeradresse reicht</span><span class="en-only">No public directory — the recipient address is enough</span></h3>
+      <p>
+        <span class="de-only">Bei klassischem PGP scheitert Verschlüsselung oft daran, dass man auf zentralen Keyservern nach dem öffentlichen Schlüssel des Empfängers suchen muss. Bei lightningmail ist jede Adresse (<code>name@domain</code>) fest an ihr Relay gekoppelt. Ein DNS-Eintrag (<code>_bmail._tcp.domain</code>) verrät das Ziel-Relay, und <code>GET /v1/profile/name</code> liefert kostenlos den öffentlichen Schlüssel und den Portosatz.</span>
+        <span class="en-only">In classic PGP, encryption often fails because senders must hunt for public keys on central keyservers. In lightningmail, every address (<code>name@domain</code>) is bound to its relay. A DNS record (<code>_bmail._tcp.domain</code>) points to the destination relay, and <code>GET /v1/profile/name</code> returns the public key and postage rate for free.</span>
+      </p>
+      <div class="verdict">
+        <span class="de-only">Konsequenz: Kein zentraler Keyserver, kein DSGVO-Risiko durch öffentliche Telefonbücher, null Konfigurationsaufwand für den Absender.</span>
+        <span class="en-only">Consequence: No central keyserver, no GDPR liability from public directories, zero lookup friction for the sender.</span>
+      </div>
+    </article>
+
+    <!-- ADR 02 -->
+    <article class="adr">
+      <span class="adr-num">ADR-02 · <span class="de-only">Porto-Ökonomie</span><span class="en-only">Postage Economics</span></span>
+      <h3><span class="de-only">Kein Konversationsfenster — Porto fließt im Dialog einfach hin und her</span><span class="en-only">No conversation window — postage simply flows back and forth</span></h3>
+      <p>
+        <span class="de-only">Eine frühe Idee war ein 30-Tage-Konversationsfenster, in dem Antworten portofrei sein sollten. Kritisch betrachtet ist das unnötiger Ballast: Wenn Alice 2 Cent Porto an Bob schickt und Bob für 2 Cent antwortet, liegt das Geld wieder bei Alice — ein echtes Gespräch kostet unter dem Strich 0 Cent. Und für Neuanmeldungen bei Diensten zahlt der Nutzer einmalig einen erhöhten <b>Porto-Vorschuss</b> (Tag <code>0x0A</code>, z. B. 6 Cent), aus dem der Dienst seine 2-Cent-Bestätigungsmail direkt bezahlt.</span>
+        <span class="en-only">An early idea was a 30-day conversation window making replies free. On critical review, that state machine is unnecessary baggage: when Alice sends 2 cents of postage to Bob and Bob replies for 2 cents, both balances are back to even — a real conversation nets out to zero. For service sign-ups, the user sends a slightly higher <b>postage advance</b> (tag <code>0x0A</code>, e.g. 6 cents), out of which the service funds its 2-cent confirmation mail.</span>
+      </p>
+      <div class="verdict">
+        <span class="de-only">Konsequenz: Das Relay bleibt komplett zustandslos bezüglich vergangener Gespräche; Dienste verdienen an echten Registrierungen, statt für Bot-Abwehr zu zahlen.</span>
+        <span class="en-only">Consequence: The relay keeps zero conversation state; services earn a surplus on genuine sign-ups instead of paying for bot defense.</span>
+      </div>
+    </article>
+
+    <!-- ADR 03 -->
+    <article class="adr">
+      <span class="adr-num">ADR-03 · <span class="de-only">Geräte-Synchronisation</span><span class="en-only">Multi-Device Sync</span></span>
+      <h3><span class="de-only">Stern-Struktur über das Relay statt P2P-Syncthing</span><span class="en-only">Star topology via the relay instead of P2P Syncthing</span></h3>
+      <p>
+        <span class="de-only">Peer-to-Peer-Sync (wie Syncthing) zwischen Handy und Laptop scheitert im Alltag daran, dass beide Geräte gleichzeitig online sein müssen, Browser keine P2P-Sockets erlauben und ein verlorenes Handy beim 24-Wort-Recovery vor einem leeren Postfach stünde. Dagegen wiegen 10.000 verschlüsselte Text-Mails in SQLite nur rund 4 MB.</span>
+        <span class="en-only">Peer-to-peer sync (like Syncthing) between phone and laptop fails in practice because both devices must be online simultaneously, browsers forbid raw P2P sockets, and a lost phone restored from 24 words would face an empty inbox. By contrast, 10,000 encrypted text envelopes take only ~4 MB in SQLite.</span>
+      </p>
+      <div class="verdict">
+        <span class="de-only">Konsequenz: Verschlüsselte Briefe, Gesendet-Ordner, Entwürfe und Kontakte bleiben dauerhaft am Relay (Stern-Sync). Nur große Datei-Anhänge werden 7 Tage nach dem ersten Download am Relay gelöscht und lokal im Gerät gecacht.</span>
+        <span class="en-only">Consequence: Encrypted envelopes, sent folder, drafts and contacts stay permanently on the relay (star sync). Only large attachment blobs expire 7 days after first download and are cached locally on the device.</span>
+      </div>
+    </article>
+
+    <!-- ADR 04 -->
+    <article class="adr">
+      <span class="adr-num">ADR-04 · <span class="de-only">Relay-Betriebsmodi</span><span class="en-only">Relay Operating Modes</span></span>
+      <h3><span class="de-only">Light-Relay (LND Neutrino) &amp; Full-Relay (bitcoind)</span><span class="en-only">Light Relay (LND Neutrino) &amp; Full Relay (bitcoind)</span></h3>
+      <p>
+        <span class="de-only">Niemand sollte 700 GB Festplatte für eine Bitcoin-Full-Node kaufen müssen, nur um einen eigenen Familien-Mailserver zu betreiben. Deshalb unterstützt lightningmail zwei Modi: Das <b>Light-Relay</b> nutzt LNDs eingebauten Neutrino-Modus (BIP 157/158 Compact Block Filters über öffentliche Bitcoin-Nodes) und kommt mit ~10 GB Speicher auf einem Raspberry Pi, NAS oder Mini-VPS aus. Wer maximale Souveränität will, betreibt das <b>Full-Relay</b> mit eigenem <code>bitcoind</code>.</span>
+        <span class="en-only">Nobody should have to provision 700 GB for a Bitcoin full node just to run a family mail relay. lightningmail therefore ships two modes: the <b>Light Relay</b> uses LND’s built-in Neutrino mode (BIP 157/158 compact block filters via public Bitcoin nodes) and fits in ~10 GB on a Raspberry Pi, NAS or small VPS. Those who want maximum sovereignty run the <b>Full Relay</b> with their own <code>bitcoind</code>.</span>
+      </p>
+      <div class="verdict">
+        <span class="de-only">Konsequenz: Ein Befehl (<code>install-relay.sh --mode light|full</code>) reicht für Heimanwender wie für große Community-Relays.</span>
+        <span class="en-only">Consequence: A single command (<code>install-relay.sh --mode light|full</code>) serves both home users and large community relays.</span>
+      </div>
+    </article>
+
+    <!-- ADR 05 -->
+    <article class="adr">
+      <span class="adr-num">ADR-05 · <span class="de-only">Kontoführung</span><span class="en-only">Account Ledger</span></span>
+      <h3><span class="de-only">Kein BTCPay-Server — schlankes Go-Relay mit Millisatoshi-Ledger</span><span class="en-only">No BTCPay Server — lean Go relay with millisatoshi ledger</span></h3>
+      <p>
+        <span class="de-only">BTCPay Server ist ein hervorragendes Kassensystem für Online-Shops, benötigt aber rund 2 GB RAM (.NET, PostgreSQL, NBXplorer) und ist nicht für hochfrequente Mikro-Buchungen von 10 Satoshis pro Brief gebaut. Unser Relay-Daemon (<code>relayd</code>) ist ein einziges statisches Go-Binary (~25 MB RAM) mit eingebauter SQLite-Kontoführung, Bolt11-Ein-/Auszahlung, LUD-16-Lightning-Adresse und hash-verkettetem Euro-Steuerexport.</span>
+        <span class="en-only">BTCPay Server is a great checkout system for web shops, but it requires ~2 GB RAM (.NET, PostgreSQL, NBXplorer) and is not designed for high-frequency 10-satoshi micro-ledgering. Our relay daemon (<code>relayd</code>) is a single static Go binary (~25 MB RAM) with built-in SQLite accounting, Bolt11 top-up/withdrawal, LUD-16 Lightning Address and hash-chained EUR tax export.</span>
+      </p>
+      <div class="verdict">
+        <span class="de-only">Konsequenz: 80× weniger Speicherverbrauch, keine externe Datenbank, kein Split-Brain zwischen Shop-Kasse und Postfach.</span>
+        <span class="en-only">Consequence: 80× lower memory footprint, no external database dependency, no split-brain between checkout and mailbox.</span>
+      </div>
+    </article>
+
+    <!-- ADR 06 -->
+    <article class="adr">
+      <span class="adr-num">ADR-06 · <span class="de-only">Doppelfunktion</span><span class="en-only">Dual Function</span></span>
+      <h3><span class="de-only">Ein Schlüssel für zwei Aufgaben: Briefkasten &amp; OIDC-Ausweis</span><span class="en-only">One key for two jobs: mailbox &amp; OIDC identity</span></h3>
+      <p>
+        <span class="de-only">Klassische E-Mail wird im Internet als Behelfs-Ausweis missbraucht („Passwort vergessen → Link per Mail"). Weil jedes lightningmail-Postfach ohnehin ein kryptographisches Schlüsselpaar (secp256k1) besitzt, spricht jedes Relay nativ <b>OpenID Connect (OIDC)</b>. Beim Klick auf „Sign in with lightningmail" signiert der Client eine Challenge direkt mit dem Mailbox-Key (BIP340) — selbst für völlig unbekannte HTTPS-Webseiten ohne Vorab-Registrierung (Stateless Public Clients).</span>
+        <span class="en-only">Classic email is abused across the web as a makeshift ID card (“Forgot password → magic link”). Because every lightningmail inbox already owns a secp256k1 keypair, every relay speaks native <b>OpenID Connect (OIDC)</b>. Clicking “Sign in with lightningmail” signs a challenge directly with the mailbox key (BIP340) — even for previously unknown HTTPS websites without prior registration (stateless public clients).</span>
+      </p>
+      <div class="verdict">
+        <span class="de-only">Konsequenz: Passwortloser Login in 1 Sekunde ohne Google/Apple-Abhängigkeit und ohne Bestätigungsmails.</span>
+        <span class="en-only">Consequence: Passwordless login in 1 second with no Google/Apple dependency and no confirmation email round-trips.</span>
+      </div>
+    </article>
+
+    <!-- ADR 07 -->
+    <article class="adr">
+      <span class="adr-num">ADR-07 · <span class="de-only">Regulatorik (MiCA)</span><span class="en-only">Regulation (MiCA)</span></span>
+      <h3><span class="de-only">Strikte MiCA-Grenze: Das Relay tauscht niemals Euro in Sats</span><span class="en-only">Strict MiCA boundary: the relay never exchanges fiat for sats</span></h3>
+      <p>
+        <span class="de-only">Wer in der EU Euro annimmt und dem Nutzer dafür Krypto-Guthaben gutschreibt, betreibt ein lizenzpflichtiges Wechselgeschäft (MiCAR/BaFin). Deshalb gilt bei lightningmail eine harte architektonische Grenze: Nutzer bringen ihre Satoshis über jede beliebige Lightning-Wallet selbst mit (<code>/v1/topup</code> oder LUD-16) und heben sie jederzeit in Satoshis wieder ab (<code>/v1/withdraw</code>).</span>
+        <span class="en-only">Anyone in the EU accepting euros and crediting crypto balances operates a regulated exchange service under MiCAR. lightningmail enforces a strict architectural boundary: users bring their own satoshis from any Lightning wallet (<code>/v1/topup</code> or LUD-16) and withdraw in satoshis at any time (<code>/v1/withdraw</code>).</span>
+      </p>
+      <div class="verdict">
+        <span class="de-only">Konsequenz: Jedes Community- oder Heim-Relay bleibt ein reiner technischer Nachrichten-Dienstleister, keine Bank und kein Krypto-Broker.</span>
+        <span class="en-only">Consequence: Every community or home relay remains a pure technical messaging provider — never a bank or crypto broker.</span>
+      </div>
+    </article>
+
+    <!-- ADR 08 -->
+    <article class="adr">
+      <span class="adr-num">ADR-08 · <span class="de-only">Große Anhänge</span><span class="en-only">Large Attachments</span></span>
+      <h3><span class="de-only">Kein 25-MB-Limit: 1-MiB-Chunking gegen Byte-Porto</span><span class="en-only">No 25 MB ceiling: 1 MiB chunking billed via byte-postage</span></h3>
+      <p>
+        <span class="de-only">Klassische E-Mail begrenzt Anhänge willkürlich auf 25 MB, weil Speicher kostenlos ist. Bei lightningmail werden große Dateien clientseitig verschlüsselt, in 1-MiB-Scheiben (Chunks) samt Manifest zerlegt und nach tatsächlicher Größe (Byte-Porto für bis zu 7 Tage Transit-Vorhaltung) bezahlt.</span>
+        <span class="en-only">Classic email arbitrarily caps attachments at 25 MB because storage is unpriced. In lightningmail, large files are encrypted client-side, split into 1 MiB chunks with a manifest, and billed strictly by size (byte-postage covering up to 7 days of transit retention).</span>
+      </p>
+      <div class="verdict">
+        <span class="de-only">Konsequenz: Kein künstliches Größenlimit, sauberes Resume bei Verbindungsabbruch und volle Kostendeckung für das Relay.</span>
+        <span class="en-only">Consequence: No artificial size limit, clean chunk resume on flaky connections, and full storage cost recovery for the relay.</span>
+      </div>
+    </article>
+
+    <!-- ADR 09 -->
+    <article class="adr">
+      <span class="adr-num">ADR-09 · <span class="de-only">Schlüssel-Sicherheit</span><span class="en-only">Key Security</span></span>
+      <h3><span class="de-only">24 BIP39-Wörter als Haupt-Backup + Hardware-Entsperrung im Alltag</span><span class="en-only">24 BIP39 words as master backup + hardware unlock in daily use</span></h3>
+      <p>
+        <span class="de-only">Verliert ein Nutzer bei PGP seine Schlüsseldatei, ist das Konto tot. Bei lightningmail wird der private Schlüssel deterministisch aus 24 englischen BIP39-Wörtern abgeleitet (mit Wortquiz bei der Einrichtung). Im Alltag tippt niemand 24 Wörter: Auf Android entsperrt der Fingerabdruck den Hardware-Keystore, im Browser ein Passkey oder eine Passphrase-geschützte <code>.lmkey</code>-Datei.</span>
+        <span class="en-only">If a PGP user loses their keyfile, the account is dead. In lightningmail, the private key is derived deterministically from 24 standard BIP39 words (verified by a quiz during setup). In daily use nobody types 24 words: on Android, a fingerprint unlocks the hardware keystore; in the browser, a passkey or passphrase-wrapped <code>.lmkey</code> file unlocks the session.</span>
+      </p>
+      <div class="verdict">
+        <span class="de-only">Konsequenz: Ein Zettel Papier überlebt jeden Handyverlust; der private Schlüssel verlässt das Endgerät nie unverschlüsselt.</span>
+        <span class="en-only">Consequence: A sheet of paper survives any lost phone; the private key never leaves the device unencrypted.</span>
+      </div>
+    </article>
+
+    <!-- ADR 10 -->
+    <article class="adr">
+      <span class="adr-num">ADR-10 · <span class="de-only">Thunderbird &amp; Legacy-Clients</span><span class="en-only">Thunderbird &amp; Legacy Clients</span></span>
+      <h3><span class="de-only">Direktes Tab-Add-on (.xpi) statt komplizierter lokaler IMAP-Bridge</span><span class="en-only">Direct tab add-on (.xpi) instead of a complex local IMAP bridge</span></h3>
+      <p>
+        <span class="de-only">Eine lokale IMAP/SMTP-Bridge (wie bei Proton Mail) zwingt normale Nutzer dazu, Ports, Servernamen und Zertifikate auf <code>127.0.0.1</code> in ihrem Mailprogramm einzurichten — und kann trotzdem weder Lightning-Guthaben noch Porto-Vorschuss oder 24-Wort-Backups abbilden. Unser Thunderbird-Add-on (<code>.xpi</code>) öffnet das komplette lightningmail-Postfach mit einem Klick als nativen Tab direkt in Thunderbird.</span>
+        <span class="en-only">A local IMAP/SMTP bridge forces users to configure localhost ports and certificates inside their mail client — and still cannot represent Lightning balances, postage advances or 24-word backups. Our Thunderbird add-on (<code>.xpi</code>) opens the full lightningmail mailbox with a single click as a native tab right inside Thunderbird.</span>
+      </p>
+      <div class="verdict">
+        <span class="de-only">Konsequenz: Installation mit zwei Klicks, null Server-/Port-Konfiguration, voller Funktionsumfang.</span>
+        <span class="en-only">Consequence: Two-click install, zero server/port configuration, 100% feature parity.</span>
+      </div>
+    </article>
+  </section>
+
+  <!-- CLIENT STRATEGY & PORTING GUIDE -->
+  <section id="clients" class="porting">
+    <h2>
+      <span class="de-only">Fokus auf Linux, Android, Web &amp; Thunderbird — und wie du Clients für iOS, macOS oder Windows baust</span>
+      <span class="en-only">Focus on Linux, Android, Web &amp; Thunderbird — and how to build clients for iOS, macOS or Windows</span>
+    </h2>
+    <p>
+      <span class="de-only">Als MIT-lizenziertes Open-Source-Projekt konzentrieren wir uns im Kernteam auf vier erstklassige, kompromisslose Referenz-Clients: den <b>nativen Linux-Client</b> (einzelnes Binary für 1080p/4K-Desktop &amp; CLI), die <b>native Android-App (APK)</b> mit Hardware-Fingerabdruck-Tresor und Hintergrund-Wächter, das <b>Thunderbird-Tab-Add-on (.xpi)</b> und die <b>Web-App (PWA)</b>. Für native iOS-, macOS- oder Windows-Clients ist das Protokoll komplett offen und in vier einfachen Schritten implementiert:</span>
+      <span class="en-only">As an MIT-licensed open-source project, our core team focuses on four uncompromising reference clients: the <b>native Linux client</b> (single binary for 1080p/4K desktop &amp; CLI), the <b>native Android app (APK)</b> with hardware fingerprint keystore and background notifier, the <b>Thunderbird tab add-on (.xpi)</b>, and the <b>Web App (PWA)</b>. For native iOS, macOS or Windows clients, the protocol is completely open and takes just four steps to implement:</span>
+    </p>
+
+    <div class="steps-grid">
+      <div class="step-box">
+        <h3>1. Keypair &amp; BIP340-Auth</h3>
+        <p>
+          <span class="de-only">Aus 24 BIP39-Wörtern (HKDF-SHA256 mit <code>"lightningmail-v1"</code>) ein <code>secp256k1</code>-Schlüsselpaar ableiten. Konto per <code>POST /v1/account</code> anlegen und Challenge <code>"bmail-auth-v1:&lt;name&gt;"</code> per BIP340-Schnorr signieren → <code>POST /v1/auth</code> liefert das Bearer-Token.</span>
+          <span class="en-only">Derive a <code>secp256k1</code> keypair from 24 BIP39 words (HKDF-SHA256 with <code>"lightningmail-v1"</code>). Register via <code>POST /v1/account</code> and sign <code>"bmail-auth-v1:&lt;name&gt;"</code> using BIP340 Schnorr → <code>POST /v1/auth</code> returns the Bearer token.</span>
+        </p>
+      </div>
+      <div class="step-box">
+        <h3>2. Profile &amp; LM1-Envelope</h3>
+        <p>
+          <span class="de-only">Empfänger per <code>GET /v1/profile/{name@domain}</code> abfragen (liefert 33-Byte-Pubkey + Portosätze). JSON-Payload (<code>subject</code>, <code>body</code>, <code>attachments</code>) per ECIES (<code>secp256k1</code> ECDH + HKDF + <code>XChaCha20-Poly1305</code>) verschlüsseln und im binären TLV-Envelope <code>LM1</code> mit BIP340 signieren.</span>
+          <span class="en-only">Query the recipient via <code>GET /v1/profile/{name@domain}</code> (returns 33-byte pubkey + postage rates). Encrypt the JSON payload (<code>subject</code>, <code>body</code>, <code>attachments</code>) using ECIES (<code>secp256k1</code> ECDH + HKDF + <code>XChaCha20-Poly1305</code>) and sign inside the binary <code>LM1</code> TLV envelope with BIP340.</span>
+        </p>
+      </div>
+      <div class="step-box">
+        <h3>3. Send, Inbox &amp; 1-MiB-Blobs</h3>
+        <p>
+          <span class="de-only">Anhänge &gt; 1 MiB in Chunks teilen, per <code>XChaCha20-Poly1305</code> verschlüsseln und auf <code>POST /v1/blob</code> hochladen. Den fertigen Envelope an <code>POST /v1/send?to=name@domain</code> senden — das Relay übernimmt Lightning-Keysend und DNS-Routing. Abruf über <code>GET /v1/inbox</code> (löst automatisch ✓✓-Receipts aus).</span>
+          <span class="en-only">Split attachments &gt; 1 MiB into chunks, encrypt with <code>XChaCha20-Poly1305</code> and upload to <code>POST /v1/blob</code>. Post the envelope to <code>POST /v1/send?to=name@domain</code> — the relay handles Lightning keysend and DNS routing. Fetch mail via <code>GET /v1/inbox</code> (automatically triggers ✓✓ receipts).</span>
+        </p>
+      </div>
+      <div class="step-box">
+        <h3>4. Stern-Sync (<code>/v1/state</code>)</h3>
+        <p>
+          <span class="de-only">Gelesen-Flags, Gesendet-Ordner, Entwürfe und Kontakte als JSON mit dem eigenen Public Key verschlüsseln (Self-ECIES) und per <code>GET / PUT /v1/state</code> (Compare-And-Swap auf <code>expect_version</code>) zwischen allen Geräten synchronisieren. Referenz-Code: ~400 Zeilen TypeScript in <code>client/src/</code>.</span>
+          <span class="en-only">Encrypt read flags, sent folder, drafts and contacts as JSON to the user’s own public key (self-ECIES) and sync across devices via <code>GET / PUT /v1/state</code> (compare-and-swap on <code>expect_version</code>). Reference implementation: ~400 lines of TypeScript in <code>client/src/</code>.</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="dl-strip">
+      <a class="btn" href="/lightningmail-linux-amd64" download>🐧 <span class="de-only">Linux-Client herunterladen (x86_64 Binary)</span><span class="en-only">Download Linux Client (x86_64 Binary)</span></a>
+      <a class="btn" href="/lightningmail.apk" download>🤖 <span class="de-only">Android-App herunterladen (.apk)</span><span class="en-only">Download Android App (.apk)</span></a>
+      <a class="btn" href="/lightningmail-thunderbird.xpi" download>🦅 <span class="de-only">Thunderbird Add-on (.xpi)</span><span class="en-only">Thunderbird Add-on (.xpi)</span></a>
+      <a class="btn alt" href="/app/">🌐 <span class="de-only">Web-App (PWA) starten</span><span class="en-only">Launch Web App (PWA)</span></a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div>⚡ <b>lightningmail</b> · MIT License</div>
+  <div>
+    <a href="/"><span class="de-only">Startseite</span><span class="en-only">Home</span></a> ·
+    <a href="/app/">Web-App</a> ·
+    <a href="/impressum">Impressum</a>
+  </div>
+</footer>
+
+<script>
+const btn = document.getElementById('langBtn');
+const setLang = (l) => {
+  document.documentElement.lang = l;
+  btn.textContent = l === 'de' ? 'EN' : 'DE';
+  try { localStorage.setItem('lm_lang', l); } catch {}
+};
+try {
+  const saved = localStorage.getItem('lm_lang');
+  if (saved === 'en' || saved === 'de') setLang(saved);
+} catch {}
+btn.onclick = () => setLang(document.documentElement.lang === 'de' ? 'en' : 'de');
+</script>
+</body>
+</html>

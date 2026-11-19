@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,14 +24,8 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: lmcli <command> [args]")
-		fmt.Fprintln(os.Stderr, "  init <name>            create mailbox keypair + account")
-		fmt.Fprintln(os.Stderr, "  send <to> <subject> <body> [--attach <sha256>]")
-		fmt.Fprintln(os.Stderr, "  inbox                  list inbox messages")
-		fmt.Fprintln(os.Stderr, "  balance                show balance")
-		fmt.Fprintln(os.Stderr, "  blob upload <file>     upload attachment blob")
-		fmt.Fprintln(os.Stderr, "  blob get <sha256>      download blob to stdout")
-		os.Exit(1)
+		cmdGUI(nil) // ohne Argumente: nativer Linux-Client (GUI)
+		return
 	}
 
 	cmd := os.Args[1]
@@ -40,6 +36,8 @@ func main() {
 	os.MkdirAll(home, 0700)
 
 	switch cmd {
+	case "gui":
+		cmdGUI(os.Args[2:])
 	case "init":
 		cmdInit(home, os.Args[2:])
 	case "send":
@@ -50,12 +48,35 @@ func main() {
 		cmdToken(home, os.Args[2:])
 	case "balance":
 		cmdBalance(home, os.Args[2:])
+	case "topup":
+		cmdTopup(home, os.Args[2:])
+	case "withdraw":
+		cmdWithdraw(home, os.Args[2:])
+	case "statement":
+		cmdStatement(home, os.Args[2:])
 	case "blob":
 		cmdBlob(home, os.Args[2:])
+	case "help", "-h", "--help":
+		usage()
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", cmd)
+		usage()
 		os.Exit(1)
 	}
+}
+
+func usage() {
+	fmt.Fprintln(os.Stderr, "usage: lmcli <command> [args]")
+	fmt.Fprintln(os.Stderr, "  (keine Args) | gui [--port N]  nativer Linux-Client (lokale GUI)")
+	fmt.Fprintln(os.Stderr, "  init <name>            create mailbox keypair + account")
+	fmt.Fprintln(os.Stderr, "  send <to> <subject> <body> [--signup] [--attach <sha256>]")
+	fmt.Fprintln(os.Stderr, "  inbox                  list inbox messages")
+	fmt.Fprintln(os.Stderr, "  balance                show balance")
+	fmt.Fprintln(os.Stderr, "  topup <sats>           Bolt11-Invoice zum Aufladen erzeugen")
+	fmt.Fprintln(os.Stderr, "  withdraw <bolt11>      Guthaben an Bolt11-Invoice auszahlen")
+	fmt.Fprintln(os.Stderr, "  statement [--csv]      Kontoauszug (JSON, mit --csv als CSV)")
+	fmt.Fprintln(os.Stderr, "  blob upload <file>     upload attachment blob")
+	fmt.Fprintln(os.Stderr, "  blob get <sha256>      download blob to stdout")
 }
 
 func cmdInit(home string, args []string) {
@@ -177,19 +198,22 @@ func mustAuth(home string) *session {
 func (s *session) authHdr() string { return "Bearer " + s.token }
 
 func cmdSend(home string, args []string) {
-	// Parse --attach <sha256_hex> optional flag before positional args.
+	// Parse --attach <sha256_hex> / --signup optional flags before positional args.
 	var attachRefs []string
+	signup := false
 	posArgs := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--attach" && i+1 < len(args) {
 			attachRefs = append(attachRefs, args[i+1])
 			i++
+		} else if args[i] == "--signup" {
+			signup = true // Tag 0x0A: Erstkontakt → Porto-Vorschuss (welcome_sats)
 		} else {
 			posArgs = append(posArgs, args[i])
 		}
 	}
 	if len(posArgs) < 3 {
-		fmt.Fprintln(os.Stderr, "usage: lmcli send <to> <subject> <body> [--attach <sha256>]")
+		fmt.Fprintln(os.Stderr, "usage: lmcli send <to> <subject> <body> [--signup] [--attach <sha256>]")
 		os.Exit(1)
 	}
 	to := posArgs[0]
@@ -285,6 +309,7 @@ func cmdSend(home string, args []string) {
 		Timestamp:         time.Now().Unix(),
 		PayloadCiphertext: sealed,
 		EphemeralPubkey:   ephPub,
+		Signup:            signup,
 	}
 
 	sig, err := crypto.SignEnvelope(env, s.priv)
@@ -300,7 +325,8 @@ func cmdSend(home string, args []string) {
 		os.Exit(1)
 	}
 
-	req, _ := http.NewRequest("POST", s.relay+"/v1/send", bytes.NewReader(envBin))
+	// ?to= liefert dem Relay den Ziel-Hinweis (name@relay) fürs Routing
+	req, _ := http.NewRequest("POST", s.relay+"/v1/send?to="+url.QueryEscape(to), bytes.NewReader(envBin))
 	req.Header.Set("Authorization", s.authHdr())
 	req.Header.Set("Content-Type", "application/octet-stream")
 	resp, err := s.client.Do(req)
@@ -382,6 +408,101 @@ func cmdBalance(home string, args []string) {
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
+	io.Copy(os.Stdout, resp.Body)
+	fmt.Println()
+}
+
+// --- Wallet-Kommandos (v1.0): topup, withdraw, statement ---
+
+// doAuth: HTTP-Request mit Bearer-Token; body != nil → JSON-POST.
+func (s *session) doAuth(method, path string, body []byte) (*http.Response, error) {
+	var rd io.Reader
+	if body != nil {
+		rd = bytes.NewReader(body)
+	}
+	req, _ := http.NewRequest(method, s.relay+path, rd)
+	req.Header.Set("Authorization", s.authHdr())
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return s.client.Do(req)
+}
+
+func cmdTopup(home string, args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: lmcli topup <sats>")
+		os.Exit(1)
+	}
+	sats, err := strconv.ParseInt(args[0], 10, 64)
+	if err != nil || sats < 1 {
+		fmt.Fprintln(os.Stderr, "topup: <sats> muss eine positive Ganzzahl sein")
+		os.Exit(1)
+	}
+	s := mustAuth(home)
+	body, _ := json.Marshal(map[string]int64{"amount_sats": sats})
+	resp, err := s.doAuth("POST", "/v1/topup", body)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "topup: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		fmt.Fprintf(os.Stderr, "topup failed (%d): %s\n", resp.StatusCode, raw)
+		os.Exit(1)
+	}
+	var tr struct {
+		PaymentRequest string `json:"payment_request"`
+	}
+	json.Unmarshal(raw, &tr)
+	fmt.Println(tr.PaymentRequest)
+}
+
+func cmdWithdraw(home string, args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: lmcli withdraw <bolt11>")
+		os.Exit(1)
+	}
+	s := mustAuth(home)
+	body, _ := json.Marshal(map[string]string{"payment_request": args[0]})
+	resp, err := s.doAuth("POST", "/v1/withdraw", body)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "withdraw: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		fmt.Fprintf(os.Stderr, "withdraw failed (%d): %s\n", resp.StatusCode, raw)
+		os.Exit(1)
+	}
+	var wr struct {
+		AmountSats int64  `json:"amount_sats"`
+		Preimage   string `json:"preimage"`
+	}
+	json.Unmarshal(raw, &wr)
+	fmt.Printf("paid %d sats\npreimage: %s\n", wr.AmountSats, wr.Preimage)
+}
+
+func cmdStatement(home string, args []string) {
+	fmtType := "json"
+	for _, a := range args {
+		if a == "--csv" {
+			fmtType = "csv"
+		}
+	}
+	s := mustAuth(home)
+	resp, err := s.doAuth("GET", "/v1/statement?fmt="+fmtType, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "statement: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		raw, _ := io.ReadAll(resp.Body)
+		fmt.Fprintf(os.Stderr, "statement failed (%d): %s\n", resp.StatusCode, raw)
+		os.Exit(1)
+	}
 	io.Copy(os.Stdout, resp.Body)
 	fmt.Println()
 }

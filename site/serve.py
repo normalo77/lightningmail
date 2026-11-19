@@ -72,6 +72,8 @@ class H(SimpleHTTPRequestHandler):
             return self._static(DIST, rel, spa=os.path.join(DIST, "index.html"))
         if p in ("/impressum", "/impressum.html", "/imprint"):
             return self._static(SITE, "impressum.html")
+        if p in ("/architecture", "/architecture.html", "/architektur"):
+            return self._static(SITE, "architecture.html")
         if p.startswith("/keys/"):
             return self.send_error(404)  # Demo-Keys bleiben aus dem öffentlichen Pfad raus
         return self._static(SITE, p, spa=os.path.join(SITE, "index.html"))

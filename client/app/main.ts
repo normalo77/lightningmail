@@ -120,6 +120,8 @@ async function login(pem: string) {
   }
   token = ((await r.json()) as any).token;
   localStorage.setItem(AUTO_KEY, JSON.stringify({ acct, base, pem }));
+  // Android: Schluessel zusaetzlich im Hardware-Keystore versiegeln (AES/GCM)
+  try { (window as any).AndroidNative?.saveVault?.(JSON.stringify({ acct, base, pem })); } catch { /* Tresor ist Komfort */ }
   localStorage.removeItem(NOAUTO_KEY);
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
   const bp = $('btn-passkey'); if (bp && passkeyAvailable()) { bp.style.display = ''; bp.onclick = passkeyRegister; }
@@ -429,7 +431,7 @@ function openPicker(cb: (addrs: string[]) => void) {
   const ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;z-index:50';
   ov.innerHTML = `<div class="window" style="width:430px;max-width:92vw"><div class="title-bar"><div class="title-bar-text">Adressbuch — Empfänger wählen</div></div>
-    <div class="window-body" style="padding:8px"><div style="max-height:300px;overflow:auto;background:#fff;border:2px inset #dfdfdf">` +
+    <div class="window-body" style="padding:8px"><div style="max-height:300px;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:7px">` +
     (all.length ? all.map(c => `<label style="display:block;padding:3px 6px;font-size:12px;font-weight:400"><input type="checkbox" value="${esc(c.lnaddr || c.email)}"> ${esc(abLabel(c))} <span class="meta">${esc(c.lnaddr || c.email)}</span></label>`).join('')
       : '<div class="meta" style="padding:8px">Keine Adresse in den Kontakten — Adressbuch zuerst füllen.</div>') +
     `</div><div style="margin-top:8px;text-align:right"><button id="pk-ok">OK</button> <button id="pk-x">Abbrechen</button></div></div></div>`;
@@ -644,11 +646,11 @@ async function openWizard() {
           if (b.dataset.done) return;
           if (b.getAttribute('data-w') === words[p]) {
             b.dataset.done = '1';
-            b.style.background = '#98fb98';
+            b.style.background = '#bbf7d0';
             document.querySelectorAll(`#wq-${qi} button`).forEach(x => { (x as HTMLButtonElement).disabled = true; });
             if (++done === qs.length) ($('w-next') as HTMLButtonElement).disabled = false;
           } else {
-            b.style.background = '#ffb6c1';
+            b.style.background = '#fecaca';
             setErr('Falsches Wort — schau auf deinen Zettel.');
           }
         });
@@ -1032,12 +1034,20 @@ async function oidcFlow() {
 
 // Start: gespeicherten Schluessel wiederladen. Ohne explizites Abmelden (lm_noauto)
 // loggt die App sofort ein; sonst zeigt der Login die Ein-Klick-Zeile "Weiter als …".
-const autoSaved = loadAuto();
+let autoSaved = loadAuto();
+let fromNativeVault = false;
+// Android-Tresor: wenn localStorage leer ist, Schluessel aus dem Hardware-Keystore holen
+if (!autoSaved && (window as any).AndroidNative?.loadVault) {
+  try {
+    const nv = JSON.parse((window as any).AndroidNative.loadVault() || 'null');
+    if (nv && typeof nv.pem === 'string' && nv.pem && nv.acct && nv.base) { autoSaved = nv; fromNativeVault = true; }
+  } catch { /* Tresor leer oder kaputt — normaler Login */ }
+}
 if (autoSaved) {
   ($('l-acct') as HTMLInputElement).value = autoSaved.acct;
   ($('l-relay') as HTMLSelectElement).value = autoSaved.base;
   const q = $('l-quick'); q.style.display = '';
-  ($('l-quickgo') as HTMLButtonElement).textContent = `► Weiter als ${autoSaved.acct}`;
+  ($('l-quickgo') as HTMLButtonElement).textContent = `► Weiter als ${autoSaved.acct}${fromNativeVault ? ' (Android-Tresor)' : ''}`;
   $('l-quickgo').onclick = () => {
     pemCache = autoSaved.pem;
     login(autoSaved.pem).catch((e: any) => { $('l-err').textContent = '✗ ' + String(e?.message || e).slice(0, 120); });

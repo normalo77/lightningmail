@@ -458,6 +458,7 @@ html[lang="en"] .de-only { display: none !important; }
     <a href="#doppelt"><span class="de-only">Anmeldung</span><span class="en-only">Sign-up</span></a>
     <a href="#bausteine"><span class="de-only">Baukasten</span><span class="en-only">Toolbox</span></a>
     <a href="#tiers">Tiers</a>
+    <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span></a>
     <a href="/app/">Webmail</a>
     <button class="lang" id="langBtn" type="button" onclick="toggleLang()">English</button>
   </nav>
@@ -478,6 +479,7 @@ html[lang="en"] .de-only { display: none !important; }
         </p>
         <div class="cta-row">
           <a class="btn" href="#kreislauf"><span class="de-only">Portokreislauf ansehen</span><span class="en-only">See the postage cycle</span></a>
+          <a class="btn secondary" href="/architecture"><span class="de-only">Architekturentscheidungen</span><span class="en-only">Architecture decisions</span></a>
           <a class="btn secondary" href="/app/">Webmail</a>
         </div>
         <p class="meta-note">
@@ -838,9 +840,9 @@ html[lang="en"] .de-only { display: none !important; }
         <span class="en-only">A single Go binary backed by SQLite handles inbox storage, postage debiting, OIDC login, device sync and blob storage. As a <b>Light Relay</b> it runs with LND in Neutrino mode without needing its own Bitcoin full node (~10&nbsp;GB disk, ideal for home NAS, Raspberry Pi or small VPS); as a <b>Full Relay</b> it connects to a dedicated <code>bitcoind</code>.</span>
       </li>
       <li>
-        <b><span class="de-only">Clients für Android, Apple, Linux, Windows, Web &amp; Thunderbird</span><span class="en-only">Clients for Android, Apple, Linux, Windows, Web &amp; Thunderbird</span></b>
-        <span class="de-only">Ein gemeinsamer TypeScript-Kryptokern bedient alle Systeme: als direkt installierbare Web-App (PWA), als Android-App (APK), als <a href="/lightningmail-thunderbird.xpi" style="color:var(--gold)">Thunderbird-Tab-Add-on (.xpi)</a> sowie für iOS/macOS, Linux und Windows. Alle Geräte eines Nutzers synchronisieren Posteingang, Gesendet-Ordner, Entwürfe und Adressbuch in einer Stern-Struktur verschlüsselt über das eigene Relay; Anhänge werden zusätzlich lokal im Gerät gecacht.</span>
-        <span class="en-only">A shared TypeScript crypto core powers every platform: as an installable Progressive Web App (PWA), as an Android app (APK), as a <a href="/lightningmail-thunderbird.xpi" style="color:var(--gold)">Thunderbird tab add-on (.xpi)</a>, and for iOS/macOS, Linux and Windows. All of a user’s devices sync inbox, sent folder, drafts and address book in a star topology encrypted via their own relay, while opened attachments are cached locally on the device.</span>
+        <b><span class="de-only">Clients für Linux, Android, Web &amp; Thunderbird</span><span class="en-only">Clients for Linux, Android, Web &amp; Thunderbird</span></b>
+        <span class="de-only">Ein gemeinsamer Kryptokern bedient unsere vier Referenz-Clients: den <a href="/lightningmail-linux-amd64" style="color:var(--ink);font-weight:700">nativen Linux-Client (x86_64 Binary)</a>, die <a href="/lightningmail.apk" style="color:var(--ink);font-weight:700">Android-App (.apk)</a> mit Hardware-Keystore, das <a href="/lightningmail-thunderbird.xpi" style="color:var(--ink);font-weight:700">Thunderbird-Tab-Add-on (.xpi)</a> und die Web-App (PWA). Wie man Clients für iOS, macOS oder Windows baut, zeigt die Unterseite <a href="/architecture#clients" style="color:var(--ink);font-weight:700">Architekturentscheidungen &amp; Client-Portierung</a>.</span>
+        <span class="en-only">A shared crypto core powers our four reference clients: the <a href="/lightningmail-linux-amd64" style="color:var(--ink);font-weight:700">native Linux client (x86_64 binary)</a>, the <a href="/lightningmail.apk" style="color:var(--ink);font-weight:700">Android app (.apk)</a> with hardware keystore, the <a href="/lightningmail-thunderbird.xpi" style="color:var(--ink);font-weight:700">Thunderbird tab add-on (.xpi)</a> and the Web App (PWA). How to build clients for iOS, macOS or Windows is documented on <a href="/architecture#clients" style="color:var(--ink);font-weight:700">Architecture Decisions &amp; Client Porting</a>.</span>
       </li>
       <li>
         <b>Envelope LM1 &amp; Chunked Blobs</b>
