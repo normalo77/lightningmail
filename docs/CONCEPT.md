@@ -99,8 +99,8 @@ Eine bmail-Adresse dereferenziert zu:
    Wallets besendbar (Brücken-Effekt geschenkt).
 3. **Identität:** öffentlicher Key der Person (`GET /v1/profile/{name}`); TOFU +
    Fingerprint-Wechsel-Alert (Safety-Number-Muster) sowie Login-Anker via OIDC.
-4. **Preisprofil:** Porto-Satz des Postfachs (Standard-Porto bzw. erhöhtes
-   Willkommensporto bei Diensten). Kein öffentliches Adressbuch, kein
+4. **Preisprofil:** Porto-Satz des Postfachs (Standard-Porto bzw. erhöhter
+   Porto-Vorschuss bei Diensten). Kein öffentliches Adressbuch, kein
    Konversationsfenster — die Empfängeradresse allein reicht zur Auflösung.
 
 Merkbarkeit: kurz, tippbar, vorlesbar (`bernd@bmail.de`, `gisela@familie.koeln`);
@@ -649,12 +649,12 @@ Konstante „der Sender zahlt" und ließe das Opfer für seinen eigenen Spam zah
   keine Mail-Kosten.
 - **Stufe B — Bezahlte Registrierung & Systemmails (ohne Konversationsfenster):**
   - Der USER schickt zur Registrierung den ersten Brief an den Dienst (z. B.
-    `auth@dienst.de`) und zahlt dabei das erhöhte **Willkommensporto** des
+    `auth@dienst.de`) und zahlt dabei den **Porto-Vorschuss** des
     Dienstes (z. B. 50 sats statt 10 sats).
   - Der Dienst antwortet mit der Bestätigungsmail zum ganz normalen Standardporto
-    des Users (z. B. 10 sats) und behält die Differenz (40 sats) als Einnahme.
+    des Users (z. B. 10 sats) aus diesem Vorschuss und behält die Differenz (40 sats) als Einnahme.
   - **Kein Konversationsfenster nötig:** Jede Richtung zahlt wie überall im
-    Protokoll ihr normales Porto; weil das Willkommensporto des Dienstes höher
+    Protokoll ihr normales Porto; weil der Porto-Vorschuss des Dienstes höher
     liegt als das Standard-Rückporto, verdient der Dienst an jeder echten
     Registrierung, ohne dass das Relay eine Konversations-State-Machine braucht.
 

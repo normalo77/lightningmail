@@ -750,8 +750,8 @@ html[lang="en"] .de-only { display: none !important; }
           <span class="en-only"><b>The dual function in lightningmail:</b> Every lightningmail address (like <code>name@domain</code>) is, at its core, a cryptographic key. That single key performs two jobs at once: it <b>decrypts your private letters</b> in your inbox and acts as a <b>tamper-proof login credential</b> for websites and services. For pure authentication (“Sign in with lightningmail”), the relay speaks the open web standard <b>OpenID Connect (OIDC)</b>: when you click the login button, your browser asks for your consent and signs a one-time challenge directly with your mailbox key. Within a second, the service has mathematical proof that you own the address — with no password, no confirmation mail, and no tech giant like Google or Apple in the middle.</span>
         </p>
         <p>
-          <span class="de-only"><b>Und wenn bei einer Neuregistrierung doch eine Bestätigungsmail fließen soll?</b> Dann kehrt das Porto die Kosten um: Nicht der Dienst schickt unaufgefordert eine Mail ins Blaue, sondern der neue Nutzer schickt über ein kleines Service-Gateway den ersten Registrierungsbrief mit einem leicht erhöhten Willkommensporto (etwa 6&nbsp;Cent) an den Dienst. Der Dienst schickt seine Bestätigungsmail für das normale Standardporto (2&nbsp;Cent) zurück und behält 4&nbsp;Cent Überschuss. Damit kostet Bot-Abwehr den Dienst kein Geld mehr — jede echte Anmeldung trägt sich selbst.</span>
-          <span class="en-only"><b>And when a new registration does require a confirmation mail?</b> Postage flips the economics: instead of the service firing a message into the dark, the new user sends the initial registration letter with a slightly higher welcome postage (say, 6&nbsp;cents) to the service’s gateway. The service sends its confirmation letter back at the standard postage rate (2&nbsp;cents) and keeps the 4-cent surplus. Bot defense stops costing the service money — every genuine sign-up pays its own way.</span>
+          <span class="de-only"><b>Und wenn bei einer Neuregistrierung doch eine Bestätigungsmail fließen soll?</b> Dann kehrt das Porto die Kosten um: Nicht der Dienst schickt unaufgefordert eine Mail ins Blaue, sondern der neue Nutzer schickt über ein kleines Service-Gateway den ersten Registrierungsbrief mit einem leicht erhöhten <b>Porto-Vorschuss</b> (etwa 6&nbsp;Cent) an den Dienst. Der Dienst schickt seine Bestätigungsmail für das normale Standardporto (2&nbsp;Cent) aus diesem Vorschuss zurück und behält 4&nbsp;Cent für die Bereitstellung. Damit kostet Bot-Abwehr den Dienst kein Geld mehr — jede echte Anmeldung trägt sich selbst.</span>
+          <span class="en-only"><b>And when a new registration does require a confirmation mail?</b> Postage flips the economics: instead of the service firing a message into the dark, the new user sends the initial registration letter with a slightly higher <b>postage advance</b> (say, 6&nbsp;cents) to the service’s gateway. The service sends its confirmation letter back at the standard postage rate (2&nbsp;cents) out of that advance and keeps the 4-cent surplus. Bot defense stops costing the service money — every genuine sign-up pays its own way.</span>
         </p>
       </div>
     </div>
@@ -790,8 +790,8 @@ html[lang="en"] .de-only { display: none !important; }
 
     <div class="status">
       <b><span class="de-only">Status heute (v1.0):</span><span class="en-only">Status today (v1.0):</span></b>
-      <span class="de-only">Beide Funktionen sind komplett gebaut und live im Code: (1) Briefversand inkl. 1-MiB-Chunking für große Anhänge, Byte-Porto, ✓/✓✓-Empfangsbestätigung und Euro-Steuerexport sind aktiv. (2) Der OIDC-Identity-Provider („Sign in with lightningmail“ — auch ohne Vorab-Registrierung für jede HTTPS-Domain) sowie das Willkommensporto (Tag <code>0x0A</code>) samt Headless <b>Service-Connector</b> (<code>client/src/connector.ts</code> &amp; Daemon) laufen produktiv.</span>
-      <span class="en-only">Both functions are completely built and live in code: (1) Mail delivery including 1&nbsp;MiB chunking for large attachments, byte-postage, ✓/✓✓ delivery receipts and EUR tax CSV export are active. (2) The OIDC Identity Provider (“Sign in with lightningmail” — including zero-registration stateless HTTPS origins) as well as welcome postage (tag <code>0x0A</code>) and the headless <b>Service Connector</b> (<code>client/src/connector.ts</code> &amp; daemon) are running in production code.</span>
+      <span class="de-only">Beide Funktionen sind komplett gebaut und live im Code: (1) Briefversand inkl. 1-MiB-Chunking für große Anhänge, Byte-Porto, ✓/✓✓-Empfangsbestätigung und Euro-Steuerexport sind aktiv. (2) Der OIDC-Identity-Provider („Sign in with lightningmail“ — auch ohne Vorab-Registrierung für jede HTTPS-Domain) sowie der Porto-Vorschuss (Tag <code>0x0A</code>) samt Headless <b>Service-Connector</b> (<code>client/src/connector.ts</code> &amp; Daemon) laufen produktiv.</span>
+      <span class="en-only">Both functions are completely built and live in code: (1) Mail delivery including 1&nbsp;MiB chunking for large attachments, byte-postage, ✓/✓✓ delivery receipts and EUR tax CSV export are active. (2) The OIDC Identity Provider (“Sign in with lightningmail” — including zero-registration stateless HTTPS origins) as well as the postage advance (tag <code>0x0A</code>) and the headless <b>Service Connector</b> (<code>client/src/connector.ts</code> &amp; daemon) are running in production code.</span>
     </div>
   </section>
 
@@ -884,7 +884,7 @@ html[lang="en"] .de-only { display: none !important; }
         </tr>
         <tr>
           <td><span class="de-only">Dienst</span><span class="en-only">Service</span></td>
-          <td><span class="de-only">Bindet „Sign in with lightningmail“ per Standard-OIDC für passwortlose Logins ein — oder nutzt den Service-Connector, um bei Neuanmeldungen Willkommensporto einzunehmen und Bestätigungsmails aus dem Überschuss zu bezahlen.</span><span class="en-only">Integrates “Sign in with lightningmail” via standard OIDC for passwordless logins — or uses the Service Connector to collect welcome postage on new sign-ups and fund confirmation mails from the surplus.</span></td>
+          <td><span class="de-only">Bindet „Sign in with lightningmail“ per Standard-OIDC für passwortlose Logins ein — oder nutzt den Service-Connector, um bei Neuanmeldungen einen Porto-Vorschuss einzunehmen und Bestätigungsmails direkt daraus zu bezahlen.</span><span class="en-only">Integrates “Sign in with lightningmail” via standard OIDC for passwordless logins — or uses the Service Connector to collect a postage advance on new sign-ups and fund confirmation mails directly from it.</span></td>
         </tr>
         <tr>
           <td><span class="de-only">Relay-Betreiber</span><span class="en-only">Relay operator</span></td>
@@ -970,16 +970,16 @@ const SCENARIOS = {
   },
   signup: {
     de: {
-      sender: '−6 ct Willkommensporto (Nutzer)',
+      sender: '−6 ct Porto-Vorschuss (Nutzer)',
       today: 'OIDC-Login (0 ct) + Tag 0x0A live',
-      planned: '+4 ct Netto beim Dienst (6 ct rein, 2 ct Antwort)',
-      note: 'Beides läuft im Code: Reiner Login per OIDC ist kostenlos eingebaut, und beim Registrierungsbrief (Tag 0x0A) zahlt der Nutzer das Willkommensporto (z. B. 6 Cent), worauf der Service-Connector für 2 Cent Standardporto antwortet.'
+      planned: '+4 ct Netto beim Dienst (6 ct Vorschuss, 2 ct Antwort)',
+      note: 'Beides läuft im Code: Reiner Login per OIDC ist kostenlos eingebaut, und beim Registrierungsbrief (Tag 0x0A) zahlt der Nutzer den Porto-Vorschuss (z. B. 6 Cent), woraus der Service-Connector die Bestätigungsmail (2 Cent Standardporto) bezahlt.'
     },
     en: {
-      sender: '−6 ct welcome postage (user)',
+      sender: '−6 ct postage advance (user)',
       today: 'OIDC login (0 ct) + tag 0x0A live',
-      planned: '+4 ct net for service (6 ct in, 2 ct reply)',
-      note: 'Both run in today’s code: pure OIDC login is built in for free, and with a registration letter (tag 0x0A) the user pays welcome postage (e.g. 6 cents) while the Service Connector replies at 2 cents standard postage.'
+      planned: '+4 ct net for service (6 ct advance, 2 ct reply)',
+      note: 'Both run in today’s code: pure OIDC login is built in for free, and with a registration letter (tag 0x0A) the user pays a postage advance (e.g. 6 cents) out of which the Service Connector pays the 2-cent confirmation reply.'
     }
   }
 };

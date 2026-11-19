@@ -413,7 +413,7 @@ async function renderCompose() {
     <textarea id="c-body" placeholder="Nachricht…"></textarea>
     <input type="file" id="c-file" multiple>
     <label style="font-size:13px;color:var(--faint)"><input type="checkbox" id="c-orig"> Original senden (Fotos sonst auf 1600px JPEG komprimiert)</label>
-    <label style="font-size:13px;color:var(--faint)"><input type="checkbox" id="c-signup"> Als Dienst-Registrierung senden (Tag 0x0A, zahlt Willkommensporto)</label>
+    <label style="font-size:13px;color:var(--faint)"><input type="checkbox" id="c-signup"> Als Dienst-Registrierung senden (Tag 0x0A, zahlt Porto-Vorschuss)</label>
     <div id="portofuss" class="meta">Empfänger wählen — Porto und Fingerprint erscheinen hier.</div>
     <div><button type="submit">Senden</button> <button type="button" id="c-save">Als Entwurf speichern</button> <span id="c-msg" class="meta"></span></div>
   </form></div>`;
@@ -425,7 +425,7 @@ async function renderCompose() {
     if (!r.ok) { el.textContent = errText(r.status); return; }
     const p = await r.json() as any;
     const fp = String(p.pubkey || '');
-    el.textContent = `Empfänger-Key ${fp.slice(0, 6)}…${fp.slice(-4)} · Porto ${p.foreign_sats} sats (Registrierung: ${p.welcome_sats ?? p.foreign_sats * 3} sats)` +
+    el.textContent = `Empfänger-Key ${fp.slice(0, 6)}…${fp.slice(-4)} · Porto ${p.foreign_sats} sats (Porto-Vorschuss: ${p.welcome_sats ?? p.foreign_sats * 3} sats)` +
       (fp.slice(0, 2) === '02' || fp.slice(0, 2) === '03' ? '' : ' · WARNUNG: seltsamer Key');
   };
   $('c-to').addEventListener('change', lookup);
