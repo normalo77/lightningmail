@@ -30,19 +30,136 @@ ARTICLES = [
     {"id": "art-1", "price_sats": 5,
      "title": "Blabla-Artikel #1: Das Geheimnis der 5-Satoshi-Schranke",
      "teaser": "Warum kein Mensch für einen einzelnen Artikel ein 14,90-€-Monatsabo abschließt — und was passiert, wenn Lesen genau 5 Satoshis kostet…",
-     "content": "🔓 FREIGESCHALTET (5 Sat bezahlt!): Herzlichen Glückwunsch, du hast gerade mit einem Klick über OpenID Connect + Lightningmail 5 Satoshis bezahlt. Kein Passwort, keine Kreditkarte, keine 35 Cent Mindestgebühr bei Zahlungsdienstleistern. Blabla-Fazit #1: Mikro-Paywalls funktionieren erst, wenn Identität und Portokasse derselbe Schlüssel sind."},
+     "content_html": """<p><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Herzlichen Glückwunsch — du hast gerade für den Gegenwert eines drittel Pfefferkorns die erste Paywall der Welt überwunden, die dich weder nach deiner Kreditkarte noch nach dem Mädchennamen deiner Großmutter gefragt hat. Klassische Verlage stehen seit 25 Jahren vor demselben Rätsel: Ein einzelner Artikel ist niemandem 14,90 € Monatsabo wert, aber bei 0,01 € Einzelpreis frisst der Zahlungsdienstleister 35 Cent Mindestgebühr und drei Seiten Cookie-Banner.</p>
+<div class="art-figs">
+  <figure class="art-fig">
+    <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
+      <rect width="320" height="135" rx="8" fill="#122338"/>
+      <rect x="18" y="24" width="120" height="86" rx="6" fill="#2b161b" stroke="#f87171" stroke-width="1.5"/>
+      <text x="78" y="48" fill="#fca5a5" font-size="11" font-weight="bold" text-anchor="middle">Kreditkarte / Abo</text>
+      <text x="78" y="70" fill="#fff" font-size="15" font-weight="bold" text-anchor="middle">14,90 € / Monat</text>
+      <text x="78" y="92" fill="#fca5a5" font-size="10" text-anchor="middle">+ 35 ct Gebühr + Kündigungsfalle</text>
+      <text x="160" y="72" fill="#f4b71a" font-size="18" font-weight="bold" text-anchor="middle">⚡</text>
+      <rect x="182" y="24" width="120" height="86" rx="6" fill="#0d3326" stroke="#34d399" stroke-width="1.5"/>
+      <text x="242" y="48" fill="#6ee7b7" font-size="11" font-weight="bold" text-anchor="middle">lightningmail OIDC</text>
+      <text x="242" y="70" fill="#f4b71a" font-size="16" font-weight="bold" text-anchor="middle">5 Satoshis</text>
+      <text x="242" y="92" fill="#a7f3d0" font-size="10" text-anchor="middle">1 Klick · 0 Passwörter · sofort offen</text>
+    </svg>
+    <figcaption>Abb. 1a: Die große Abo-Keule gegen die 5-Satoshi-Briefmarke.</figcaption>
+  </figure>
+  <figure class="art-fig">
+    <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
+      <rect width="320" height="135" rx="8" fill="#1b2e47"/>
+      <circle cx="72" cy="68" r="34" fill="#f4b71a"/>
+      <text x="72" y="75" fill="#122338" font-size="22" font-weight="bold" text-anchor="middle">🔑=⚡</text>
+      <path d="M118 68 L178 68" stroke="#f4b71a" stroke-width="3" stroke-dasharray="5,4"/>
+      <rect x="186" y="34" width="114" height="68" rx="8" fill="#064e3b" stroke="#6ee7b7" stroke-width="1.5"/>
+      <text x="243" y="62" fill="#fff" font-size="12" font-weight="bold" text-anchor="middle">ID-Token signiert</text>
+      <text x="243" y="82" fill="#6ee7b7" font-size="11" font-family="monospace" text-anchor="middle">paid_sats: 5 ✓</text>
+    </svg>
+    <figcaption>Abb. 1b: Wenn Login-Schlüssel und Portokasse eins sind.</figcaption>
+  </figure>
+</div>
+<p>Bei lightningmail fällt diese Schranke weg, weil dein OpenID-Connect-Login und deine Portokasse ein und derselbe secp256k1-Schlüssel sind. Wenn eine Webseite beim Login-Aufruf <code>pay_sats=5&amp;pay_item=art-1</code> mitschickt, fragt dein Postfach dich in einem einzigen Fenster: <i>„Einloggen und 5 Satoshis bezahlen?"</i> — und liefert die kryptographisch signierte Zahlungsquittung direkt im OIDC-Token mit aus.</p>
+<p><b>Blabla-Fazit #1:</b> Kein Mensch liest gerne AGBs für einen 3-Minuten-Text. Aber 5 Satoshis aus der Portokasse schnippen, ohne einen Account mit Passwort anzulegen? Das klickt man schneller weg als früher den „Cookies ablehnen"-Knopf.</p>"""},
     {"id": "art-2", "price_sats": 5,
      "title": "Blabla-Artikel #2: Bekenntnisse eines Spam-Bots im Jahr 2026",
      "teaser": "Ich wollte gestern 100.000 Werbemails verschicken, aber mein Kontostand fiel nach 3 Sekunden auf Null…",
-     "content": "🔓 FREIGESCHALTET (5 Sat bezahlt!): Früher hat mein Betreiber einfach für 4 Dollar eine geklaute Server-IP gemietet und Millionen Postfächer geflutet. Bei lightningmail wollte das Relay für jeden Brief 10 Satoshis Vorkasse sehen — und weil mir niemand geantwortet hat, kam kein einziger Satoshi zurück. Blabla-Fazit #2: Porto schlägt jeden Spamfilter."},
+     "content_html": """<p><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Mein Name ist <code>mailer-daemon-bot-9000</code> und ich bin seit heute Morgen arbeitslos. Früher war mein Leben herrlich: Mein Betreiber hat für vier Dollar eine gebrauchte Cloud-IP gemietet, und ich habe vor dem Frühstück zehn Millionen Mails über billige Rolex-Uhren, verliebte Prinzen und dringende Paketgebühren in die Welt geblasen. Selbst wenn 99,99 % im Spamfilter starben, hat sich der Müll ab dem zehnten Klick gerechnet.</p>
+<div class="art-figs">
+  <figure class="art-fig">
+    <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
+      <rect width="320" height="135" rx="8" fill="#122338"/>
+      <text x="24" y="26" fill="#cbd5e1" font-size="11" font-weight="bold">Kontostand von Spam-Bot #9000 (10 Sat / Mail)</text>
+      <polyline points="28,42 95,48 145,75 195,105 285,108" fill="none" stroke="#f87171" stroke-width="3.5"/>
+      <circle cx="195" cy="105" r="5" fill="#f4b71a"/>
+      <line x1="28" y1="108" x2="295" y2="108" stroke="#475569" stroke-width="1"/>
+      <text x="195" y="93" fill="#fde68a" font-size="10" font-weight="bold" text-anchor="middle">HTTP 402: Pleite nach 3 Sek.</text>
+      <text x="32" y="122" fill="#94a3b8" font-size="9">08:00:00</text>
+      <text x="260" y="122" fill="#94a3b8" font-size="9">08:00:03</text>
+    </svg>
+    <figcaption>Abb. 2a: Finanzielle Lebenserwartung eines Spammers mit Vorkasse-Porto.</figcaption>
+  </figure>
+  <figure class="art-fig">
+    <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
+      <rect width="320" height="135" rx="8" fill="#1b2e47"/>
+      <text x="75" y="45" fill="#6ee7b7" font-size="11" font-weight="bold" text-anchor="middle">Echter Dialog</text>
+      <text x="75" y="72" fill="#fff" font-size="13" text-anchor="middle">Alice ⇄ Bob</text>
+      <text x="75" y="96" fill="#a7f3d0" font-size="11" text-anchor="middle">±0 Sat Netto (Porto fließt zurück)</text>
+      <line x1="160" y1="22" x2="160" y2="114" stroke="#334155" stroke-width="1.5"/>
+      <text x="242" y="45" fill="#fca5a5" font-size="11" font-weight="bold" text-anchor="middle">Massen-Spam</text>
+      <text x="242" y="72" fill="#fff" font-size="13" text-anchor="middle">Bot ⇒ 100.000 User</text>
+      <text x="242" y="96" fill="#f87171" font-size="11" text-anchor="middle">−1.000.000 Sat (0 Antworten!)</text>
+    </svg>
+    <figcaption>Abb. 2b: Warum höfliche Menschen umsonst mailen und Bots bluten.</figcaption>
+  </figure>
+</div>
+<p>Gestern sollte ich das Gleiche auf lightningmail probieren. Schon beim ersten Empfänger wollte das Relay 10 Satoshis Porto sehen. Nach 1.000 Mails waren 10.000 Satoshis weg — und weil kein einziger Empfänger einem Spam-Bot antwortet, floss kein einziger Satoshi zurück! Stattdessen haben sich die Empfänger über mein geschenktes Porto gefreut und sich davon hier im Forum Blabla-Artikel gekauft.</p>
+<p><b>Blabla-Fazit #2:</b> Dreißig Jahre lang haben Menschen versucht, Spam mit KI-Filtern, Blacklists und DNS-Magie zu erraten. Dabei hat Adam Back schon 1997 mit Hashcash gewusst: Man muss dem Briefumschlag nur wieder eine Briefmarke aufkleben.</p>"""},
     {"id": "art-3", "price_sats": 5,
      "title": "Blabla-Artikel #3: Warum dein Steuerberater noch Faxgeräte liebt",
      "teaser": "Ein tiefer Blick in die Abgründe von S/MIME-Zertifikaten, abgelaufenen PGP-Keys und Passwort-ZIP-Dateien…",
-     "content": "🔓 FREIGESCHALTET (5 Sat bezahlt!): Wer schon einmal versucht hat, einem Steuerberater oder einer Behörde eine PGP-verschlüsselte Mail zu schicken, kennt den Schmerz: Keyserver nicht erreichbar, falsches Schlüsselformat, Plugin kaputt. Bei lightningmail liefert GET /v1/profile/name den Public Key unsichtbar im Hintergrund. Blabla-Fazit #3: Verschlüsselung ist nur dann gut, wenn man sie gar nicht bemerkt."},
+     "content_html": """<p><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Frag einmal deinen Steuerberater, Rechtsanwalt oder Hausarzt, ob du ihm ein vertrauliches PDF per verschlüsselter E-Mail schicken darfst. In 9 von 10 Fällen herrscht erst betretenes Schweigen, dann folgt entweder die Bitte um ein Telefax oder du bekommst eine unverschlüsselte Mail mit einer <code>Geheim.zip</code> — und zwei Minuten später eine zweite unverschlüsselte Mail mit dem Text: <i>„Das Passwort für die ZIP-Datei lautet übrigens Steuer2026!"</i></p>
+<div class="art-figs">
+  <figure class="art-fig">
+    <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
+      <rect width="320" height="135" rx="8" fill="#122338"/>
+      <text x="160" y="25" fill="#fca5a5" font-size="11" font-weight="bold" text-anchor="middle">Klassische E-Mail-Verschlüsselung (PGP / S/MIME)</text>
+      <rect x="16" y="40" width="84" height="68" rx="6" fill="#2b161b" stroke="#f87171"/>
+      <text x="58" y="68" fill="#fff" font-size="10" text-anchor="middle">Keyserver</text>
+      <text x="58" y="84" fill="#fca5a5" font-size="9" text-anchor="middle">nicht gefunden</text>
+      <rect x="118" y="40" width="84" height="68" rx="6" fill="#2b161b" stroke="#f87171"/>
+      <text x="160" y="68" fill="#fff" font-size="10" text-anchor="middle">Zertifikat</text>
+      <text x="160" y="84" fill="#fca5a5" font-size="9" text-anchor="middle">abgelaufen 2021</text>
+      <rect x="220" y="40" width="84" height="68" rx="6" fill="#2b161b" stroke="#f87171"/>
+      <text x="262" y="68" fill="#fff" font-size="10" text-anchor="middle">Notlösung:</text>
+      <text x="262" y="84" fill="#fde68a" font-size="9" text-anchor="middle">Faxgerät 📠</text>
+    </svg>
+    <figcaption>Abb. 3a: Warum Ende-zu-Ende-Verschlüsselung im Büroalltag fast immer scheitert.</figcaption>
+  </figure>
+  <figure class="art-fig">
+    <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
+      <rect width="320" height="135" rx="8" fill="#0d3326"/>
+      <text x="160" y="26" fill="#6ee7b7" font-size="11" font-weight="bold" text-anchor="middle">lightningmail: Unsichtbare Pflicht-Verschlüsselung</text>
+      <rect x="24" y="42" width="272" height="68" rx="8" fill="#064e3b" stroke="#34d399" stroke-width="1.5"/>
+      <text x="160" y="66" fill="#fff" font-size="12" font-weight="bold" text-anchor="middle">Adresse tippen → Senden klicken</text>
+      <text x="160" y="86" fill="#a7f3d0" font-size="10" font-family="monospace" text-anchor="middle">GET /v1/profile → ECIES + XChaCha20-Poly1305</text>
+      <text x="160" y="102" fill="#fde68a" font-size="10" text-anchor="middle">Es gibt keinen „Unverschlüsselt senden"-Knopf!</text>
+    </svg>
+    <figcaption>Abb. 3b: Wenn das Protokoll gar keinen Klartext-Modus mehr kennt.</figcaption>
+  </figure>
+</div>
+<p>Das liegt nicht daran, dass Steuerberater schlechte Menschen sind, sondern daran, dass nachträglich aufgeklebte Verschlüsselung auf ein Klartext-Protokoll von 1982 (SMTP) eine Zumutung ist: Keyserver-Suche, Fingerabdruck-Abgleich am Telefon, abgelaufene S/MIME-Zertifikate und kaputte Outlook-Plugins.</p>
+<p><b>Blabla-Fazit #3:</b> Bei lightningmail existiert überhaupt kein Schalter für „unverschlüsselt". Du tippst <code>steuerberater@kanzlei.de</code>, der Client holt sich im Hintergrund per <code>GET /v1/profile/steuerberater</code> den 33-Byte-Schlüssel und verschlüsselt Text wie Anhänge automatisch Ende-zu-Ende. Fertig.</p>"""},
     {"id": "art-4", "price_sats": 5,
      "title": "Blabla-Artikel #4: Die große Blabla-Abhandlung über Kaffeepausen & Satoshis",
      "teaser": "Dieser vierte Artikel enthält garantiert 100 % offensichtliches Blabla — kostet zum Testen aber trotzdem exakt 5 Satoshis…",
-     "content": "🔓 FREIGESCHALTET (5 Sat bezahlt!): Lorem ipsum dolor sit Satoshi! Du hast tatsächlich auch den vierten Blabla-Artikel für 5 Test-Satoshis gekauft. Von deinen 10.000 Regtest-Start-Satoshis sind damit immer noch 9.980 Satoshis übrig — genug für fast tausend weitere Briefe oder Paywall-Artikel!"},
+     "content_html": """<p><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> <i>Lorem ipsum dolor sit Satoshi, consectetur Lightning elit!</i> Du hast es tatsächlich getan: Obwohl die Überschrift dich ausdrücklich vor 100 % offensichtlichem Blabla gewarnt hat, hast du auch noch den vierten Artikel für 5 Satoshis freigeschaltet. Das beweist wissenschaftlich zweierlei: Erstens ist der menschliche Spieltrieb unbesiegbar, und zweitens tut eine 5-Satoshi-Mikrozahlung überhaupt nicht weh.</p>
+<div class="art-figs">
+  <figure class="art-fig">
+    <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
+      <rect width="320" height="135" rx="8" fill="#122338"/>
+      <text x="160" y="26" fill="#fde68a" font-size="11" font-weight="bold" text-anchor="middle">Dein Regtest-Portokassen-Kuchen (10.000 Sat Start)</text>
+      <circle cx="95" cy="76" r="40" fill="#34d399"/>
+      <path d="M95 76 L95 36 A40 40 0 0 1 98 36.2 Z" fill="#f4b71a"/>
+      <text x="210" y="62" fill="#6ee7b7" font-size="12" font-weight="bold" text-anchor="middle">9.980 Sat übrig (99,8 %)</text>
+      <text x="210" y="82" fill="#f4b71a" font-size="11" text-anchor="middle">20 Sat für alle 4 Blabla-Artikel</text>
+      <text x="210" y="102" fill="#94a3b8" font-size="10" text-anchor="middle">Reicht noch für ~998 Briefe!</text>
+    </svg>
+    <figcaption>Abb. 4a: Selbst nach allen 4 Artikeln ist deine Test-Portokasse noch zu 99,8 % voll.</figcaption>
+  </figure>
+  <figure class="art-fig">
+    <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
+      <rect width="320" height="135" rx="8" fill="#1b2e47"/>
+      <text x="160" y="45" fill="#fff" font-size="26" text-anchor="middle">☕ + ⚡ + ✉️ = 🎉</text>
+      <text x="160" y="78" fill="#fde68a" font-size="12" font-weight="bold" text-anchor="middle">Offizielles Blabla-Diplom verliehen</text>
+      <text x="160" y="100" fill="#cbd5e1" font-size="10" text-anchor="middle">Geprüfter Tester der lightningmail-Mikro-Paywall</text>
+    </svg>
+    <figcaption>Abb. 4b: Urkunde für vollständiges Durchspielen der 5-Sat-Paywall.</figcaption>
+  </figure>
+</div>
+<p>Rechnen wir kurz nach: Jedes neue Testkonto bekommt in unserer 60-tägigen Regtest-Phase bis zum Mainnet-Start 10.000 Test-Satoshis Startguthaben. Selbst wenn du alle vier Blabla-Artikel hier freigeschaltet hast, hast du gerade einmal 20 Satoshis verbraucht — es sind also noch stolze 9.980 Satoshis in deiner Portokasse übrig.</p>
+<p><b>Blabla-Fazit #4:</b> Genug gelesen! Schreib oben im Forum einen Beitrag (kryptographisch signiert mit deinem Mailbox-Key) oder klick bei einem anderen Forenbeitrag auf <i>„✉ Per lightningmail anschreiben"</i> und schick ihm für 10 Satoshis einen echten Ende-zu-Ende-verschlüsselten Brief.</p>"""},
 ]
 
 def _init_db():
@@ -225,7 +342,7 @@ a{{color:#122338;font-weight:600}}
                         "SELECT 1 FROM paywall_unlocks WHERE address=? AND item_id=?", (user, a["id"])).fetchone() is not None
                     d = {"id": a["id"], "price_sats": a["price_sats"], "title": a["title"], "teaser": a["teaser"], "unlocked": bool(unlocked)}
                     if unlocked:
-                        d["content"] = a["content"]
+                        d["content_html"] = a["content_html"]
                     arts.append(d)
         except Exception as e:
             return self._json({"error": str(e)}, 500)

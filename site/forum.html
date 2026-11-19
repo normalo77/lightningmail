@@ -271,11 +271,30 @@ h2 {
   background: #ecfdf5;
   border: 1px solid #a7f3d0;
   color: #064e3b;
-  padding: 0.95rem 1.1rem;
+  padding: 1.05rem 1.2rem;
   border-radius: 8px;
   font-size: 0.95rem;
   margin-top: 0.5rem;
+  line-height: 1.6;
 }
+.art-content p { margin: 0 0 0.85rem; }
+.art-content p:last-child { margin-bottom: 0; }
+.art-figs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin: 0.85rem 0;
+}
+.art-fig {
+  margin: 0;
+  background: #fff;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  padding: 0.5rem;
+  text-align: center;
+}
+.art-fig svg { width: 100%; height: auto; display: block; border-radius: 6px; }
+.art-fig figcaption { font-size: 0.78rem; color: #047857; margin-top: 0.35rem; font-weight: 600; }
 .art-foot {
   display: flex;
   align-items: center;
@@ -571,7 +590,7 @@ async function loadForum() {
         <div>
           <h3>${esc(a.title)}</h3>
           <p class="art-teaser">${esc(a.teaser)}</p>
-          <div class="art-content">${esc(a.content)}</div>
+          <div class="art-content">${a.content_html || esc(a.content || '')}</div>
         </div>
         <div class="art-foot">
           <span class="unlocked-tag">✓ Freigeschaltet (${a.price_sats} sats bezahlt)</span>
