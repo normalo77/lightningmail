@@ -34,6 +34,9 @@ rm -rf build/assets/keys   # Demo-Keys gehören nicht in die APK
 find build/assets -name '*.html' -exec sed -i \
   -e 's#value="/relay-a"#value="https://lightningmail.app/relay-a"#g' \
   -e 's#value="/relay-b"#value="https://lightningmail.app/relay-b"#g' \
+  -e 's#href="/"#href="https://lightningmail.app/"#g' \
+  -e 's#href="/forum"#href="https://lightningmail.app/forum"#g' \
+  -e 's#href="/architecture"#href="https://lightningmail.app/architecture"#g' \
   -e 's#href="/impressum"#href="https://lightningmail.app/impressum"#g' {} +
 grep -q 'value="https://lightningmail.app/relay-a"' build/assets/index.html \
   || { echo "✗ Relay-Rewrite fehlgeschlagen"; exit 1; }

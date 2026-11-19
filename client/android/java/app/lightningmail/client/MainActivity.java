@@ -5,13 +5,16 @@ import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.OpenableColumns;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
@@ -24,8 +27,10 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.security.KeyStore;
 
 import javax.crypto.Cipher;
@@ -44,6 +49,7 @@ public class MainActivity extends Activity {
     private static final String PREFS = "lm_native";
     private static final int REQ_UPLOAD = 1001;
     private static final int REQ_NOTIF = 1002;
+    private static final int REQ_KEYFILE = 1003;
     private static final int GCM_IV_LEN = 12;
     private static final int GCM_TAG_BITS = 128;
 
@@ -107,7 +113,13 @@ public class MainActivity extends Activity {
                 if (uploadCallback != null) uploadCallback.onReceiveValue(null);
                 uploadCallback = cb;
                 try {
-                    startActivityForResult(params.createIntent(), REQ_UPLOAD);
+                    Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                    i.addCategory(Intent.CATEGORY_OPENABLE);
+                    i.setType("*/*");
+                    if (params != null && params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) {
+                        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                    }
+                    startActivityForResult(Intent.createChooser(i, "Datei wählen"), REQ_UPLOAD);
                 } catch (Exception e) {
                     uploadCallback = null;
                     return false;
@@ -127,8 +139,51 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        if (req == REQ_KEYFILE) {
+            if (res == RESULT_OK && data != null && data.getData() != null) {
+                Uri uri = data.getData();
+                try {
+                    String name = "schluessel.lmkey";
+                    try (Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+                        if (c != null && c.moveToFirst()) {
+                            int idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                            if (idx >= 0 && !c.isNull(idx)) name = c.getString(idx);
+                        }
+                    } catch (Exception ignored) { }
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    try (InputStream in = getContentResolver().openInputStream(uri)) {
+                        if (in == null) throw new Exception("Kein Lesezugriff auf Datei");
+                        byte[] buf = new byte[8192];
+                        int n;
+                        while ((n = in.read(buf)) != -1) {
+                            bos.write(buf, 0, n);
+                            if (bos.size() > 262144) throw new Exception("Datei zu groß (max. 256 kB)");
+                        }
+                    }
+                    String nb64 = Base64.encodeToString(name.getBytes("UTF-8"), Base64.NO_WRAP);
+                    String db64 = Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP);
+                    webView.evaluateJavascript(
+                            "window.onNativeKeyFile&&window.onNativeKeyFile('" + nb64 + "','" + db64 + "')", null);
+                } catch (Exception e) {
+                    String msg = String.valueOf(e.getMessage()).replace("'", "").replace("\n", " ");
+                    webView.evaluateJavascript(
+                            "window.onNativeKeyFileErr&&window.onNativeKeyFileErr('" + msg + "')", null);
+                }
+            }
+            return;
+        }
         if (req == REQ_UPLOAD && uploadCallback != null) {
-            uploadCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(res, data));
+            Uri[] uris = null;
+            if (res == RESULT_OK && data != null) {
+                ClipData cd = data.getClipData();
+                if (cd != null && cd.getItemCount() > 0) {
+                    uris = new Uri[cd.getItemCount()];
+                    for (int i = 0; i < cd.getItemCount(); i++) uris[i] = cd.getItemAt(i).getUri();
+                } else if (data.getData() != null) {
+                    uris = new Uri[]{data.getData()};
+                }
+            }
+            uploadCallback.onReceiveValue(uris);
             uploadCallback = null;
         }
     }
@@ -221,6 +276,30 @@ public class MainActivity extends Activity {
 
     /** window.AndroidNative — Bridge für die PWA. */
     class NativeBridge {
+
+        /** Nativen Android-Dateipicker öffnen und Schlüsseldatei direkt per ContentResolver lesen. */
+        @JavascriptInterface
+        public void pickKeyFile() {
+            runOnUiThread(() -> {
+                try {
+                    Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    i.addCategory(Intent.CATEGORY_OPENABLE);
+                    i.setType("*/*");
+                    startActivityForResult(i, REQ_KEYFILE);
+                } catch (Exception e) {
+                    try {
+                        Intent i2 = new Intent(Intent.ACTION_GET_CONTENT);
+                        i2.addCategory(Intent.CATEGORY_OPENABLE);
+                        i2.setType("*/*");
+                        startActivityForResult(Intent.createChooser(i2, "Schlüsseldatei wählen"), REQ_KEYFILE);
+                    } catch (Exception e2) {
+                        String msg = String.valueOf(e2.getMessage()).replace("'", "");
+                        webView.evaluateJavascript(
+                                "window.onNativeKeyFileErr&&window.onNativeKeyFileErr('" + msg + "')", null);
+                    }
+                }
+            });
+        }
 
         /** Schluessel-JSON verschluesselt im AndroidKeyStore versiegeln. */
         @JavascriptInterface

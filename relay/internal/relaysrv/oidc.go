@@ -274,10 +274,14 @@ func (s *Server) handleOIDCRouter(w http.ResponseWriter, r *http.Request) {
 	case path == "auth" && r.Method == http.MethodGet:
 		s.oidcAuth(w, r)
 	case path == "auth/login":
-		if s.oidcCORS(w, r) { return }
+		if s.oidcCORS(w, r) {
+			return
+		}
 		s.oidcAuthLogin(w, r)
 	case path == "auth/sign":
-		if s.oidcCORS(w, r) { return }
+		if s.oidcCORS(w, r) {
+			return
+		}
 		s.oidcAuthSign(w, r)
 	case path == "token" && r.Method == http.MethodPost:
 		s.oidcToken(w, r)
@@ -313,7 +317,7 @@ func (s *Server) handleOIDCDiscovery(w http.ResponseWriter, r *http.Request) {
 		"id_token_signing_alg_values_supported": []string{"ES256"},
 		"scopes_supported":                      []string{"openid", "email", "profile"},
 		"token_endpoint_auth_methods_supported": []string{"none"},
-		"code_challenge_methods_supported":       []string{"S256"},
+		"code_challenge_methods_supported":      []string{"S256"},
 		"claims_supported": []string{"iss", "sub", "aud", "exp", "iat", "auth_time",
 			"nonce", "email", "email_verified", "preferred_username", "bmail"},
 	})

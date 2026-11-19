@@ -212,13 +212,22 @@ func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"invalid signature"}`, 400)
 		return
 	}
-	challenge := []byte("bmail-auth-v1:" + req.Address)
+	challengeTarget := req.Address
+	if challengeTarget == "" {
+		challengeTarget = req.Pubkey
+	}
+	challenge := []byte("bmail-auth-v1:" + challengeTarget)
 	digest := crypto.AuthDigest(challenge)
 	if err := crypto.Verify(pub, digest, sigBytes); err != nil {
 		http.Error(w, `{"error":"signature verification failed"}`, 401)
 		return
 	}
-	acct, err := s.ledger.GetAccount(req.Address)
+	var acct *ledger.Account
+	if req.Address == "" {
+		acct, err = s.ledger.LookupByRecipientHash(sha256.Sum256(pubBytes))
+	} else {
+		acct, err = s.ledger.GetAccount(req.Address)
+	}
 	if err != nil {
 		http.Error(w, `{"error":"account not found"}`, 404)
 		return
@@ -232,12 +241,12 @@ func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 	tokenStr := hex.EncodeToString(tok)
 
 	// Persist token to SQLite (survives restart)
-	if err := s.ledger.StoreToken(tokenStr, req.Address); err != nil {
+	if err := s.ledger.StoreToken(tokenStr, acct.Name); err != nil {
 		http.Error(w, `{"error":"token store"}`, 500)
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"token": tokenStr})
+	json.NewEncoder(w).Encode(map[string]string{"token": tokenStr, "address": acct.Name})
 }
 
 // --- GET /v1/balance ---

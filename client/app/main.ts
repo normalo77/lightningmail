@@ -52,6 +52,20 @@ let pemCache = '';
 // Klick auf "Abmelden" gelöscht). Auf Android übernimmt der Hardware-Keystore
 // (AndroidNative.saveVault/loadVault) die persistente Versiegelung.
 const AUTO_KEY = 'lm_autologin', NOAUTO_KEY = 'lm_noauto';
+const LAST_USER_KEY = 'lm_last_user';
+const loadLastUser = (): { acct: string; base: string } | null => {
+  try {
+    const u = JSON.parse(localStorage.getItem(LAST_USER_KEY) || 'null');
+    return u && typeof u.acct === 'string' && u.acct ? { acct: u.acct, base: String(u.base || '') } : null;
+  } catch { return null; }
+};
+const setLoginStatus = (msg: string, isErr = true) => {
+  const el = document.getElementById('l-err');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'login-status ' + (isErr ? 'err' : 'info');
+  el.style.display = msg ? '' : 'none';
+};
 const loadAuto = (): { acct: string; base: string; pem: string } | null => {
   try {
     // Migration: falls aus einer älteren Sitzung noch ein Klartext-Key in localStorage lag,
@@ -114,22 +128,77 @@ async function api(path: string, init?: RequestInit) {
   return r;
 }
 
-async function login(pem: string) {
-  acct = $('l-acct').value.trim(); base = $('l-relay').value;
-  healthCache = null; // Relay-Wechsel → Byte-Porto-Preise neu ziehen
-  priv = parseSec1PEM(pem);
-  const sig = authSign(priv, acct);
-  const r = await fetch(base + '/v1/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ address: acct, pubkey_hex: toHex(pubFromPriv(priv)), sig: toHex(sig) }) });
-  if (!r.ok) {
-    $('l-err').textContent = r.status === 401
-      ? 'Konto-Name passt nicht zum geladenen Schlüssel (oder Key nicht registriert).'
-      : errText(r.status, await r.text());
-    return;
+function relayCandidates(preferred = ''): string[] {
+  const selEl = document.getElementById('l-relay') as HTMLSelectElement | null;
+  const opts = selEl ? [...selEl.options].map(o => o.value).filter(v => v && !v.startsWith('__')) : ['/relay-a', '/relay-b'];
+  const out: string[] = [];
+  const push = (v: string) => { if (v && !v.startsWith('__') && !out.includes(v)) out.push(v); };
+  if (oidcRelay) {
+    const m = opts.find(o => oidcRelay.includes('relay-b') ? o.includes('relay-b') : oidcRelay.includes('relay-a') ? o.includes('relay-a') : o === oidcRelay);
+    if (m) push(m);
   }
-  token = ((await r.json()) as any).token;
+  push(preferred);
+  if (selEl?.value) push(selEl.value);
+  const lu = loadLastUser();
+  if (lu?.base) push(lu.base);
+  for (const o of opts) push(o);
+  return out;
+}
+
+const hostLabelOf = (b: string): string => {
+  try {
+    if (b.startsWith('http')) return new URL(b).hostname;
+  } catch { /* ignore */ }
+  return location.hostname || 'lightningmail.app';
+};
+
+function openExportKeyModal() {
+  const { body, close } = wizOverlay('🔐 Schlüsseldatei (.lmkey) speichern', 440);
+  body.innerHTML = `<p class="meta" style="margin:0 0 8px">Schützt deinen Schlüssel für <b>${esc(acct)}</b> mit einem Passwort (mindestens 8 Zeichen):</p>
+    <label for="ek-p1">Passwort wählen</label>
+    <input type="password" id="ek-p1" placeholder="Mindestens 8 Zeichen…" autocomplete="new-password" style="margin:4px 0 8px">
+    <label for="ek-p2">Passwort wiederholen</label>
+    <input type="password" id="ek-p2" placeholder="Zur Kontrolle wiederholen…" autocomplete="new-password" style="margin:4px 0 4px">
+    ${ERRROW}
+    <div class="row" style="margin-top:12px">
+      <button type="button" id="ek-ok" style="flex:2;background:var(--navy);color:#fff;border-color:var(--navy);padding:11px 16px">💾 .lmkey herunterladen</button>
+      <button type="button" id="w-x">Abbrechen</button>
+    </div>`;
+  $('w-x').onclick = close;
+  setTimeout(() => ($('ek-p1') as HTMLInputElement)?.focus(), 40);
+  const run = () => {
+    const p1 = ($('ek-p1') as HTMLInputElement).value;
+    const p2 = ($('ek-p2') as HTMLInputElement).value;
+    if (p1.length < 8) { $('w-err').textContent = '✗ Bitte mindestens 8 Zeichen verwenden.'; return; }
+    if (p1 !== p2) { $('w-err').textContent = '✗ Die beiden Passwörter stimmen nicht überein.'; return; }
+    try {
+      const wrapped = wrapKey(pemCache, p1);
+      pendingWrap = wrapped;
+      const blob = new Blob([wrapped], { type: 'text/plain' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `lightningmail-${acct}.lmkey`; a.click();
+      close();
+    } catch (e: any) { $('w-err').textContent = '✗ ' + String(e?.message || e); }
+  };
+  $('ek-ok').onclick = run;
+  ($('ek-p2') as HTMLInputElement).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } };
+}
+
+async function finishLogin(pem: string, privBytes: Uint8Array, resolvedAcct: string, resolvedBase: string, tok: string) {
+  acct = resolvedAcct;
+  base = resolvedBase;
+  priv = privBytes;
+  pemCache = pem;
+  token = tok;
+  healthCache = null;
+  setLoginStatus('', false);
+  const acctEl = document.getElementById('l-acct') as HTMLInputElement | null;
+  if (acctEl) acctEl.value = acct;
+  const relEl = document.getElementById('l-relay') as HTMLSelectElement | null;
+  if (relEl && [...relEl.options].some(o => o.value === base)) relEl.value = base;
+  try { localStorage.setItem(LAST_USER_KEY, JSON.stringify({ acct, base })); } catch {}
   localStorage.removeItem(AUTO_KEY);
-  // Auf Android nur im Hardware-Keystore speichern; im Browser nur in sessionStorage (Tab-Lebensdauer)
+  // Auf Android im Hardware-Keystore versiegeln; im Browser nur in sessionStorage (Tab-Lebensdauer)
   if ((window as any).AndroidNative?.saveVault) {
     try { (window as any).AndroidNative.saveVault(JSON.stringify({ acct, base, pem })); } catch { /* Tresor ist Komfort */ }
     sessionStorage.setItem(AUTO_KEY, JSON.stringify({ acct, base, pem }));
@@ -143,25 +212,104 @@ async function login(pem: string) {
     bp.style.display = '';
     bp.onclick = passkeyRegister;
   }
-  const kw = $('btn-keywrap'); if (kw) { kw.style.display = ''; kw.onclick = () => {
-    const p1 = prompt('Passphrase fuer die Key-Datei (min. 8 Zeichen):'); if (!p1) return;
-    if (p1 !== prompt('zur Kontrolle erneut eingeben:')) { alert('Passphrases stimmen nicht ueberein'); return; }
-    try {
-      const blob = new Blob([wrapKey(pemCache, p1)], { type: 'text/plain' });
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-      a.download = `lightningmail-${acct}.lmkey`; a.click();
-    } catch (e: any) { alert(e.message); }
-  }; }
-  $('who').textContent = `${acct}@${base.startsWith('/') ? location.hostname : base.slice(1)} · `;
+  const kw = $('btn-keywrap');
+  if (kw) { kw.style.display = ''; kw.onclick = openExportKeyModal; }
+  $('who').textContent = `${acct}@${hostLabelOf(base)} · `;
   sync = new StateSync(base, priv, () => token, `lm_state_${base.slice(1)}_${acct}`);
   sync.cacheLoad();
   for (const k of JSON.parse(localStorage.getItem(spamKey()) || '[]')) sync.doc.spam[k] = 1;
-  // Migration: lokale Gesendet-Einträge ins State-Doc überführen (Stern-Sync)
   for (const s of JSON.parse(localStorage.getItem(sentKey()) || '[]'))
     if (!sync.liveSent().some(x => x.msg_id === s.msg_id)) sync.addSent(s);
   try { await sync.pull(); } catch { /* ohne State-Slot laeuft die UI aus dem Cache */ }
   await refresh();
-  if (oidcRelay && oidcSid) oidcFlow(); // IdP-Modus: nach Login direkt zum Consent
+  if (oidcRelay && oidcSid) oidcFlow();
+}
+
+// Automatischer Login allein über den privaten Schlüssel (findet Kontoname & Relay selbständig)
+async function loginAuto(pem: string, hintedAcct = '', onErr?: (msg: string) => void): Promise<boolean> {
+  let p: Uint8Array;
+  try {
+    p = parseSec1PEM(pem);
+  } catch {
+    const m = 'Ungültiges Schlüsselformat.';
+    if (onErr) onErr(m); else setLoginStatus('✗ ' + m);
+    return false;
+  }
+  const pubHex = toHex(pubFromPriv(p));
+  const advOpen = (document.getElementById('l-adv') as HTMLDetailsElement | null)?.open;
+  const typedAcct = (($('l-acct') as HTMLInputElement | null)?.value || '').trim().toLowerCase();
+  const candidates = relayCandidates();
+  let lastNetErr = '';
+
+  for (const candBase of candidates) {
+    try {
+      // 1. Primärpfad: Pubkey-basierte Konto-Auflösung am Server (address="")
+      const sigAuto = authSign(p, pubHex);
+      let r = await fetch(candBase + '/v1/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: '', pubkey_hex: pubHex, sig: toHex(sigAuto) }),
+      });
+      if (r.ok) {
+        const j = (await r.json()) as any;
+        const resolved = j.address || hintedAcct || typedAcct;
+        await finishLogin(pem, p, resolved, candBase, j.token);
+        return true;
+      }
+      // 2. Fallback für ältere Dritt-Relays, falls Kontoname bekannt ist
+      const fbAcct = (advOpen && typedAcct) ? typedAcct : (hintedAcct || typedAcct);
+      if (r.status === 400 && fbAcct) {
+        r = await fetch(candBase + '/v1/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: fbAcct, pubkey_hex: pubHex, sig: toHex(authSign(p, fbAcct)) }),
+        });
+        if (r.ok) {
+          const j = (await r.json()) as any;
+          await finishLogin(pem, p, j.address || fbAcct, candBase, j.token);
+          return true;
+        }
+      }
+      if (r.status !== 404 && r.status !== 401) {
+        lastNetErr = errText(r.status, await r.text());
+      }
+    } catch (e: any) {
+      lastNetErr = String(e?.message || e).slice(0, 100);
+    }
+  }
+  const msg = lastNetErr || 'Zu diesem Schlüssel wurde auf keinem Server ein Konto gefunden.';
+  if (onErr) onErr(msg); else setLoginStatus('✗ ' + msg);
+  return false;
+}
+
+async function login(pem: string, explicitAcct = '', explicitBase = ''): Promise<boolean> {
+  const targetAcct = (explicitAcct || ($('l-acct') as HTMLInputElement).value || '').trim().toLowerCase();
+  const targetBase = explicitBase || ($('l-relay') as HTMLSelectElement).value;
+  if (!targetAcct) return loginAuto(pem);
+  try {
+    const p = parseSec1PEM(pem);
+    const pubHex = toHex(pubFromPriv(p));
+    const sig = authSign(p, targetAcct);
+    const r = await fetch(targetBase + '/v1/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: targetAcct, pubkey_hex: pubHex, sig: toHex(sig) }),
+    });
+    if (r.ok) {
+      const j = (await r.json()) as any;
+      await finishLogin(pem, p, j.address || targetAcct, targetBase, j.token);
+      return true;
+    }
+    // Falls falscher Kontoname/Relay im Feld stand: automatisch über Pubkey suchen!
+    if (r.status === 401 || r.status === 404) {
+      return await loginAuto(pem, targetAcct);
+    }
+    setLoginStatus('✗ ' + errText(r.status, await r.text()));
+    return false;
+  } catch (e: any) {
+    setLoginStatus('✗ ' + String(e?.message || e).slice(0, 120));
+    return false;
+  }
 }
 
 async function refreshBalance() {
@@ -570,35 +718,101 @@ async function renderCompose() {
   };
 }
 
-async function useKey(txt: string, fname = '') {
+const hintFromFilename = (fname: string): string => {
+  const m = /(?:^|lightningmail-)([a-z0-9][a-z0-9._-]{1,31}?)(?:\s*\(\d+\))?\.(?:lmkey|key|pem)/i.exec(fname || '');
+  return m ? m[1].toLowerCase() : '';
+};
+
+function openPassModal(wrappedTxt: string, fname = '') {
+  pendingWrap = wrappedTxt;
+  const { body, close } = wizOverlay('🔓 Schlüsseldatei entsperren', 430);
+  body.innerHTML = `<p class="meta" style="margin:0 0 8px">${fname ? `Datei <b>${esc(fname)}</b> geladen.` : 'Geschützter Schlüssel geladen.'} Bitte gib dein Passwort ein:</p>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input type="password" id="pm-pass" placeholder="Passwort eingeben…" autocomplete="current-password" style="flex:1;font-size:1.02em">
+      <button type="button" id="pm-eye" title="Passwort ein-/ausblenden" style="padding:9px 12px;flex:0 0 auto">👁</button>
+    </div>
+    ${ERRROW}
+    <div class="row" style="margin-top:14px">
+      <button type="button" id="pm-go" style="flex:2;background:var(--navy);color:#fff;border-color:var(--navy);padding:11px 16px">🔓 Entsperren &amp; Anmelden</button>
+      <button type="button" id="w-x">Abbrechen</button>
+    </div>`;
+  $('w-x').onclick = close;
+  const inp = $('pm-pass') as HTMLInputElement;
+  $('pm-eye').onclick = () => {
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    inp.focus();
+  };
+  setTimeout(() => inp.focus(), 40);
+  const submit = async () => {
+    const pw = inp.value;
+    if (!pw) { $('w-err').textContent = 'Bitte Passwort eingeben.'; inp.focus(); return; }
+    const btn = $('pm-go') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = '⏳ Entschlüssele…';
+    $('w-err').textContent = '';
+    await new Promise((r) => setTimeout(r, 20));
+    let pem = '';
+    try {
+      pem = unwrapKey(wrappedTxt, pw);
+    } catch (e: any) {
+      btn.disabled = false;
+      btn.textContent = '🔓 Entsperren & Anmelden';
+      $('w-err').textContent = '✗ ' + String(e?.message || 'Passwort falsch');
+      inp.focus();
+      inp.select();
+      return;
+    }
+    btn.textContent = '⏳ Melde an…';
+    const ok = await loginAuto(pem, hintFromFilename(fname), (errMsg) => { $('w-err').textContent = '✗ ' + errMsg; });
+    if (ok) {
+      close();
+    } else {
+      btn.disabled = false;
+      btn.textContent = '🔓 Entsperren & Anmelden';
+    }
+  };
+  $('pm-go').onclick = submit;
+  inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } };
+}
+
+async function useKey(rawTxt: string, fname = '') {
+  const txt = (rawTxt || '').replace(/^\uFEFF/, '').trim();
+  if (!txt) { setLoginStatus('✗ Die ausgewählte Datei ist leer.'); return; }
+  const lbl = document.getElementById('l-file-lbl');
+  if (lbl && fname) lbl.textContent = '📂 ' + fname;
+  const hint = hintFromFilename(fname);
+  if (hint) ($('l-acct') as HTMLInputElement).value = hint;
+
   if (isWrapped(txt)) {
-    pendingWrap = txt;
-    $('l-passrow').style.display = '';
-    const kr = document.getElementById('l-keyready'); if (kr) kr.style.display = 'none';
-    $('l-err').textContent = (fname ? `Datei „${fname}“ geladen — ` : '') + 'bitte Passphrase eingeben und auf „🔓 OK / Anmelden" klicken.';
-    setTimeout(() => ($('l-pass') as HTMLInputElement)?.focus(), 30);
+    if (txt.startsWith('LMKEY1$PRF$')) {
+      setLoginStatus('✗ Diese Datei gehört zu einem Hardware-Passkey — bitte oben „🔑 Mit Fingerabdruck / Passkey anmelden" nutzen.');
+      return;
+    }
+    setLoginStatus('', false);
+    openPassModal(txt, fname);
     return;
   }
-  pemCache = txt;
-  const kr = document.getElementById('l-keyready'); if (kr) kr.style.display = '';
-  const btn = document.getElementById('l-login');
-  if (btn) btn.textContent = `✓ Schlüssel bereit (${($('l-acct') as HTMLInputElement).value.trim()}) — OK / Jetzt anmelden`;
-  await login(txt);
+  if (txt.includes('PRIVATE' + ' KEY')) {
+    setLoginStatus('⏳ Schlüssel erkannt — melde automatisch an…', false);
+    await loginAuto(txt, hint);
+    return;
+  }
+  const maybeMn = checkMnemonic(txt);
+  if (maybeMn) {
+    setLoginStatus('⏳ 24 Backup-Wörter erkannt — melde automatisch an…', false);
+    await loginAuto(sec1PEM(keyFromMnemonic(maybeMn)), hint);
+    return;
+  }
+  setLoginStatus(`✗ „${fname || 'Datei'}“ ist keine gültige lightningmail-Schlüsseldatei (.lmkey / .key).`);
 }
+
 async function tryUnwrap() {
   try {
     pemCache = unwrapKey(pendingWrap, ($('l-pass') as HTMLInputElement).value);
-    const kr = document.getElementById('l-keyready'); if (kr) kr.style.display = '';
-    await login(pemCache);
-  }
-  catch (e: any) { $('l-err').textContent = '✗ ' + e.message; }
+    await loginAuto(pemCache);
+  } catch (e: any) { setLoginStatus('✗ ' + e.message); }
 }
-if ($('l-pass')) ($('l-pass') as HTMLInputElement).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); tryUnwrap(); } };
-$('l-demo').onclick = async () => {
-  const r = await fetch(`/keys/${$('l-acct').value.trim()}.key`);
-  if (!r.ok) { $('l-err').textContent = 'Demo-Key nicht gefunden (' + $('l-acct').value.trim() + ')'; return; }
-  await useKey(await r.text());
-};
+if (document.getElementById('l-pass')) ($('l-pass') as HTMLInputElement).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); tryUnwrap(); } };
 // --- Etappe 6d (§27): Setup-Wizard — 24-Wort-Recovery (BIP39), Schluessel im Browser,
 // Wortquiz als Backup-Beweis, .lmkey-Datei OPTIONAL (Wörter sind das Haupt-Backup).
 // Reihenfolge behält die ecd07eb-Lektion: Backup exists VOR der Konto-Anlage → kein Waisen-Konto.
@@ -720,7 +934,7 @@ async function openWizard() {
         return;
       }
       pemCache = pem; close();
-      await login(pem);
+      await login(pem, nm, base);
     }
 
     $('w-next').onclick = createAccountNow;
@@ -751,58 +965,98 @@ async function openWizard() {
   }
 }
 
-// Recovery: 24 Wörter → Key-Ableitung im Browser → Login (Server sieht nur den Pubkey)
+// Recovery: 24 Wörter → Key-Ableitung im Browser → findet Konto & Server automatisch!
 function openRestore() {
-  const { body, close } = wizOverlay('Konto wiederherstellen — 24 Wörter', 480);
-  body.innerHTML = `<p class="meta">Backup-Wörter eingeben — der Schlüssel wird hier im Browser abgeleitet. Kontoname muss zum Relay-Konto passen.</p>
-    <label>Kontoname</label><input id="r-name" value="${esc(($('l-acct') as HTMLInputElement).value.trim())}">
-    <label>24 Wörter (BIP39)</label><textarea id="r-words" rows="4" style="width:100%"></textarea>
+  const { body, close } = wizOverlay('🌱 Mit 24 Backup-Wörtern anmelden', 480);
+  body.innerHTML = `<p class="meta" style="margin:0 0 8px">Gib deine 24 Wörter ein — dein Schlüssel wird lokal berechnet und dein Postfach automatisch gefunden (kein Kontoname nötig):</p>
+    <label for="r-words">24 Backup-Wörter</label>
+    <textarea id="r-words" rows="4" placeholder="wort1 wort2 wort3 …" autocapitalize="none" autocomplete="off" spellcheck="false" style="width:100%;margin-top:4px;font-family:var(--mono)"></textarea>
     ${ERRROW}
-    <div class="row"><button id="r-go">Wiederherstellen</button><button id="w-x">Abbrechen</button></div>`;
+    <div class="row" style="margin-top:12px">
+      <button id="r-go" type="button" style="flex:2;padding:11px 16px">🔓 Postfach öffnen</button>
+      <button id="w-x" type="button">Abbrechen</button>
+    </div>`;
   $('w-x').onclick = close;
+  setTimeout(() => ($('r-words') as HTMLTextAreaElement)?.focus(), 40);
   $('r-go').onclick = async () => {
-    const nm = ($('r-name') as HTMLInputElement).value.trim().toLowerCase();
     const mn = checkMnemonic(($('r-words') as HTMLTextAreaElement).value);
-    if (!mn) { $('w-err').textContent = 'Wörter ungültig — 24 BIP39-Wörter erwartet (Checksumme passt nicht).'; return; }
-    if (!/^[a-z0-9][a-z0-9._-]{1,31}$/.test(nm)) { $('w-err').textContent = 'Kontoname ungültig.'; return; }
+    if (!mn) { $('w-err').textContent = '✗ Wörter ungültig — bitte alle 24 Wörter prüfen (Tippfehler oder falsche Reihenfolge).'; return; }
+    const btn = $('r-go') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = '⏳ Suche Postfach…';
+    $('w-err').textContent = '';
     const pem = sec1PEM(keyFromMnemonic(mn));
-    ($('l-acct') as HTMLInputElement).value = nm;
-    pemCache = pem; close();
-    await login(pem);
-    if (!token) $('l-err').textContent = 'Wiederherstellung fehlgeschlagen — passen Name und Wörter zu einem Konto auf diesem Relay?';
+    const ok = await loginAuto(pem, '', (errMsg) => { $('w-err').textContent = '✗ ' + errMsg; });
+    if (ok) close();
+    else { btn.disabled = false; btn.textContent = '🔓 Postfach öffnen'; }
   };
 }
 $('l-signup').onclick = openWizard;
 if ($('l-words')) $('l-words').onclick = openRestore;
+
 const readFileText = (f: File): Promise<string> => new Promise((res, rej) => {
   const fr = new FileReader();
   fr.onload = () => res(String(fr.result || ''));
   fr.onerror = () => rej(new Error('Datei konnte nicht gelesen werden'));
   fr.readAsText(f);
 });
-if (document.getElementById('l-file-btn')) {
-  document.getElementById('l-file-btn')!.onclick = () => {
-    ($('l-file') as HTMLInputElement).value = '';
-    ($('l-file') as HTMLInputElement).click();
-  };
-}
-$('l-file').onchange = async (ev: Event) => {
-  const f = (ev.target as any).files?.[0]; if (!f) return;
+
+const decodeUtf8B64 = (b64: string): string =>
+  new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+
+// Android-APK: direkter Datei-Callback aus Java ContentResolver (umgeht alle WebView-File-Bugs)
+(window as any).onNativeKeyFile = (nameB64: string, dataB64: string) => {
   try {
-    // Kontoname aus Dateinamen: lightningmail-<acct>.lmkey bzw. <acct>.key/.pem
-    const m = /^(?:lightningmail-)?([a-z0-9][a-z0-9._-]{1,31})\.(?:lmkey|key|pem)/i.exec(f.name);
-    if (m) ($('l-acct') as HTMLInputElement).value = m[1].toLowerCase();
-    const btn = document.getElementById('l-file-btn');
-    if (btn) btn.textContent = '📂 ' + f.name;
+    const fname = decodeUtf8B64(nameB64);
+    const txt = decodeUtf8B64(dataB64);
+    useKey(txt, fname);
+  } catch (e: any) {
+    setLoginStatus('✗ Datei konnte nicht verarbeitet werden: ' + String(e?.message || e));
+  }
+};
+(window as any).onNativeKeyFileErr = (msg: string) => {
+  setLoginStatus('✗ Datei-Auswahl fehlgeschlagen: ' + msg);
+};
+
+$('l-file').addEventListener('click', (ev) => {
+  const an = (window as any).AndroidNative;
+  if (an?.pickKeyFile) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    an.pickKeyFile();
+    return;
+  }
+  // Reset vor dem Öffnen, damit auch dieselbe Datei beim 2. Mal zuverlässig onchange feuert
+  (ev.currentTarget as HTMLInputElement).value = '';
+});
+
+$('l-file').onchange = async (ev: Event) => {
+  const f = (ev.target as HTMLInputElement).files?.[0];
+  if (!f) return;
+  try {
     const txt = await readFileText(f);
     await useKey(txt, f.name);
   } catch (e: any) {
-    $('l-err').textContent = '✗ Fehler beim Laden der Datei: ' + String(e?.message || e);
+    setLoginStatus('✗ Fehler beim Lesen der Datei: ' + String(e?.message || e));
   }
 };
+
+// Desktop-Komfort: Schlüsseldatei einfach per Drag & Drop auf die Login-Karte ziehen
+const loginCard = document.getElementById('login');
+if (loginCard) {
+  loginCard.addEventListener('dragover', (e) => { e.preventDefault(); });
+  loginCard.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const f = e.dataTransfer?.files?.[0];
+    if (!f) return;
+    try { await useKey(await readFileText(f), f.name); }
+    catch (err: any) { setLoginStatus('✗ Drag & Drop fehlgeschlagen: ' + String(err?.message || err)); }
+  });
+}
+
 $('l-login').onclick = async () => {
-  if (!pemCache) { $('l-err').textContent = 'Erst Schluessel laden (Demo-Knopf oder Datei).'; return; }
-  await login(pemCache);
+  if (!pemCache) { setLoginStatus('Bitte zuerst eine Schlüsseldatei wählen.'); return; }
+  await loginAuto(pemCache);
 };
 
 // --- Etappe 6: Passkey/WebAuthn-Login + Registrierung (CONCEPT §21) ---
@@ -851,15 +1105,41 @@ function androidBiometricAuth(): Promise<boolean> {
     const an = (window as any).AndroidNative;
     if (!an?.requestBiometricAuth) { resolve(false); return; }
     (window as any).onNativeBioResult = (ok: boolean, err: string) => {
-      if (!ok && err) $('l-err').textContent = '✗ Fingerabdruck: ' + err;
+      if (!ok && err) setLoginStatus('✗ Fingerabdruck: ' + err);
       resolve(!!ok);
     };
     an.requestBiometricAuth();
   });
 }
 
+function askAccountForPasskey(): Promise<string> {
+  return new Promise((resolve) => {
+    const { body, close } = wizOverlay('🔑 Mit Passkey anmelden', 400);
+    const saved = loadLastUser()?.acct || '';
+    body.innerHTML = `<p class="meta" style="margin:0 0 8px">Wie lautet dein lightningmail-Kontoname? (Wird danach auf diesem Gerät gemerkt.)</p>
+      <input id="pk-acct" value="${esc(saved)}" placeholder="z. B. bernd" autocapitalize="none" autocomplete="username" style="font-size:1.02em">
+      ${ERRROW}
+      <div class="row" style="margin-top:12px">
+        <button type="button" id="pk-go" style="flex:2;background:var(--navy);color:#fff;border-color:var(--navy);padding:11px 16px">Weiter zum Passkey →</button>
+        <button type="button" id="w-x">Abbrechen</button>
+      </div>`;
+    $('w-x').onclick = () => { close(); resolve(''); };
+    const inp = $('pk-acct') as HTMLInputElement;
+    setTimeout(() => inp.focus(), 40);
+    const go = () => {
+      const v = inp.value.trim().toLowerCase().split('@')[0];
+      if (!v) { $('w-err').textContent = 'Bitte Kontoname eingeben.'; return; }
+      ($('l-acct') as HTMLInputElement).value = v;
+      close();
+      resolve(v);
+    };
+    $('pk-go').onclick = go;
+    inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+  });
+}
+
 async function passkeyLogin() {
-  $('l-err').textContent = '';
+  setLoginStatus('', false);
   // 1) In der Android-APK: Nativer Android-Fingerabdruck entsperrt direkt den Hardware-Keystore-Vault
   const an = (window as any).AndroidNative;
   if (an?.loadVault) {
@@ -870,47 +1150,63 @@ async function passkeyLogin() {
           const ok = await androidBiometricAuth();
           if (!ok) return;
         }
-        ($('l-acct') as HTMLInputElement).value = nv.acct;
-        ($('l-relay') as HTMLSelectElement).value = nv.base;
-        pemCache = nv.pem;
-        await login(nv.pem);
+        await login(nv.pem, nv.acct, nv.base);
         return;
       }
       if (!passkeyAvailable()) {
-        $('l-err').textContent = 'Noch kein Schlüssel im Android-Tresor gespeichert — bitte einmal Konto anlegen oder mit 24 Wörtern / Schlüsseldatei anmelden.';
+        setLoginStatus('Noch kein Konto auf diesem Handy gespeichert — bitte einmalig mit „📂 Schlüsseldatei" oder „🌱 24 Backup-Wörtern" anmelden. Ab danach klappt der Fingerabdruck sofort!', false);
         return;
       }
     } catch { /* Fallback auf WebAuthn */ }
   }
-  acct = ($('l-acct') as HTMLInputElement).value.trim(); base = ($('l-relay') as HTMLSelectElement).value;
-  if (!acct) { $('l-err').textContent = 'Kontoname eingeben.'; return; }
+  let targetAcct = ($('l-acct') as HTMLInputElement).value.trim().toLowerCase().split('@')[0] || loadLastUser()?.acct || '';
+  if (!targetAcct) {
+    targetAcct = await askAccountForPasskey();
+    if (!targetAcct) return;
+  }
+  const candidates = relayCandidates();
+  let begin: any = null;
+  let chosenBase = '';
+  let lastErr = '';
+  for (const cand of candidates) {
+    try {
+      const br = await fetch(cand + '/v1/webauthn/login/begin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: targetAcct }) });
+      const j = await br.json().catch(() => ({}));
+      if (br.ok) { begin = j; chosenBase = cand; break; }
+      lastErr = j.error || errText(br.status);
+      if (br.status !== 404) break;
+    } catch (e: any) { lastErr = String(e?.message || e); }
+  }
+  if (!begin || !chosenBase) {
+    // Falls ein alter gemerkter Name keinen Passkey hatte -> einmal Name erfragen lassen
+    if (!($('l-acct') as HTMLInputElement).value.trim() && loadLastUser()?.acct) {
+      localStorage.removeItem(LAST_USER_KEY);
+    }
+    setLoginStatus('✗ ' + (lastErr || 'Kein Passkey für dieses Konto gefunden.'));
+    return;
+  }
   try {
-    const br = await fetch(base + '/v1/webauthn/login/begin', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: acct }) });
-    const begin = await br.json().catch(() => ({}));
-    if (!br.ok) { $('l-err').textContent = '✗ ' + (begin.error || errText(br.status)); return; }
+    acct = targetAcct; base = chosenBase;
     const opts = decodeOpts(begin.options.publicKey);
     const cred = await navigator.credentials.get({ publicKey: opts });
     const ext: any = (cred as any).getClientExtensionResults?.() || {};
     const prfSecret = ext.prf?.first ? new Uint8Array(ext.prf.first) : null;
-    const fr = await fetch(base + '/v1/webauthn/login/finish', {
+    const fr = await fetch(chosenBase + '/v1/webauthn/login/finish', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address: acct, sid: begin.sid, credential: cred2json(cred) }) });
+      body: JSON.stringify({ address: targetAcct, sid: begin.sid, credential: cred2json(cred) }) });
     const fin = await fr.json().catch(() => ({}));
-    if (!fr.ok) { $('l-err').textContent = '✗ ' + (fin.error || errText(fr.status)); return; }
+    if (!fr.ok) { setLoginStatus('✗ ' + (fin.error || errText(fr.status))); return; }
     if (fin.wrap_prf && prfSecret) {
       pemCache = unwrapKeyPRF(fin.wrap_prf, prfSecret);
-      await login(pemCache);
+      await login(pemCache, targetAcct, chosenBase);
     } else if (fin.wrap_pass) {
-      pendingWrap = fin.wrap_pass;
-      $('l-passrow').style.display = '';
-      $('l-err').textContent = 'Passkey bestätigt. Dieser Browser kann den Schlüssel nicht per PRF entsiegeln — bitte Passphrase eingeben und auf „🔓 OK / Anmelden" klicken.';
-      setTimeout(() => ($('l-pass') as HTMLInputElement)?.focus(), 30);
+      openPassModal(fin.wrap_pass, `Passkey (${targetAcct})`);
     } else {
-      $('l-err').textContent = '✗ Dieser Passkey hat keinen Schlüssel-Wrap. Einmal anmelden und oben über „🔑 Passkey" neu hinterlegen.';
+      setLoginStatus('✗ Dieser Passkey hat keinen Schlüssel-Wrap. Einmal per Schlüsseldatei/24 Wörtern anmelden und oben über „🔑 Passkey" neu speichern.');
     }
   } catch (e: any) {
-    $('l-err').textContent = '✗ ' + String(e?.message || e).slice(0, 140);
+    setLoginStatus('✗ ' + String(e?.message || e).slice(0, 140));
   }
 }
 $('l-passkey').onclick = passkeyLogin;
@@ -1156,11 +1452,22 @@ async function oidcFlow() {
   }
 }
 
+// Letzten bekannten Kontonamen (ohne Geheimnis) für Passkey-Komfort vorbelegen
+const rememberedUser = loadLastUser();
+if (rememberedUser) {
+  ($('l-acct') as HTMLInputElement).value = rememberedUser.acct;
+  const relEl = $('l-relay') as HTMLSelectElement;
+  if ([...relEl.options].some(o => o.value === rememberedUser.base)) relEl.value = rememberedUser.base;
+  const pkBtn = document.getElementById('l-passkey');
+  if (pkBtn && !(window as any).AndroidNative) {
+    pkBtn.textContent = `🔑 Mit Passkey anmelden (${rememberedUser.acct})`;
+  }
+}
+
 // Start: gespeicherten Schluessel wiederladen. Ohne explizites Abmelden (lm_noauto)
-// loggt die App sofort ein; sonst zeigt der Login die Ein-Klick-Zeile "Weiter als …".
+// loggt die App sofort ein; nach Abmelden reicht 1 Klick bzw. Fingerabdruck.
 let autoSaved = loadAuto();
 let fromNativeVault = false;
-// Android-Tresor: wenn localStorage leer ist, Schluessel aus dem Hardware-Keystore holen
 if (!autoSaved && (window as any).AndroidNative?.loadVault) {
   try {
     const nv = JSON.parse((window as any).AndroidNative.loadVault() || 'null');
@@ -1168,23 +1475,33 @@ if (!autoSaved && (window as any).AndroidNative?.loadVault) {
   } catch { /* Tresor leer oder kaputt — normaler Login */ }
 }
 if (autoSaved) {
-  ($('l-acct') as HTMLInputElement).value = autoSaved.acct;
-  ($('l-relay') as HTMLSelectElement).value = autoSaved.base;
+  const saved = autoSaved;
+  ($('l-acct') as HTMLInputElement).value = saved.acct;
+  const relEl = $('l-relay') as HTMLSelectElement;
+  if ([...relEl.options].some(o => o.value === saved.base)) relEl.value = saved.base;
   const q = $('l-quick'); q.style.display = '';
-  ($('l-quickgo') as HTMLButtonElement).textContent = `► Weiter als ${autoSaved.acct}${fromNativeVault ? ' (Android-Tresor)' : ''}`;
-  $('l-quickgo').onclick = () => {
-    pemCache = autoSaved.pem;
-    login(autoSaved.pem).catch((e: any) => { $('l-err').textContent = '✗ ' + String(e?.message || e).slice(0, 120); });
+  ($('l-quickgo') as HTMLButtonElement).textContent = fromNativeVault
+    ? `🔑 Als ${saved.acct} entsperren (Fingerabdruck)`
+    : `► Direkt weiter als ${saved.acct}`;
+  $('l-quickgo').onclick = async () => {
+    if (fromNativeVault && (window as any).AndroidNative?.requestBiometricAuth) {
+      const ok = await androidBiometricAuth();
+      if (!ok) return;
+    }
+    await login(saved.pem, saved.acct, saved.base);
   };
   $('l-forget').onclick = () => {
     sessionStorage.removeItem(AUTO_KEY);
     localStorage.removeItem(AUTO_KEY);
+    localStorage.removeItem(LAST_USER_KEY);
     try { (window as any).AndroidNative?.clearVault?.(); } catch {}
     q.style.display = 'none';
-    $('l-err').textContent = 'Gespeicherter Schluessel geloescht — Datei, Passkey oder 24 Wörter nötig.';
+    ($('l-acct') as HTMLInputElement).value = '';
+    setLoginStatus('Gespeicherter Zugang auf diesem Gerät entfernt.', false);
   };
   if (!localStorage.getItem(NOAUTO_KEY)) {
-    pemCache = autoSaved.pem;
-    login(autoSaved.pem).catch((e: any) => { $('l-err').textContent = 'Auto-Login fehlgeschlagen: ' + String(e?.message || e).slice(0, 120); });
+    login(saved.pem, saved.acct, saved.base).catch((e: any) => {
+      setLoginStatus('Auto-Login fehlgeschlagen: ' + String(e?.message || e).slice(0, 120));
+    });
   }
 }

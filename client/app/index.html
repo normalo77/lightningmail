@@ -87,6 +87,7 @@ header h1 {
   white-space: nowrap;
   box-shadow: 0 1px 4px rgba(0,0,0,0.2);
 }
+#balance:empty { display: none; }
 header button {
   background: rgba(255,255,255,0.12);
   color: #f5f3ec;
@@ -261,24 +262,71 @@ label {
   margin-bottom: 10px;
   color: var(--ink);
 }
-.file-btn-label {
-  display: inline-flex;
+.login-methods {
+  display: grid;
+  gap: 9px;
+}
+.login-method-btn {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 16px;
+  font-size: 0.96em;
+  font-weight: 700;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1.5px solid var(--border);
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  flex: 1 1 auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  font-size: 0.9em;
-  font-weight: 600;
+  gap: 8px;
   cursor: pointer;
-  color: var(--ink);
+  margin: 0;
+  text-align: center;
+  transition: background 0.14s ease, border-color 0.14s ease;
 }
-.file-btn-label:hover {
+.login-method-btn:hover:not(.disabled) {
   background: var(--accent);
   border-color: var(--accent-hover);
+  color: var(--accent-ink);
+}
+.login-method-btn.primary {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+.login-method-btn.primary:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent-hover);
+}
+#l-file-wrap input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.login-status {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88em;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.login-status.err {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: var(--danger);
+}
+.login-status.info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: var(--navy);
 }
 /* Modern Wizard Styling */
 .wiz-steps {
@@ -616,60 +664,61 @@ form.compose textarea {
   <div class="title-bar"><div class="title-bar-text">⚡ lightningmail — Postfach</div></div>
   <div class="window-body">
     <div class="row" id="l-quick" style="display:none;margin-top:0">
-      <button id="l-quickgo" style="flex:2;padding:11px 14px"></button>
+      <button id="l-quickgo" style="flex:2;padding:12px 14px;font-size:0.98em"></button>
       <button id="l-forget" title="Gespeicherten Schlüssel von diesem Gerät löschen">🗑 Vergessen</button>
     </div>
 
-    <button id="l-signup" class="signup-hero-btn" type="button">
-      ✨ Neues Konto in 30 Sek. anlegen (+10.000 Test-Sats)
-    </button>
+    <div class="login-methods">
+      <button id="l-passkey" type="button" class="login-method-btn primary">
+        🔑 Mit Fingerabdruck / Passkey anmelden
+      </button>
 
-    <div class="login-divider">Oder bestehendes Konto öffnen</div>
+      <label class="login-method-btn" id="l-file-wrap" for="l-file">
+        <span id="l-file-lbl">📂 Schlüsseldatei öffnen (.lmkey / .key)</span>
+        <input type="file" id="l-file" accept="*/*">
+      </label>
 
-    <div class="field-grid">
-      <div>
-        <label for="l-acct">Kontoname</label>
-        <input id="l-acct" value="alice" placeholder="z. B. alice" autocomplete="username" autocapitalize="none">
-      </div>
-      <div>
-        <label for="l-relay">Relay-Server</label>
-        <select id="l-relay">
-          <option value="/relay-a">alpha (lightningmail.app)</option>
-          <option value="/relay-b">beta (lightningmail.app)</option>
-        </select>
-      </div>
+      <button id="l-words" type="button" class="login-method-btn">
+        🌱 Mit 24 Backup-Wörtern anmelden
+      </button>
     </div>
 
     <div class="row" id="l-passrow" style="display:none;align-items:center">
-      <input type="password" id="l-pass" placeholder="Passphrase für .lmkey eingeben" style="flex:1">
+      <input type="password" id="l-pass" placeholder="Passwort für .lmkey eingeben" style="flex:1">
       <button id="l-passbtn" type="button">🔓 OK / Anmelden</button>
     </div>
 
     <div class="row" id="l-keyready" style="display:none">
       <button id="l-login" type="button" style="width:100%;padding:11px 14px;background:var(--ok);color:#fff;border-color:var(--ok)">
-        ✓ Schlüssel geladen — OK / Jetzt anmelden
+        ✓ Schlüssel bereit — Jetzt anmelden
       </button>
     </div>
 
-    <div class="row" style="margin-top:2px">
-      <button id="l-passkey" type="button" style="background:var(--navy);color:#fff;border-color:var(--navy);padding:11px 14px">
-        🔑 Mit Passkey / Fingerabdruck anmelden
-      </button>
-    </div>
+    <p id="l-err" class="login-status err" style="display:none"></p>
 
-    <details class="alt-methods">
-      <summary>Weitere Anmeldemethoden (Schlüsseldatei, 24 Wörter, Demo)</summary>
-      <div class="row" style="margin-top:4px">
-        <button id="l-file-btn" type="button" style="flex:1">📂 Schlüsseldatei (.lmkey / .key)</button>
-        <input type="file" id="l-file" accept="*/*" style="display:none">
-        <button id="l-words" type="button" title="Konto aus dem 24-Wort-Backup wiederherstellen">🌱 24 Wörter</button>
-      </div>
-      <div class="row">
-        <button id="l-demo" type="button">⚡ Demo-Konto (alice) testen</button>
+    <div class="login-divider">Noch kein Postfach?</div>
+
+    <button id="l-signup" class="signup-hero-btn" type="button">
+      ✨ Neues Konto in 30 Sek. anlegen (+10.000 Test-Sats)
+    </button>
+
+    <details class="alt-methods" id="l-adv">
+      <summary>Erweitert: Server / Kontoname manuell wählen</summary>
+      <div class="field-grid" style="margin-top:6px">
+        <div>
+          <label for="l-acct">Kontoname (optional)</label>
+          <input id="l-acct" value="" placeholder="wird automatisch erkannt" autocomplete="username" autocapitalize="none">
+        </div>
+        <div>
+          <label for="l-relay">Relay-Server</label>
+          <select id="l-relay">
+            <option value="/relay-a">alpha (lightningmail.app)</option>
+            <option value="/relay-b">beta (lightningmail.app)</option>
+          </select>
+        </div>
       </div>
     </details>
 
-    <p id="l-err" class="meta" style="margin:0"></p>
     <p class="meta" style="text-align:center;margin:2px 0 0"><a href="/" target="_blank" rel="noopener">Startseite</a> · <a href="/forum" target="_blank" rel="noopener">Forum &amp; Paywall</a> · <a href="/architecture" target="_blank" rel="noopener">Architektur</a> · <a href="/impressum" target="_blank" rel="noopener">Impressum</a></p>
   </div>
 </div>

@@ -103,10 +103,10 @@ func authQuery(verifier string) url.Values {
 	h := sha256.Sum256([]byte(verifier))
 	return url.Values{
 		"response_type": {"code"}, "client_id": {"demo"},
-		"redirect_uri":  {"https://idp.test/oidc/demo-callback.html"},
-		"scope":         {"openid email"},
-		"state":         {"xyz"}, "nonce": {"n1"},
-		"code_challenge": {base64.RawURLEncoding.EncodeToString(h[:])},
+		"redirect_uri": {"https://idp.test/oidc/demo-callback.html"},
+		"scope":        {"openid email"},
+		"state":        {"xyz"}, "nonce": {"n1"},
+		"code_challenge":        {base64.RawURLEncoding.EncodeToString(h[:])},
 		"code_challenge_method": {"S256"},
 	}
 }
