@@ -765,7 +765,7 @@ const cred2json = (c: any): any => {
     const v = (c.response as any)[f]; if (v) r[f] = b64u(v);
   }
   if (c.response.getTransports) r.transports = c.response.getTransports();
-  return { id: c.id, rawId: b64u(c.rawId), type: c.type, response: r, clientExtensionResults: c.getClientExtensionResults?.() || {} };
+  return { id: c.id, rawId: b64u(c.rawId), type: c.type, response: r, clientExtensionResults: {} };
 };
 
 if (!passkeyAvailable()) {

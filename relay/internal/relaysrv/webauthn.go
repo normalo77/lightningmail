@@ -126,7 +126,18 @@ func (s *Server) waTakeSession(sid string) (webauthn.SessionData, bool) {
 
 // bodyWithCredential liefert einen Request-Klon, dessen Body genau das
 // WebAuthn-Credential-JSON ist (go-webauthn parst direkt aus *http.Request).
+// Android-Browser (Brave/Chrome/GMS) liefern ungefragte clientExtensionResults
+// wie "credProps" mit, woran go-webauthn v0.18.2 strikt scheitert; da das Relay
+// clientExtensionResults selbst gar nicht braucht (PRF wird clientseitig vor
+// dem POST ausgewertet), leeren wir clientExtensionResults vor dem Parsen.
 func bodyWithCredential(r *http.Request, credJSON json.RawMessage) *http.Request {
+	var m map[string]any
+	if err := json.Unmarshal(credJSON, &m); err == nil {
+		m["clientExtensionResults"] = map[string]any{}
+		if cleaned, err := json.Marshal(m); err == nil {
+			credJSON = cleaned
+		}
+	}
 	clone := r.Clone(r.Context())
 	clone.Body = io.NopCloser(bytes.NewReader(credJSON))
 	clone.ContentLength = int64(len(credJSON))
