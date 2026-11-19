@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#0d1017"/>
+  <text x="960" y="130" text-anchor="middle" font-family="DejaVu Sans" font-size="58" font-weight="bold" fill="#ede8dc">Spam war ein Ärgernis. Jetzt ist er dein Einkommen.</text>
+  <g font-family="DejaVu Sans">
+    <!-- Panel E-Mail -->
+    <rect x="110" y="210" width="820" height="640" rx="20" fill="#151a24" stroke="#5c6474" stroke-width="2"/>
+    <text x="520" y="290" text-anchor="middle" font-size="40" font-weight="bold" fill="#8b93a7">E-Mail heute</text>
+    <g font-size="30" fill="#ede8dc">
+      <text x="170" y="380">Spam senden kostet:</text>
+      <text x="700" y="380" font-weight="bold" fill="#e05c5c">0 €</text>
+      <text x="170" y="450">Spam empfangen kostet:</text>
+      <text x="700" y="450" font-weight="bold" fill="#e05c5c">deine Zeit</text>
+      <text x="170" y="520">Filter, Plattformen, Werbenetze:</text>
+      <text x="170" y="565" font-size="26" fill="#8b93a7">verdienen am Rauschen mit</text>
+    </g>
+    <line x1="170" y1="620" x2="870" y2="620" stroke="#3a4152" stroke-width="2"/>
+    <text x="520" y="690" text-anchor="middle" font-size="30" fill="#e05c5c" font-weight="bold">Anreiz verdreht:</text>
+    <text x="520" y="740" text-anchor="middle" font-size="30" fill="#e05c5c">Lärm ist gratis, Attention wird geerntet.</text>
+    <!-- Pfeil -->
+    <text x="960" y="555" text-anchor="middle" font-size="70" fill="#f7931a">→</text>
+    <!-- Panel lightningmail -->
+    <rect x="990" y="210" width="820" height="640" rx="20" fill="#151a24" stroke="#f7931a" stroke-width="2"/>
+    <text x="1400" y="290" text-anchor="middle" font-size="40" font-weight="bold" fill="#f7931a">lightningmail</text>
+    <g font-size="30" fill="#ede8dc">
+      <text x="1050" y="380">Fremde senden kostet:</text>
+      <text x="1620" y="380" font-weight="bold" fill="#f7931a">10 sats</text>
+      <text x="1050" y="450">… und landet als</text>
+      <text x="1620" y="450" font-weight="bold" fill="#f7931a">Guthaben</text>
+      <text x="1050" y="495" font-size="26" fill="#8b93a7">bei dir (Empfänger-Porto, §5)</text>
+      <text x="1050" y="565">Kontakte senden:</text>
+      <text x="1620" y="565" font-weight="bold" fill="#7ac77a">gratis</text>
+    </g>
+    <line x1="1050" y1="620" x2="1750" y2="620" stroke="#3a4152" stroke-width="2"/>
+    <text x="1400" y="690" text-anchor="middle" font-size="30" fill="#7ac77a" font-weight="bold">Anreiz geradegerückt:</text>
+    <text x="1400" y="740" text-anchor="middle" font-size="30" fill="#7ac77a">Aufmerksamkeit hat einen Preis — für den Sender.</text>
+  </g>
+  <text x="960" y="950" text-anchor="middle" font-family="DejaVu Sans" font-size="30" fill="#8b93a7">Hashcash 1997 verbrannte die Marke. 2026 zahlt sie der Empfänger ein.</text>
+</svg>

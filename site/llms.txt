@@ -1,0 +1,25 @@
+# lightningmail (https://lightningmail.app)
+
+> E-mail with Bitcoin Lightning postage, automatic end-to-end encryption (ECIES + XChaCha20-Poly1305), passwordless OpenID Connect login ("Sign in with lightningmail"), and 1-click satoshi micro-paywalls. MIT licensed.
+
+## Core Concept
+- **Economic Anti-Spam (Hashcash that pays the recipient):** Every outgoing message carries a small Bitcoin Lightning postage payment (e.g. 10 satoshis via keysend) credited directly to the recipient's mailbox balance. Unwanted bulk spam costs the sender real money; two-way human conversations net out to zero because replies carry the postage back.
+- **No Public Directory, No Conversation Window:** Knowing `name@domain` is sufficient. A `_bmail._tcp.<domain>` DNS TXT record locates the destination relay, and `GET /v1/profile/{name}` returns the recipient's `secp256k1` public key and postage rates for free.
+- **Triple Function of a Single Key (Mailbox + OIDC Login + Micro-Paywall):**
+  1. **Encrypted Mail & 1 MiB Chunked Attachments:** Automatic end-to-end encryption (`LM1` binary TLV envelope, `secp256k1` ECDH + HKDF-SHA256 + `XChaCha20-Poly1305`, signed with BIP340 Schnorr). Large files are sliced into 1 MiB chunks billed via byte-postage.
+  2. **Passwordless Login (`Sign in with lightningmail`):** Every relay is a built-in OpenID Connect (OIDC) Identity Provider (Authorization Code + PKCE S256, supporting zero-registration stateless HTTPS origins). The ID token carries a `bmail` claim with a cryptographic BIP340 proof signed by the user's mailbox key in the browser.
+  3. **Postage Advance & Micro-Paywalls:** For service sign-ups requiring a confirmation mail, the user sends a postage advance (Tag `0x0A`, `welcome_sats`), funding the confirmation reply via the headless Service Connector. For web content, OIDC parameters `pay_sats` & `pay_item` enable 1-click micro-paywalls (e.g. 5 satoshis per article) debited directly from the user's mailbox balance.
+- **Two Self-Hosted Relay Modes:**
+  - **Light Relay:** Single Go binary (`relayd`, ~25 MB RAM, SQLite) + LND in **Neutrino mode** (BIP 157/158 compact block filters via public Bitcoin nodes, ~10 GB disk, no `bitcoind` required).
+  - **Full Relay:** `relayd` + `lnd` + dedicated `bitcoind`.
+- **Star-Topology Device Sync (`/v1/state`):** Inbox, sent folder, drafts, read flags, and private address book sync encrypted (self-ECIES) across all devices via the user's relay. Large attachment blobs expire on the relay 7 days after first download and are cached permanently in local client storage (`IndexedDB`).
+
+## Key URLs & Resources
+- Landing Page (DE/EN/ES/FR/PL): https://lightningmail.app/
+- 10 Architecture Decisions & Client Porting Guide: https://lightningmail.app/architecture
+- Live OIDC Community Forum & 5-Sat Micro-Paywall Demo: https://lightningmail.app/forum
+- Web App (PWA): https://lightningmail.app/app/
+- GitHub Repository (MIT License): https://github.com/normalo77/lightningmail
+- Native Linux Client (x86_64 Binary, 1080p/4K GUI + CLI): https://lightningmail.app/lightningmail-linux-amd64
+- Native Android App (.apk with AndroidKeyStore): https://lightningmail.app/lightningmail.apk
+- Thunderbird Tab Add-on (.xpi): https://lightningmail.app/lightningmail-thunderbird.xpi
