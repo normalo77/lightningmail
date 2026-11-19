@@ -774,14 +774,31 @@ function openRestore() {
 }
 $('l-signup').onclick = openWizard;
 if ($('l-words')) $('l-words').onclick = openRestore;
+const readFileText = (f: File): Promise<string> => new Promise((res, rej) => {
+  const fr = new FileReader();
+  fr.onload = () => res(String(fr.result || ''));
+  fr.onerror = () => rej(new Error('Datei konnte nicht gelesen werden'));
+  fr.readAsText(f);
+});
+if (document.getElementById('l-file-btn')) {
+  document.getElementById('l-file-btn')!.onclick = () => {
+    ($('l-file') as HTMLInputElement).value = '';
+    ($('l-file') as HTMLInputElement).click();
+  };
+}
 $('l-file').onchange = async (ev: Event) => {
-  const f = (ev.target as any).files[0]; if (!f) return;
-  // Kontoname aus Dateinamen: lightningmail-<acct>.lmkey bzw. <acct>.key/.pem
-  const m = /^(?:lightningmail-)?([a-z0-9][a-z0-9._-]{1,31})\.(?:lmkey|key|pem)$/i.exec(f.name);
-  if (m) ($('l-acct') as HTMLInputElement).value = m[1].toLowerCase();
-  const lbl = document.getElementById('l-file-lbl');
-  if (lbl) lbl.textContent = '📂 ' + f.name;
-  await useKey(await f.text(), f.name);
+  const f = (ev.target as any).files?.[0]; if (!f) return;
+  try {
+    // Kontoname aus Dateinamen: lightningmail-<acct>.lmkey bzw. <acct>.key/.pem
+    const m = /^(?:lightningmail-)?([a-z0-9][a-z0-9._-]{1,31})\.(?:lmkey|key|pem)/i.exec(f.name);
+    if (m) ($('l-acct') as HTMLInputElement).value = m[1].toLowerCase();
+    const btn = document.getElementById('l-file-btn');
+    if (btn) btn.textContent = '📂 ' + f.name;
+    const txt = await readFileText(f);
+    await useKey(txt, f.name);
+  } catch (e: any) {
+    $('l-err').textContent = '✗ Fehler beim Laden der Datei: ' + String(e?.message || e);
+  }
 };
 $('l-login').onclick = async () => {
   if (!pemCache) { $('l-err').textContent = 'Erst Schluessel laden (Demo-Knopf oder Datei).'; return; }

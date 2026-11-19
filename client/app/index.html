@@ -660,10 +660,8 @@ form.compose textarea {
     <details class="alt-methods">
       <summary>Weitere Anmeldemethoden (Schlüsseldatei, 24 Wörter, Demo)</summary>
       <div class="row" style="margin-top:4px">
-        <label class="file-btn-label" for="l-file" id="l-file-lbl">
-          📂 Schlüsseldatei (.lmkey / .key)
-        </label>
-        <input type="file" id="l-file" accept=".key,.pem,.lmkey" style="display:none">
+        <button id="l-file-btn" type="button" style="flex:1">📂 Schlüsseldatei (.lmkey / .key)</button>
+        <input type="file" id="l-file" accept="*/*" style="display:none">
         <button id="l-words" type="button" title="Konto aus dem 24-Wort-Backup wiederherstellen">🌱 24 Wörter</button>
       </div>
       <div class="row">

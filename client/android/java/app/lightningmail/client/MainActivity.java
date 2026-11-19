@@ -81,7 +81,7 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);   // Pflicht für localStorage/sessionStorage
         s.setDatabaseEnabled(true);
         s.setAllowFileAccess(false);
-        s.setAllowContentAccess(false);
+        s.setAllowContentAccess(true);  // Pflicht für <input type="file"> (content://-URIs aus dem Android-Dateipicker)
         webView.setBackgroundColor(0xFF122338); // kein Weiß-Blitz beim Start
         webView.addJavascriptInterface(new NativeBridge(), "AndroidNative");
 
