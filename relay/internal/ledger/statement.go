@@ -97,23 +97,22 @@ func (l *Ledger) StatementChain(account string, from, to int64) (rows []StmtRow,
 }
 
 // OpRow = Betreiber-Zeile: Einnahmen des Relays (positive Betraege) bzw.
-// Erstattungen (negativ). Quellen: txlog kind='fee' (Byte-Porto/Refunds,
-// Vorzeichen gedreht: was der Nutzer zahlt, verdient der Betreiber) und
-// card_purchases.fee_msat (Karten-Fee, Anteil aus dem Split).
+// Erstattungen (negativ). Quelle: txlog kind='fee' (Byte-Porto/Refunds,
+// Vorzeichen gedreht: was der Nutzer zahlt, verdient der Betreiber).
 type OpRow struct {
-	Source    string // "txlog" | "card"
-	ID        int64
-	CreatedAt int64
-	Account   string
-	Label     string // "byte_porto" | "refund" | "card_fee"
+	Source     string // "txlog"
+	ID         int64
+	CreatedAt  int64
+	Account    string
+	Label      string // "byte_porto" | "refund" | "fee"
 	AmountMsat int64
-	EurMicro  *int64
-	RateTs    *int64
-	RateSrc   *string
-	RateMEur  *int64
-	Ref       string
-	PrevHash  string
-	Hash      string
+	EurMicro   *int64
+	RateTs     *int64
+	RateSrc    *string
+	RateMEur   *int64
+	Ref        string
+	PrevHash   string
+	Hash       string
 }
 
 func (r OpRow) CanonRow() string {
@@ -122,34 +121,26 @@ func (r OpRow) CanonRow() string {
 		optI64(r.EurMicro), optI64(r.RateTs), optStr(r.RateSrc), optI64(r.RateMEur), r.Ref)
 }
 
-// OperatorChain: dieselbe Kettenkonstruktion ueber beide Quellen,
-// aufsteigend nach (created_at, source, id) — deterministisch.
+// OperatorChain: Kettenkonstruktion ueber alle Betreiber-Fees (txlog kind='fee'),
+// aufsteigend nach id — deterministisch.
 func (l *Ledger) OperatorChain(relayName string, from, to int64) (rows []OpRow, head string, err error) {
-	if err := l.ensureDirectory(); err != nil {
-		return nil, "", err
+	extra, args := "", []any{}
+	if to > 0 {
+		extra = " AND t.created_at<=?"
+		args = append(args, to)
 	}
-	timeCond := func(col string) (string, []any) {
-		s, a := "", []any{}
-		if to > 0 {
-			s += " AND " + col + "<=?"
-			a = append(a, to)
-		}
-		return s, a
-	}
-	var all []OpRow
-	// 1) txlog kind='fee': Betrag aus Nutzersicht negativ → Betreiber positiv
-	extra, args := timeCond("t.created_at")
 	q1 := `SELECT t.id, t.created_at, a.name, -t.delta_msat, t.eur_micro, t.rate_ts, t.rate_src, t.rate_meur_per_btc, COALESCE(t.ref,'')
        FROM txlog t JOIN account a ON a.id=t.account_id WHERE t.kind='fee'` + extra + ` ORDER BY t.id ASC`
 	rs, err := l.db.Query(q1, args...)
 	if err != nil {
 		return nil, "", err
 	}
+	defer rs.Close()
+	var all []OpRow
 	for rs.Next() {
 		var r OpRow
 		r.Source = "txlog"
 		if err := rs.Scan(&r.ID, &r.CreatedAt, &r.Account, &r.AmountMsat, &r.EurMicro, &r.RateTs, &r.RateSrc, &r.RateMEur, &r.Ref); err != nil {
-			rs.Close()
 			return nil, "", err
 		}
 		// eur_micro der txlog-Zeile ist aus Nutzersicht (negativ) → drehen
@@ -166,68 +157,19 @@ func (l *Ledger) OperatorChain(relayName string, from, to int64) (rows []OpRow, 
 		}
 		all = append(all, r)
 	}
-	rs.Close()
 	if err := rs.Err(); err != nil {
 		return nil, "", err
 	}
-	// 2) Karten-Fees aus card_purchases
-	extra2, args2 := timeCond("p.created_at")
-	q2 := `SELECT p.rowid, p.created_at, b2.name, p.fee_msat, p.eur_micro, p.rate_ts, p.rate_src, p.rate_meur_per_btc, p.card_hash
-       FROM card_purchases p JOIN account b2 ON b2.id=p.buyer_id WHERE p.fee_msat>0` + extra2 + ` ORDER BY p.rowid ASC`
-	rs2, err := l.db.Query(q2, args2...)
-	if err != nil {
-		return nil, "", err
-	}
-	for rs2.Next() {
-		var r OpRow
-		r.Source, r.Label = "card", "card_fee"
-		if err := rs2.Scan(&r.ID, &r.CreatedAt, &r.Account, &r.AmountMsat, &r.EurMicro, &r.RateTs, &r.RateSrc, &r.RateMEur, &r.Ref); err != nil {
-			rs2.Close()
-			return nil, "", err
-		}
-		// eur_micro der Kaufzeile ist der Verkaeufer-Erloes; Betreiber-EUR
-		// anteilig aus dem Kurs: fee_meur = fee_msat*rate/1e8
-		if r.RateMEur != nil && *r.RateMEur > 0 {
-			v := r.AmountMsat * (*r.RateMEur) / 100000000
-			r.EurMicro = &v
-		} else {
-			r.EurMicro = nil
-		}
-		all = append(all, r)
-	}
-	rs2.Close()
-	if err := rs2.Err(); err != nil {
-		return nil, "", err
-	}
-	// deterministische Sortierung + Kette (ueber ALLE Zeilen bis `to` —
-	// auch die vor `from`, sonst waeren Teilbereiche nicht verkettbar)
-	sortOps(all)
 	prev := OperatorGenesisHash(relayName)
 	for i := range all {
 		r := &all[i]
 		r.PrevHash = prev
 		r.Hash = shaHex(prev + r.CanonRow())
 		prev = r.Hash
-	}
-	// Ausgabe filtern
-	for i := range all {
-		if from > 0 && all[i].CreatedAt < from {
+		if from > 0 && r.CreatedAt < from {
 			continue
 		}
-		rows = append(rows, all[i])
+		rows = append(rows, *r)
 	}
 	return rows, prev, nil
-}
-
-// sortOps: created_at, dann source, dann id (insertion-order-stabil).
-func sortOps(rows []OpRow) {
-	for i := 1; i < len(rows); i++ { // Insertion-Sort: Op-Listen bleiben klein
-		for j := i; j > 0; j-- {
-			a, b := rows[j], rows[j-1]
-			if a.CreatedAt > b.CreatedAt || (a.CreatedAt == b.CreatedAt && (a.Source > b.Source || (a.Source == b.Source && a.ID >= b.ID))) {
-				break
-			}
-			rows[j], rows[j-1] = rows[j-1], rows[j]
-		}
-	}
 }

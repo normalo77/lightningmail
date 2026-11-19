@@ -5,8 +5,6 @@ import { parseManifest, reassemble } from '../src/chunks';
 import { composeAndSend } from '../src/send';
 import { StateSync, type Contact } from '../src/state';
 import { wrapKey, unwrapKey, isWrapped, wrapKeyPRF, unwrapKeyPRF } from '../src/keywrap';
-// Etappe B: oeffentliches Directory — signierte Profilkarten, Kauf pro card_hash
-import { lookupAddress, buyCard, fetchCard, cardFields, cardFromB64, verifyCard, putProfile, delProfile, type Card, type CardPayload, type LookupEntry } from '../src/directory';
 let pendingWrap = '';
 
 
@@ -292,7 +290,6 @@ const ABFIELDS: [keyof Contact, string][] = [
 function renderAB() {
   $('list').innerHTML = `<div class="abbar">
       <button id="ab-new">Neu…</button><button id="ab-del">Entfernen</button><button id="ab-exp">Export…</button>
-      <button id="ab-card" title="Öffentliche Profilkarte (Directory)">🌐 Meine Karte</button>
       <input id="ab-q" placeholder="Suchen" value="${esc(abQ)}" style="flex:1;min-width:70px"></div>
     <div id="abrows"></div>`;
   const all = sync ? sync.liveContacts() : [];
@@ -301,15 +298,10 @@ function renderAB() {
     const list = all
       .filter(c => !q || [c.name, c.given, c.org, c.title, c.lnaddr, c.email, c.cell, c.phone].join(" ").toLowerCase().includes(q))
       .sort((x, y) => abLabel(x).localeCompare(abLabel(y), "de"));
-    // Etappe B: Directory-Fernsuche (nur exakter Treffer, kein Scan)
-    const dirRow = q ? `<div class="row" id="ab-dirrow">
-      <div class="subj">🌐 Directory: „${esc(abQ.trim())}" suchen</div>
-      <div class="meta">exakter Treffer auf diesem Relay — Schlüssel gratis, Karte bezahlt</div></div>` : '';
-    $('abrows').innerHTML = dirRow + (list.map(c => `<div class="row ${c.id === abSel ? 'sel' : ''}" data-cid="${c.id}">
+    $('abrows').innerHTML = list.map(c => `<div class="row ${c.id === abSel ? 'sel' : ''}" data-cid="${c.id}">
       <div class="subj">${esc(abLabel(c))}</div>
       <div class="meta">${esc([c.org, c.lnaddr || c.email].filter(Boolean).join(" · "))}</div></div>`).join('') ||
-      '<div class="meta" style="padding:12px">— keine Kontakte —</div>');
-    if ($('ab-dirrow')) $('ab-dirrow').onclick = () => dirSearch(abQ);
+      '<div class="meta" style="padding:12px">— keine Kontakte —</div>';
     document.querySelectorAll('#abrows .row[data-cid]').forEach(el => {
       el.addEventListener('click', () => { abSel = el.getAttribute('data-cid')!; abEdit = ''; renderAB(); });
       el.addEventListener('dblclick', () => { abSel = el.getAttribute('data-cid')!; abEdit = abSel; abSeed = {}; renderAB(); });
@@ -318,7 +310,6 @@ function renderAB() {
   drawRows();
   ($('ab-q') as HTMLInputElement).addEventListener('input', (ev) => { abQ = (ev.target as HTMLInputElement).value; drawRows(); });
   $('ab-new').onclick = () => { abEdit = 'new'; abSel = ''; abSeed = {}; renderAB(); };
-  $('ab-card').onclick = () => { abEdit = 'mycard'; abSel = ''; renderAB(); };
   $('ab-del').onclick = () => {
     const c = all.find(x => x.id === abSel); if (!c || !sync) return;
     if (!confirm(`Kontakt „${abLabel(c)}“ aus dem Adressbuch entfernen?`)) return;
@@ -326,7 +317,6 @@ function renderAB() {
   };
   $('ab-exp').onclick = () => exportVcf(all);
 
-  if (abEdit === 'mycard') { renderMyCard(); return; }
   if (abEdit) { renderABForm(); return; }
   const c = all.find(x => x.id === abSel);
   $('detail').innerHTML = c
@@ -362,128 +352,6 @@ function renderABForm() {
     for (const [k] of ABFIELDS) patch[k] = (document.getElementById('abf-' + k) as HTMLInputElement).value.trim();
     sync.saveContact({ id, ...patch } as { id: string } & Partial<Contact>);
     abEdit = ''; abSel = id; abSeed = {}; renderAB();
-  };
-}
-
-// --- Etappe B: eigene Profilkarte (signierte Projektion + gdpr1-Consent) ---
-const ctLabel = (meur: number) => (meur / 10).toLocaleString('de', { maximumFractionDigits: 2 }) + ' ct';
-
-async function renderMyCard() {
-  $('detail').innerHTML = '<p class="meta">Lade eigene Karte…</p>';
-  let fields: Card = {}; let priceCt = 2.5; let published = false;
-  try {
-    const p = await fetchCard(base, token, acct); // eigene Karte ist frei
-    fields = cardFields(p); priceCt = (p.price_meur ?? 25) / 10; published = true;
-  } catch { /* 404 = noch keine Karte veroeffentlicht */ }
-  $('detail').innerHTML = `<div class="window" style="max-width:64ch"><div class="title-bar"><div class="title-bar-text">🌐 Meine öffentliche Karte</div></div>
-    <div class="window-body">
-      <p class="meta" style="margin-top:0">Nur markierte Felder werden veröffentlicht — die Karte ist mit deinem Mailbox-Key signiert und weltweit lesbar, wer den Kartenpreis zahlt.</p>
-      <form id="mc-form" class="abform">${ABFIELDS.map(([k, l]) =>
-        `<label><input type="checkbox" id="mck-${k}" ${(fields as any)[k] !== undefined ? 'checked' : ''} style="width:auto"> ${l}</label>` +
-        `<input id="mcv-${k}" value="${esc(String((fields as any)[k] ?? ''))}" placeholder="${l}">`).join('')}
-        <label>Kartenpreis (ct)</label><input id="mc-price" type="number" min="0" max="10000" step="0.1" value="${priceCt}">
-        <div></div><div><label style="font-weight:400"><input type="checkbox" id="mc-consent" style="width:auto">
-          Ich willige ein, dass die markierten Felder als signierte Karte im öffentlichen Directory gespeichert und gegen Gebühr ausgegeben werden (DSGVO; Löschung jederzeit, Kopie = gdpr1).</label></div>
-        <div></div><div><button type="submit">${published ? 'Aktualisieren' : 'Veröffentlichen'}</button>
-          ${published ? '<button type="button" id="mc-del">Löschen…</button>' : ''}
-          <button type="button" id="mc-cancel">Abbrechen</button>
-          <span id="mc-status" class="meta"></span></div>
-      </form></div></div>`;
-  $('mc-cancel').onclick = () => { abEdit = ''; renderAB(); };
-  if ($('mc-del')) $('mc-del').onclick = async () => {
-    if (!confirm('Öffentliche Karte löschen? Der Server löscht Karte und Einwilligungs-Historie komplett (bereits verkaufte Kopien bei Dritten bleiben ausgenommen — Achtungs-Note).')) return;
-    try { await delProfile(base, token); $('mc-status').textContent = '✓ gelöscht'; published = false; setTimeout(() => renderMyCard(), 600); }
-    catch (e: any) { $('mc-status').textContent = '✗ ' + e.message; }
-  };
-  ($('mc-form') as HTMLFormElement).onsubmit = async (ev) => {
-    ev.preventDefault();
-    if (!($('mc-consent') as HTMLInputElement).checked) { $('mc-status').textContent = '✗ Ohne DSGVO-Einwilligung keine Veröffentlichung.'; return; }
-    if (!priv) { $('mc-status').textContent = '✗ kein Schlüssel geladen'; return; }
-    const f: Card = {};
-    for (const [k] of ABFIELDS) {
-      if (!($(('mck-' + k)) as HTMLInputElement).checked) continue;
-      const v = ($('mcv-' + k) as HTMLInputElement).value.trim();
-      if (v) (f as any)[k] = v;
-    }
-    const ct = parseFloat(($('mc-price') as HTMLInputElement).value);
-    if (!(ct >= 0) || ct > 10000) { $('mc-status').textContent = '✗ Preis: 0–10000 ct'; return; }
-    try {
-      const r = await putProfile(base, token, priv, f, Math.round(ct * 10));
-      $('mc-status').textContent = '✓ veröffentlicht — Karten-Hash ' + r.card_hash.slice(0, 12) + '…';
-    } catch (e: any) { $('mc-status').textContent = '✗ ' + String(e.message || e).slice(0, 160); }
-  };
-}
-
-// --- Etappe B: Directory-Fernsuche (exakter Treffer; Key gratis, Karte bezahlt) ---
-async function dirSearch(raw: string) {
-  const q = raw.trim().toLowerCase();
-  if (!q) return;
-  $('detail').innerHTML = `<p class="meta">Suche „${esc(q)}" im Directory…</p>`;
-  let e: LookupEntry;
-  try { e = await lookupAddress(base, q); }
-  catch (err: any) {
-    const m0 = String(err?.message || err);
-    const st = /: (\d{3}) /.exec(m0);
-    $('detail').innerHTML = `<div class="window" style="max-width:56ch"><div class="title-bar"><div class="title-bar-text">Directory</div></div>
-      <div class="window-body"><p>${st ? esc(errText(+st[1], m0)) : '✗ ' + esc(m0.slice(0, 160))}</p>
-      ${st && +st[1] === 404 ? '<p class="meta">Nur exakte Treffer auf diesem Relay — kein Scan, keine Liste. Andere Relays: Adressdomäne zeigt via _bmail._tcp-DNS dorthin (Föderation folgt).</p>' : ''}</div></div>`;
-    return;
-  }
-  const fp = e.pubkey.slice(0, 8) + '…' + e.pubkey.slice(-6);
-  const priceLine = e.has_card
-    ? `Karte: ${ctLabel(e.total_meur ?? 50)}${e.total_msat ? ` (≈ ${Math.ceil(e.total_msat / 1000)} sats)` : ' — Kauf erst mit Tageskurs möglich'}${e.purchased ? ' · bezahlt ✓' : ''}`
-    : 'Keine öffentliche Karte — nur Schlüssel sichtbar.';
-  $('detail').innerHTML = `<div class="window" style="max-width:56ch"><div class="title-bar"><div class="title-bar-text">Directory — ${esc(e.address)}</div></div>
-    <div class="window-body">
-      <p class="meta" style="margin-top:0">Mailbox-Key ${esc(fp)} · Porto an ihn: ${e.foreign_sats} sats<br>${esc(priceLine)}</p>
-      <p>${e.has_card
-        ? (e.purchased ? '<button id="dir-show">Karte anzeigen</button>' : `<button id="dir-buy">Karte kaufen — ${ctLabel(e.total_meur ?? 50)}</button>`)
-        : ''}
-      <button id="dir-mail">Nachricht senden</button></p>
-      <p id="dir-msg" class="meta"></p>
-    </div></div>`;
-  const addrFull = e.address.includes('@') ? e.address : `${e.address}@${location.hostname}`;
-  $('dir-mail').onclick = () => {
-    folder = 'new'; draftId = ''; mark(); render();
-    setTimeout(() => { ($('c-to') as HTMLInputElement).value = addrFull; }, 0);
-  };
-  if ($('dir-buy')) $('dir-buy').onclick = async () => {
-    $('dir-msg').textContent = 'Kaufe…';
-    try { const p = await buyCard(base, token, e.address); renderBoughtCard(p); refreshBalance(); }
-    catch (err: any) { $('dir-msg').textContent = '✗ ' + String(err?.message || err).slice(0, 160); }
-  };
-  if ($('dir-show')) $('dir-show').onclick = async () => {
-    try { const p = await fetchCard(base, token, e.address); renderBoughtCard(p); }
-    catch (err: any) { $('dir-msg').textContent = '✗ ' + String(err?.message || err).slice(0, 160); }
-  };
-}
-
-function renderBoughtCard(p: CardPayload) {
-  const bytes = cardFromB64(p.card_b64);
-  const sigOk = verifyCard(p.pubkey, bytes, p.sig);
-  const f = cardFields(p);
-  const addrFull = p.address.includes('@') ? p.address : `${p.address}@${location.hostname}`;
-  $('detail').innerHTML = `<div class="window" style="max-width:64ch"><div class="title-bar"><div class="title-bar-text">Karte — ${esc(p.address)}</div></div>
-    <div class="window-body">
-      <p class="meta" style="margin-top:0">${sigOk ? '✓ Signatur gültig (Mailbox-Key)' : '⚠ SIGNATUR UNGÜLTIG — Karte nicht übernehmbar!'}
-      · Consent ${esc(p.consent?.v || '?')} vom ${p.consent?.ts ? new Date(p.consent.ts * 1000).toLocaleDateString('de') : '?'}
-      ${p.paid ? ` · bezahlt: ${ctLabel(p.paid.total_meur ?? 0)}${p.paid.fresh === false ? ' (Dedup — schon gekauft, nichts gebucht)' : ''}` : ''}</p>
-      <div class="abform">${ABFIELDS.filter(([k]) => String((f as any)[k] || '')).map(([k, l]) =>
-        `<label>${l}</label><div style="white-space:pre-wrap;font-size:12px">${esc(String((f as any)[k]))}</div>`).join('')}</div>
-      <p style="margin:10px 0 0">${sigOk ? '<button id="bc-ab">Ins Adressbuch übernehmen</button>' : ''}
-      <button id="bc-mail">Nachricht senden</button></p>
-      <p id="bc-msg" class="meta"></p>
-    </div></div>`;
-  if ($('bc-mail')) $('bc-mail').onclick = () => {
-    folder = 'new'; draftId = ''; mark(); render();
-    setTimeout(() => { ($('c-to') as HTMLInputElement).value = f.lnaddr || addrFull; }, 0);
-  };
-  if ($('bc-ab')) $('bc-ab').onclick = () => {
-    if (!sync) { $('bc-msg').textContent = '✗ ohne Sync kein Adressbuch'; return; }
-    const id = newId();
-    sync.saveContact({ id, ...f, pubkey: p.pubkey, lnaddr: f.lnaddr || addrFull } as { id: string } & Partial<Contact>);
-    $('bc-msg').textContent = '✓ ins Adressbuch übernommen';
-    abSel = id; abEdit = '';
   };
 }
 
@@ -931,7 +799,7 @@ function mark() {
 // Kein neues Subsystem: liest nur das Statement, EUR-Spalte kommt vom Server. ---
 const KINDDE: Record<string, string> = {
   postage_out: 'Porto versendet', postage_in: 'Porto erhalten', topup: 'Einzahlung',
-  withdraw: 'Auszahlung', fee: 'Gebühr/Erstattung', card_out: 'Kartenkauf', card_in: 'Karten-Erlös',
+  withdraw: 'Auszahlung', fee: 'Gebühr/Erstattung',
 };
 const fmtSat = (n: number) => Math.round(n).toLocaleString('de');
 const fmtEur = (n: number) => n.toLocaleString('de', { style: 'currency', currency: 'EUR' });

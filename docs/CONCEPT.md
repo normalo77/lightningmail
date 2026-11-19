@@ -4,7 +4,7 @@
 > Lightning-Zahlung an den Empfänger. Spam wird teuer, Postfächer werden
 > einfach, der Nutzer sieht nur ein Guthaben.
 
-Stand: 11.11.2026 · Autor: Bernd + Hermes · Status: Entwurf zur Diskussion
+Stand: 19.11.2026 · Autor: Bernd + Hermes · Status: Konsolidiertes Konzept (ohne Directory & ohne Konversationsfenster)
 
 ---
 
@@ -57,8 +57,15 @@ bevor irgendein Code den Inhalt ansieht.
 
 - **Relay** („Postbote"): ein Dienst aus LND + Store-and-Forward-Postfach +
   Ledger pro Account. Konzentriert die gesamte Node-Komplexität: 1 Relay ≈ 1000 Nutzer.
-  Self-hostable auf NAS/Umbrel/Start9 als 1-Click-App; kommerzielle/nonprofit
-  Hosted-Relays für Normalnutzer.
+  Zwei Betriebsmodi aus derselben Codebasis:
+  - **Light-Relay:** `relayd` + `lnd (neutrino)` — kommt komplett ohne eigenen
+    `bitcoind` aus (nutzt Compact Block Filters per P2P, ~10 GB Disk, <300 MB RAM).
+    Ideal für NAS, Raspberry Pi oder kleine VPS.
+  - **Full-Relay:** `relayd` + `lnd` + `bitcoind` — volle Souveränität für
+    größere Betreiber.
+- **Clients (Android, iOS/Apple, Linux, Windows, Web):** Ein gemeinsamer
+  TypeScript-Kern (`client/src/`) bedient alle Plattformen: als PWA im Browser,
+  als Desktop-App (Linux/Windows/macOS) und als mobiler Wrapper (Android-APK / iOS).
 - **Client ↔ Relay:** Verschlüsselter Push-Kanal, ohne Long-Lived-Ports ins LAN —
   LNC (Lightning Node Connect) oder WebSocket over Tor/HTTPS. Der mobile Client
   hat die E2EE-Keys lokal; der Relay ist blind.
@@ -90,9 +97,11 @@ Eine bmail-Adresse dereferenziert zu:
 2. **Zahlungsziel:** LUD-16 (`/.well-known/lnurlp/<name>`) → Invoice; damit ist
    jede bmail-Adresse zugleich eine normale Lightning-Adresse und mit bestehenden
    Wallets besendbar (Brücken-Effekt geschenkt).
-3. **Identität:** öffentlicher Key der Person im Profil; TOFU + Fingerprint-
-   Wechsel-Alert (Safety-Number-Muster).
-4. **Preisprofil:** Fremdporto, Konversationsfenster, Whitelist-Policy.
+3. **Identität:** öffentlicher Key der Person (`GET /v1/profile/{name}`); TOFU +
+   Fingerprint-Wechsel-Alert (Safety-Number-Muster) sowie Login-Anker via OIDC.
+4. **Preisprofil:** Porto-Satz des Postfachs (Standard-Porto bzw. erhöhtes
+   Willkommensporto bei Diensten). Kein öffentliches Adressbuch, kein
+   Konversationsfenster — die Empfängeradresse allein reicht zur Auflösung.
 
 Merkbarkeit: kurz, tippbar, vorlesbar (`bernd@bmail.de`, `gisela@familie.koeln`);
 IDN-Domains erlaubt, Homoglyph-Hygiene im Client (Punycode-Alarm).
@@ -128,7 +137,7 @@ damit ein echtes „Postamt gehört mir"-Modell.
 ## 5. Geld- und Liquiditäts-Flow
 
 - **Ausgehend:** Guthaben −Porto −(Router-Fee, unsichtbar, Relay-zahlt gesammelt).
-- **Eingehend:** Empfänger-Preis steht im Profil (`default: 10 sats Fremde, 0 für Kontakte`).
+- **Eingehend:** Empfänger-Preis steht im Profil (`default: 10 sats`; jede Richtung zahlt ihr Porto).
 - **Bootstrap (das eigentliche Problem):** Neuer Account bekommt
   ~50–100 k sats als Welcome-Credit: ein Teil „geschenkt" (Porto-Budget,
   deckt erste Kontakte), ein Teil als inbound/outbound Channel vom LSP
@@ -211,9 +220,10 @@ damit ein echtes „Postamt gehört mir"-Modell.
   Bild anhängen, Guthabenbewegung sichtbar, Mailbox offline+Store&Forward.
   *Erfolg: „Oma-Test": eingewiesene Person verschickt Foto in < 2 Min,
   Empfänger sieht +10 sats auf dem Guthaben.*
-- **M2 — Multi-Relay:** 2 Relays (Heim-NAS + VPS), Onion-Routing zwischen ihnen,
-  Bootstrap-Skript für Relay-Betreiber (1-Click, wie Umbrel-App).
-- **M3 — Regeln:** Preis-Profile, Konversationsfenster, Whitelist, Report/Block.
+- **M2 — Multi-Relay:** 2 Relays (Heim-NAS + VPS), Föderation über DNS (`_bmail._tcp`),
+  Bootstrap-Skript für Relay-Betreiber (Light-Relay mit Neutrino oder Full-Relay).
+- **M3 — Regeln & Betrieb:** Retention-Cleanup, Byte-Porto, Steuer-Statements,
+  Account-Identität (OIDC-IdP & Service-Connector).
 - **v2 — Brücken & Massen:** SMTP-Gateway, Newsletter-Modell, Reputation.
 
 ## 11. Risiken & offene Punkte
@@ -444,9 +454,10 @@ Pitch-Erweiterung: **„Selbstbestimmte, bezahlbare Identität — Mail ist nur
 die erste Anwendung darauf."** Account-Erstellung, Passkey-Ersatz, File-Drop
 und Messaging hängen am selben Schlüssel und derselben Ökonomie.
 
-## 21. Etappe 6 — Identity: Directory, OIDC-IdP, WebAuthn
+## 21. Etappe 6 — Identity: Key-Lookup, OIDC-IdP, WebAuthn
 
-Ziel: `name@relaydomain` wird zum Account-Anker, den Dienste nutzen können.
+Ziel: `name@relaydomain` wird zum Account-Anker, den Dienste nutzen können —
+ohne öffentliches Telefonbuch/Directory. Die Empfängeradresse allein reicht.
 
 - **Relay-Domain:** jede normale Registrar-Domain (.de ~1–3 €/Monat;
   Konzept-Beispiele §4.1: `bernd@bmail.de`, `gisela@familie.koeln`).
@@ -455,41 +466,22 @@ Ziel: `name@relaydomain` wird zum Account-Anker, den Dienste nutzen können.
   so gewollt (§4.1 „exakt E-Mail-Notation, nichts Neues zu lernen").
   Gratis-Bonus: jede Adresse ist via LUD-16-Well-known zugleich eine echte
   Lightning-Address, bestehende Wallets können sie besenden.
-- **Public Directory:** Relay-Well-known + DNS liefern den Mailbox-Pubkey;
-  BIP-353-kompatibler Marker (`name'pay@domain`) als zweite Entdeckungsebene.
-- **OIDC-IdP (Go, neben dem Relay):** „Sign in with bmail" für Dienste.
-  Login-Faktor = WebAuthn/Passkey (YubiKey; mehrere Authenticators pro
-  Identität sind Normalfall: primär + backup). Föderations-Beweis =
-  BIP340-Signatur des Mailbox-Keys (LMKEY1-Keystore) — NICHT der FIDO-Key
-  selbst (P-256 ≠ secp256k1, die Welten bleiben getrennt).
-- **Challenge/Response:** Dienst schickt Challenge an die Adresse, Nutzer
-  signiert, Dienst verifiziert via Directory — LNURL-auth-Muster mit
-  OIDC als Industrie-Wrapper.
-- **Ohne MX** bounct Legacy-SMTP an bmail-Adressen; Dienste mit reiner
-  Syntaxprüfung akzeptieren sie, Dienste mit MX-Check lehnen ab.
-  Billige Zwischenlösung (Entscheidung offen): MX-Dead-Drop, der nur einen
-  erklärenden Auto-Bounce liefert („diese Adresse spricht bmail") —
-  keine Brücke, kein Klartext-Zugriff.
-- **Offen:** Betreiber/Vertrauensrolle des IdP (pro Relay? zentral?);
-  YubiKey-Ebene B (OpenPGP-Applet, secp256k1, signiert ECDSA statt
-  BIP340) nur anfassen, falls echter Bedarf; Bernds YubiKey-Modelle
-  klären (FIDO2 + secp256k1 brauchen 5er-Serie).
-- **Status Etappe B (18.11.2026): Directory GEBAUT** — spec §7d: signierte
-  Profilkarten (PUT/DELETE /v1/profile, gdpr1-Consent append-only,
-  DSGVO-Löschung), Kartenkauf 402→POST mit Split Server-Fee+Kontaktpreis
-  (Default 2,5+2,5 ct, wertdefiniert, Dedup pro card_hash), 429-Budget für
-  anonyme Lookups, Steuer-Log G1 (eur_micro/rate_ts/rate_src auf jeder
-  txlog-Zeile, schema v4) und currency-Spalte (§26) fallen mit. Kauf ist
-  relay-lokal; Cross-Relay-Kartenkauf (Keysend-Mirror à la Receipts) und
-  DNS-Föderation der Suche folgen. OIDC-IdP: gebaut, siehe nächster Punkt.
-- **Status IdP (18.11.2026): „Sign in with lightningmail" GEBAUT** — spec §7e:
-  OIDC Authorization-Code + PKCE im relayd (ES256-IdP-Key; P-256 ≠ secp256k1,
-  die Welten bleiben getrennt). Login über die PWA im OIDC-Modus
-  (Consent-Screen), Föderations-Beweis = BIP340-Signatur des Mailbox-Keys
-  über Server-Challenge (bmail-Claim im ID-Token), email_verified=true erst
-  durch diesen Beweis. Demo-Dienst unter /oidc/demo-callback.html.
-  Betreiberrolle damit dezentral beantwortet: pro Relay = ein Issuer.
-  Offen: DCR, refresh_token/offline_access, §28-Registrierbrief (Etappe I).
+- **Direkte Schlüssel-Auflösung (kein Directory):** `GET /v1/profile/{name}` am
+  Ziel-Relay liefert kostenlos den Mailbox-Pubkey und den Portosatz. Ein
+  öffentliches Adressbuch mit bezahlten Profilkarten (frühere Etappe B) wurde
+  am 19.11.2026 bewusst gestrichen: Es brachte DSGVO-Komplexität ohne
+  Protokollnutzen, da der Ziel-Relay den Pubkey ohnehin kennt.
+- **OIDC-IdP (Go, direkt im Relay — GEBAUT, spec §7e):** „Sign in with
+  lightningmail" für Dienste.
+  - Login-Faktor = WebAuthn/Passkey (YubiKey/Handy) oder Schlüsseldatei/24 Wörter.
+  - Föderations-Beweis = BIP340-Signatur des Mailbox-Keys über eine
+    32-Byte-Server-Challenge (`bmail`-Claim im ID-Token, `email_verified=true`).
+    P-256 (IdP-JWT) und secp256k1 (Mailbox-Key) bleiben sauber getrennt.
+  - Betreiberrolle dezentral: Jedes Relay (Light oder Full) ist sein eigener
+    OIDC-Issuer; Dienste entdecken ihn über die Adresse des Nutzers.
+- **Ohne MX** bounct Legacy-SMTP an bmail-Adressen; Zwischenstufe:
+  **MX-Dead-Drop**, der einen erklärenden Auto-Bounce liefert („diese Adresse
+  spricht lightningmail").
 
 ## 22. Etappe 7 — Chunked Blobs & Byte-Porto (riesige Anhänge)
 
@@ -584,39 +576,24 @@ Status: Idee, nicht eingeplant. Wenn je gebaut, dann erst nach Etappe 6/7
 und nur Variante 1 (geschlossen, bezahlt).
 
 
-## 25. Steuer-Log: local currency für jede Bewegung (15.11.2026, Beschluss — Bau mit Etappe B/G)
+## 25. Steuer-Log: local currency für jede Bewegung (15.11.2026, GEBAUT)
 
-Sobald User oder Betreiber relevante Summen verdienen (Karten-Erlöse, Fees,
-Porto-Rückerstattungen), braucht der Steuerpflichtige einen belastbaren Nachweis
-in lokaler Währung. Der Relay schreibt mit, aber er buchführt nicht.
+Sobald User oder Betreiber relevante Summen bewegen (Porto-Einnahmen,
+Byte-Porto-Fees, Erstattungen), braucht der Steuerpflichtige einen belastbaren
+Nachweis in lokaler Währung. Der Relay schreibt mit, aber er buchführt nicht.
 
-- **Rate beim Zufluss:** jede neue Ledger-Zeile erhält `eur_cent + rate_ts +
+- **Rate beim Zufluss:** jede neue Ledger-Zeile erhält `eur_micro + rate_ts +
   rate_src` — entschieden: **Tageskurs** (BSi/Binance EUR-Paar, ein Abruf pro
   Tag, manuelles Nachsetzen als Fallback). Nachträgliches Raten alter Zeilen
-  ist unredlich; Regtest-Müll bleibt ungeratet und wird als Testdaten markiert.
-- **Zwei Sichten:** Konto-Statement für den User (Einnahmen: Karten, Erstattungen;
-  Ausgaben: Porto) und Betreiber-Statement (Porto-Einnahmen, Karten-Fees,
-  Auszahlungen). On-chain-/Routing-Gebühren kennt der Relay nicht — Hinweis im
-  Export, dass LND-Reports die Ergänzung sind.
-- **Export:** `GET /v1/statement?from&to&fmt=csv` (auth, eigenes Konto) +
-  Admin-Pendant für den Betreiber. Zeilen hash-verkettet (Monatsanfang = Anker),
-  damit der Stapel bei der Prüfung nicht umfallen kann.
-- **Bewusste Grenzen:** keine Doppelbuchhaltung, keine USt-Logik, kein
-  Elster-Export — Fakten liefern, der Mensch bucht. Format entschieden: **reines
-  CSV** (DATEV-Chiffren nicht nötig, Bernd 15.11.).
-- **UI (G3):** Menüpunkt „Umsätze" in PWA/Clients — übersichtliche Liste
-  Einnahmen/Ausgaben pro Monat (EUR-Spalte aus dem Statement, plus CSV-Knopf).
-  Kein neues Subsystem: es liest nur `GET /v1/statement`.
-- **Reihenfolge:** G1 Rate-Stempeln (fällt mit Etappe B zusammen, da entstehen
-  die ersten Erlöse), G2 Statement-Endpunkte + Kette + UI-Knopf „Export".
-- **Status G2 (18.11.2026): GEBAUT** — spec §7f: `/v1/statement` (auth,
-  JSON+CSV) und `/v1/relay/statement` (X-Relay-Secret), Zeilen hash-verkettet
-  (Genesis = sha256 über Kontoname, Kopf im Export; Teilbereiche ketten durch).
-  UI: Nav „💶 Umsätze" — Monatsliste Ein/Aus in sats+EUR, Detail-Tabelle,
-  CSV-Knopf pro Monat + komplett. G1 nachgezogen: Porto (hin/rück), Byte-Porto
-  und Refunds tragen jetzt ebenfalls den Kursstempel — damit ist JEDE
-  Wert-Buchung gestempelt oder bewusst NULL (kein Kurs). Regtest-Manual-Kurs
-  bleibt als `rate_src=manual` = Testdaten-Kennzeichnung sichtbar.
+  ist unredlich; Regtest-Müll bleibt ungeratet bzw. mit `rate_src=manual` markiert.
+- **Zwei Sichten:** Konto-Statement für den User (Einnahmen: erhaltenes Porto,
+  Erstattungen; Ausgaben: gezahltes Porto, Byte-Porto) und Betreiber-Statement
+  (Byte-Porto-Fees, Erstattungen). On-chain-/Routing-Gebühren kennt der Relay
+  nicht — Hinweis im Export, dass LND-Reports die Ergänzung sind.
+- **Export (GEBAUT, spec §7f):** `GET /v1/statement?from&to&fmt=csv|json` (auth,
+  eigenes Konto) + `/v1/relay/statement` (X-Relay-Secret) für den Betreiber.
+  Zeilen hash-verkettet (Genesis = sha256 über Kontoname), damit der Stapel bei
+  der Prüfung nicht umfallen kann. UI: Menüpunkt „💶 Umsätze" in der App.
 
 ## 26. Multi-Währungs-Porto: BTC und LTC in einem Mail (Beschluss 15.11.2026, Bau in Etappe B / K)
 
@@ -636,147 +613,75 @@ Programm. Kernentscheidungen:
   Betriebs-Option pro Relay (~3 AT zusätzlich, Etappe K nach der Beta).
   Mailbox-Krypto und Envelope sind kettenblind — Client-seitig ändert nichts.
 
-## 27. Onboarding: Client-Wizard und Relay-Installer (Beschluss 15.11.2026)
+## 27. Onboarding & Produkt-Linien: Relays und Clients (19.11.2026)
 
 Getrennte Welten — der Client besitzt per Design keinen Node und keine
 Channels (Porto = Guthaben beim Relay, Schlüssel = ein secp256k1-Paar).
 
-**Etappe 6d — Client-Setup-Wizard (BAUEN, direkt nach Etappe B, vor externer
-Beta):**
+**1. Client-Setup-Wizard (Etappe 6d — GEBAUT):**
 - 24-Wort-Recovery (BIP39): Seed im Browser erzeugt, Wortquiz zur
-  Bestaetigung, .lmkey-Passphrase-Datei optional statt Pflicht.
-- Währungsfrage: "Womit zahlst du Porto?" — Auswahl aus den vom Relay
-  besiedelten Währungen (§26).
-- Bestehendes bleibt: Adressgenerierung (6c), LMKEY1-Passwort.
+  Bestätigung, `.lmkey`-Passphrase-Datei optional.
+- Plattformen aus einem gemeinsamen TypeScript-Kern (`client/src/`):
+  Web-PWA, Android-APK (gebaut), iOS/Apple, Linux und Windows.
 - Kein Scan, kein Channel, kein Node — das ist das Werbeversprechen.
 
-**Etappe O — Relay-Installer (NUR VORBEMERKT, Bau wenn Fremd-Betreiber
-ernst macht):**
-- One-Click via Docker-Compose: Domain, ACME-TLS, relayd, lnd, Chain-Backend.
-- Wizard-Frage Backend: Neutrino (~25-30 GB, QNAP-tauglich) | eigener
-  bitcoind (Vollknoten ~700 GB; PRUNED GEHT NICHT — lnd braucht Backfill) |
-  fremder Node.
-- Kanal-Autopilot: lnd-autopilot ist blind (beliebige Gegenstellen);
-  sinnvoll fuer bmail nur gezielt: Wizard-Frage "mit wem abrechnen?" +
-  Ein-Klick-Kanaele zu Relay-Partnern, Liquiditaet via Loop-out (Boltz).
-- Groessenordnung: Client-Wizard 1-2 AT, Relay-Wizard ~1 Woche + Pflege.
+**2. Relay-Betriebsmodi (Etappe O — Installer):**
+- **Light-Relay (`relayd` + `lnd` im Neutrino-Modus):** Kein eigener `bitcoind`
+  nötig; LND zieht Compact Block Filters (BIP 157/158) direkt von öffentlichen
+  Bitcoin-P2P-Knoten (~10 GB Disk, <300 MB RAM, in 30–60 Min einsatzbereit).
+  Macht jedes Heim-NAS (QNAP/Odroid), jeden Raspberry Pi oder kleinen VPS zum
+  vollwertigen Postamt.
+- **Full-Relay (`relayd` + `lnd` + `bitcoind`):** Eigener Vollknoten (~700 GB)
+  für große Betreiber und maximale Unabhängigkeit.
 
-## 28. Anmeldungs-Porto: "Mit bmail registrieren" (Etappe I, Beschluss 15.11.2026)
+## 28. Anmeldungs-Porto & Authentifizierung: "Mit lightningmail anmelden" (Etappe I, konsolidiert 19.11.2026)
 
-Ein Dienst soll fuer eine Bestaetigungsmail nicht zahlen — die Richtung
-umzudrehen (Empfaenger zahlt whitelistet, Vorschlag 1) ist ABGELEHNT: sie
-bricht die Konstante "der Sender zahlt" und liesse das Opfer fuer seinen
-eigenen Spam zahlen.
+Ein Dienst soll für eine Bestätigungsmail nicht draufzahlen — die Richtung
+umzudrehen (Empfänger zahlt, Vorschlag 1) ist ABGELEHNT: sie bräche die
+Konstante „der Sender zahlt" und ließe das Opfer für seinen eigenen Spam zahlen.
 
-angenommen (Vorschlag 2, verfeinert):
-- Der USER zahlt einmalig die Willkommensgebuehr — das ist schlicht sein
-  Erstkontakt-Porto an den Dienst, dessen Preisprofil den Fremdp Reis um den
-  Willkommensfaktor (3-10) erhoeht. Gebuehr = Einnahme des Dienstes.
-- Die Bestaetigungsmail antwortet PORTOFREI im bestehenden
-  Konversationsfenster (§4.1). Der Dienst zahlt nie, er verdiente pro
-  Registrierung — der Adoptionssatz: bmail ist fuer Dienste keine
-  SMTP-Kostenzeile, sondern ein Mikro-Umsatzkanal.
-- Neu gebaut: Envelope-Tag 0x0A signup=1 (LM1), PWA-Cap "Mit bmail
-  registrieren" + Linkformat bmail://anmelden?an=dienst@domain&g=3;
-  Verrechnungskonto/Treuhand gibt es nicht — nimmt ein Dienst die Gebuehr
-  und antwortet nicht, hilft Spammarkierung + Reputation.
-- Einordnung: Etappe I, nach B, vor externer Beta (passt zur
-  Freunde-Runde mit echten Diensten).
-- Invoice-Abwicklung der Willkommensgebuehr: §29 (BTCPay, Beschluss 18.11.).
+**Das einfache Modell ohne Konversationsfenster:**
+- **Stufe A — Reiner Login (OIDC, bereits im Relay eingebaut):**
+  Will ein Dienst nur wissen, wem `name@domain` gehört, nutzt er Standard-OIDC
+  („Sign in with lightningmail", §21 / spec §7e). Der Nutzer signiert im Browser
+  eine Challenge mit seinem Mailbox-Key (BIP340), der Dienst erhält ein
+  verifiziertes ID-Token (`email_verified: true`). Kein Passwort, kein Plugin,
+  keine Mail-Kosten.
+- **Stufe B — Bezahlte Registrierung & Systemmails (ohne Konversationsfenster):**
+  - Der USER schickt zur Registrierung den ersten Brief an den Dienst (z. B.
+    `auth@dienst.de`) und zahlt dabei das erhöhte **Willkommensporto** des
+    Dienstes (z. B. 50 sats statt 10 sats).
+  - Der Dienst antwortet mit der Bestätigungsmail zum ganz normalen Standardporto
+    des Users (z. B. 10 sats) und behält die Differenz (40 sats) als Einnahme.
+  - **Kein Konversationsfenster nötig:** Jede Richtung zahlt wie überall im
+    Protokoll ihr normales Porto; weil das Willkommensporto des Dienstes höher
+    liegt als das Standard-Rückporto, verdient der Dienst an jeder echten
+    Registrierung, ohne dass das Relay eine Konversations-State-Machine braucht.
 
-## 29. Service-Registrierung in der Praxis: Parallelbetrieb + Invoice-Schicht (Beschluss 18.11.2026)
+## 29. Service-Integration in der Praxis: OIDC & Service-Connector (19.11.2026)
 
-Bernds Anforderung: lightningmail soll an etablierte Registrierungs-Prozesse
-moeglichst nahtlos anbinden und PARALLEL zur E-Mail-Welt nutzbar sein —
-keine Entweder-oder-Entscheidung fuer Dienste oder Nutzer.
+lightningmail bindet nahtlos an bestehende Dienste an und läuft parallel zur
+klassischen E-Mail-Welt. Das Ökosystem besteht aus drei klar getrennten Teilen:
 
-**Wie Registrierung bei Diensten heute hinter den Kulissen laeuft** (vier Muster):
-1. **E-Mail + Passwort:** Dienst speichert Passwort-Hash, schickt Bestaetigungsmail
-   mit Token-Link (SMTP-Roundtrip). Die Adresse ist Identitaetsanker UND
-   Recovery-Kanal (Passwort-Reset, Benachrichtigungen).
-2. **OAuth2/OIDC-Foederation:** „Sign in with Google/Apple/GitHub" — Redirect,
-   Authorization-Code, ID-Token (JWT mit email/sub-Claim). Der IdP verbuergt die
-   verifizierte Adresse; der Dienst speichert kein Passwort.
-3. **Magic-Link/Passwordless:** Ein Token-Link per Mail ist Verifikation und
-   Login in einem (Slack/Notion-Muster).
-4. **Passkeys/WebAuthn:** Adresse = Username, Passkey = Credential; kein
-   Mail-Roundtrip mehr zur Anmeldung, aber weiterhin fuer Recovery.
-Allen gemeinsam: die Adresse muss (a) Erreichbarkeitschecks bestehen
-(Syntax → MX → Zustellbarkeit) und (b) als Rueckkanaal funktionieren.
-
-**Anbindung von lightningmail an alle vier Muster — ohne Umbau beim Dienst:**
-- **Syntax:** Adresse ist exakte E-Mail-Notation (§4.1) — Dienste mit reiner
-  Syntaxpruefung akzeptieren sie sofort, heute schon.
-- **SMTP:** MX fuer lightningmail.app existiert (Cloudflare). Ohne Bridge
-  wuerden Bestaetigungsmails an Nutzeradressen bouncen → Zwischenstufe
-  **MX-Dead-Drop** (§21, hiermit beschlossen): Auto-Bounce mit Erklaerung
-  „diese Adresse spricht lightningmail" statt stillem Bounce, plus Hinweis
-  auf den nativen Weg. Voller Parallelbetrieb kommt mit der Bridge (§14, v2):
-  SMTP rein/raus in dieselbe Mailbox, beide Kanaele in einer UI.
-- **OIDC:** „Sign in with lightningmail" (§21) ist der nahtlose Weg fuer
-  Neuanbindungen — Standard-OIDC-Bibliothek beim Dienst, kein
-  Lightning-Wissen noetig; Foederations-Beweis = BIP340-Signatur des
-  Mailbox-Keys, Challenge/Response ueber das Directory (§4.2 Ebene 3).
-- **Zahlung:** LUD-16/BIP-353 (§4.1/§12) — jede Adresse ist direkt ein
-  Lightning-Zahlungsziel, Wallets koennen sie ohne Registrierung besenden.
-
-**Parallelbetriebs-Prinzip:** eine Adresse, mehrere Kanaele. Ein Dienst, der
-nur SMTP spricht, einer, der nur OIDC spricht, und einer, der nativ lightningmail
-nutzt (§28), erreichen dieselbe Mailbox. Nativer Weg ist Zusatz, nie Ersatz;
-kein Kanal darf einen anderen blockieren.
-
-**Invoice-Schicht fuer Anmeldegebuehren: BTCPay Server (Bernd-Vorschlag 18.11.)**
-- Warum nicht direkt LND/§13: Ein Dienst will fuer die Willkommensgebuehr eine
-  echte Rechnung — Fiat-Denominierung (Gebuehr deckt seine Bestätigungsmail-
-  Kosten, Preis in EUR → Invoice in Sats zum Kurs), Buchhaltung fuer das
-  Steuer-Log (§25), Refunds, Zahlungs-Erinnerungen. BTCPay liefert das
-  komplett; Selbstbau waere ein zweites Buchhaltungssystem.
-- **Multi-Store-Modell:** eine BTCPay-Instanz, EIN STORE PRO DIENST (je eigener
-  On-Chain-Wallet + eigener Lightning-Anbindung moeglich). Relay-Betreiber
-  koennen gehostete Stores anbieten — analog zum Relay-Hosting (§21 offene
-  Betreiberrolle wird damit teilweise beantwortet: Invoice-Hosting ≠ IdP-Hosting).
-- **Flow:** Registrierungs-Brief (§28, Tag 0x0A) → Dienst legt per Greenfield-API
-  eine Invoice an (Betrag, Ablauf = Konversationsfenster) → Antwort-Brief traegt
-  Bolt11/Payment-Link → BTCPay-Webhook `InvoiceSettled` → Dienst schickt
-  portofreie Bestaetigung (✓✓, §23) im Konversationsfenster → Registrierung gilt.
-  Invoice abgelaufen → Erinnerungs-Brief (Dead-Man, §5).
-- **Abgrenzung zu §13:** User↔User-Porto bleibt LNURL/keysend direkt
-  (Mikro-Cents, kein Custodian, keine Buchhaltung). BTCPay kommt nur auf die
-  Dienste-Seite, wo Rechnungen noetig sind —spaeter ggf. auch Byte-Porto-
-  Rechnungen (§22) fuer Firmenkunden.
-- **Homelab/PoC (offen, nicht gebaut):** BTCPay an lnd-main (LND-REST, CT113) +
-  NBXplorer → bitcoind (.75, nach IBD); PoC zuerst auf dem Regtest-Stack CT113.
-  Bedarf ~1–2 GB RAM → eigener kleiner CT. Reihenfolge: erst Etappe B (Directory),
-  dann IdP/§28, Invoice-Schicht mit Etappe I.
-
-### 29.1 Drei-Programm-Modell (Bernd, 18.11.2026)
-
-Das Oekosystem besteht aus drei Programmen:
-1. **Relay** (relayd, Go) — das Postamt: Mailboxen, Porto/LN, Directory,
-   spaeter OIDC-IdP (§21). Geteilte Infrastruktur des Relay-Betreibers.
-2. **Client** (PWA/APK) — die Oberflaeche fuer Menschen. Die E2E-/Geld-Logik
-   liegt bereits als Bibliothek in `client/src/` (crypto, send, state,
-   keywrap), unabhaengig vom DOM-Leim `main.ts`.
-3. **Service-Registrierungs-Plugin** — ein HEADLESS CLIENT: wie ein Client,
-   nur ohne UI und ohne Menschen davor. Der Dienst braucht KEIN eigenes
-   Relay — nur ein Postfach auf einem Relay seiner Wahl (wie man heute
-   einen Mail-Provider waehlt) und seinen eigenen Schluessel.
-
-Das Plugin = Wiederverwendung der Client-Bibliothek + drei Adapter:
-- **Registrierungs-State-Machine:** Brief mit Tag 0x0A empfangen →
-  Invoice via BTCPay-Greenfield-API anlegen → Webhook `InvoiceSettled`
-  abwarten → portofreie Bestaetigung (✓✓) im Konversationsfenster.
-- **Service-Backend-Anbindung:** Webhook/REST rein und raus — jeder Stack
-  (PHP, Node, Django, …) kann sich einklinken, ohne Lightning zu verstehen.
-- **Key-Haltung:** LMKEY1-Datei/Env beim Dienst; E2E bleibt unveraehrt —
-  der Relay sieht nie Klartext, das Plugin ist kein Vertrauensanker.
-
-Form: TS-Bibliothek + duenner Referenz-Daemon (webhook-faehig, ein Postfach,
-ein Prozess); Go-Variante spaeter nur bei Bedarf. Derselbe Headless-Kern
-traegt spaeter auch die MCP-Agenten-Post (§15) und den Bridge-Daemon (§14) —
-das „dritte Programm" ist also generell ein Client-Kern mit Adaptern, die
-Registrierung ist nur der erste Anwendungsfall.
-
-Voraussetzungen im Relay (noch offen; Reihenfolge wie §29: erst B, dann I):
-Envelope-Tag 0x0A, Konversationsfenster mit Portofreiheit im Relay (Status:
-Baustelle), Directory-Aufloesung (§21), Webhook-Zustaellgarantien.
+1. **Relay (`relayd`, Go) — Light-Relay oder Full-Relay:**
+   Das Postamt: Mailboxen, LN-Keysend-Porto, SQLite-Ledger mit eigenem
+   Tageskurs-Stempel und Steuer-CSV-Export (§25) sowie eingebauter OIDC-IdP (§21).
+   Das Relay braucht **keinen BTCPay Server** zur Kontoverwaltung von Client-Usern
+   (der eigene SQLite-Ledger verwaltet msat-Salden, Quotas und Steuer-Kette mit
+   ~25 MB RAM bereits komplett).
+2. **Clients (Android, Apple/iOS, Linux, Windows, Web-PWA):**
+   Die Oberfläche für Menschen, gebaut auf der gemeinsamen Bibliothek `client/src/`.
+3. **Service-Connector (Headless-Client / Plugin für Dienste):**
+   - Für reines „Sign in with lightningmail" reicht jedem Dienst eine
+     Standard-OIDC-Client-Library (0 Zeilen Spezial-Plugin).
+   - Will ein Dienst darüber hinaus **bezahlte Registrierungsbriefe empfangen**
+     und **E2EE-Systemmails (Bestätigungen, Rechnungen, Alerts) automatisch
+     versenden**, lässt er den **Service-Connector** als kleinen Sidecar-Daemon
+     laufen.
+   - Der Connector ist schlicht ein Headless-Client (`client/src/` ohne UI) mit
+     einem normalen Postfach auf einem Relay seiner Wahl: Er meldet eingehende
+     Registrierungsbriefe per Webhook an das Backend des Dienstes und verschickt
+     ausgehende Nachrichten per lokaler JSON-API (`POST /send`). Wenn ein
+     Unternehmen extern bereits BTCPay oder ein ERP für Rechnungen nutzt, kann
+     es dieses optional an den Connector anbinden — für das Relay selbst bleibt
+     es komplett außen vor.

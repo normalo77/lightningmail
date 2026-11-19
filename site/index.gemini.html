@@ -686,8 +686,8 @@ html[lang="en"] .de-only { display: none !important; }
           <span class="en-only">Worked example at the stamping desk: who pays what?</span>
         </h3>
         <p style="font-size:var(--step-small);color:var(--muted)">
-          <span class="de-only">Wähle einen Fall aus, um den Unterschied zwischen dem heutigen Prototyp-Code und dem geplanten Ausbau (Etappen B &amp; I) an konkreten Beispielzahlen (2&nbsp;Cent Standardporto) zu sehen.</span>
-          <span class="en-only">Pick a case to compare what the prototype code books today against the planned stages B &amp; I using a worked 2-cent standard postage example.</span>
+          <span class="de-only">Wähle einen Fall aus, um zu sehen, wie das Porto (Beispiel: 2&nbsp;Cent Standardporto) zwischen Gesprächspartnern, Spammern und Diensten fließt.</span>
+          <span class="en-only">Pick a case to see how postage (example: 2-cent standard rate) flows between correspondents, spammers and services.</span>
         </p>
         <div class="frank-controls" role="group" aria-label="Postage scenario">
           <button type="button" class="mode-btn" id="mode-dialog" aria-pressed="true" onclick="setScenario('dialog')">
@@ -699,8 +699,8 @@ html[lang="en"] .de-only { display: none !important; }
             <span class="en-only">Bulk spam (10,000 mails, 0 replies)</span>
           </button>
           <button type="button" class="mode-btn" id="mode-signup" aria-pressed="false" onclick="setScenario('signup')">
-            <span class="de-only">Dienst-Anmeldung (1 Registrierung + Antwort)</span>
-            <span class="en-only">Service sign-up (1 registration + reply)</span>
+            <span class="de-only">Dienst-Anmeldung (Registrierung + Bestätigung)</span>
+            <span class="en-only">Service sign-up (registration + confirmation)</span>
           </button>
         </div>
         <div class="frank-readout">
@@ -709,24 +709,24 @@ html[lang="en"] .de-only { display: none !important; }
             <span class="readout-num" id="out-sender">−10 ct (A) / −10 ct (B)</span>
           </div>
           <div>
-            <span class="readout-label"><span class="de-only">Heute im Code verbucht</span><span class="en-only">Booked in code today</span></span>
-            <span class="readout-num" id="out-today">20 ct an Relay-Betreiber</span>
+            <span class="readout-label"><span class="de-only">Beim Empfänger gutgeschrieben</span><span class="en-only">Credited to recipient</span></span>
+            <span class="readout-num" id="out-today">+10 ct (B) / +10 ct (A)</span>
           </div>
           <div>
-            <span class="readout-label"><span class="de-only">Geplant (Etappen B / I)</span><span class="en-only">Planned (stages B / I)</span></span>
+            <span class="readout-label"><span class="de-only">Bilanz unter dem Strich</span><span class="en-only">Net result</span></span>
             <span class="readout-num" id="out-planned">Netto 0 ct für A und B</span>
           </div>
         </div>
         <p class="frank-verdict" id="out-note">
-          <span class="de-only">Heute fließt jedes Porto per keysend an den Relay-Betreiber des Empfängers. Mit Etappe B landet es auf dem Empfängerkonto, sodass sich gegenseitige Briefe aufheben.</span>
-          <span class="en-only">Today every postage payment travels via keysend to the recipient’s relay operator. In stage B it credits the recipient account directly, so mutual letters cancel out.</span>
+          <span class="de-only">Im heutigen Code wandert jedes Porto per Lightning-Keysend zum Relay des Empfängers und wird direkt dessen Postfach-Guthaben gutgeschrieben. Gegenseitige Briefe heben sich auf.</span>
+          <span class="en-only">In today’s code every postage payment travels via Lightning keysend to the recipient’s relay and credits their mailbox balance directly. Mutual letters cancel out.</span>
         </p>
       </div>
 
       <div class="status">
         <b><span class="de-only">Status heute:</span><span class="en-only">Status today:</span></b>
-        <span class="de-only">Der Absender wird am eigenen Relay abgebucht; die Porto-Zahlung wandert per keysend zum Relay des Empfängers und wird dort heute beim Betreiber verbucht. Die Gutschrift direkt auf das Empfängerkonto ist im Ledger vorbereitet, aber noch nicht eingeschaltet. Individuelle Preisprofile je Postfach (etwa günstigere Sätze für Kontakte) und das portofreie Konversationsfenster folgen in den Etappen B und I.</span>
-        <span class="en-only">The sender is debited at their own relay; the postage travels by keysend to the recipient’s relay and is booked with that operator today. Crediting the recipient’s account directly is prepared in the ledger but not switched on yet. Per-mailbox price profiles (such as cheaper contact rates) and the postage-free conversation window are planned for stages B and I.</span>
+        <span class="de-only">Der Portokreislauf läuft produktiv im Code: Der Absender wird am eigenen Relay abgebucht, die Porto-Zahlung wandert per Lightning-Keysend zum Relay des Empfängers und wird dort direkt auf das Guthaben des Empfängerkontos gebucht (inklusive Tageskurs-Stempel für den Steuer-Export). Als nächster Ausbauschritt folgt die automatische Relay-zu-Relay-Auflösung über DNS für fremde Domains.</span>
+        <span class="en-only">The postage cycle runs in today’s code: the sender is debited at their own relay, the postage payment travels via Lightning keysend to the recipient’s relay and is credited directly to the recipient account’s balance (including a daily exchange-rate stamp for tax export). The next step in progress is automatic relay-to-relay resolution via DNS across external domains.</span>
       </div>
     </div>
   </section>
@@ -736,39 +736,39 @@ html[lang="en"] .de-only { display: none !important; }
     <div class="grid-12">
       <div class="col-head">
         <h2>
-          <span class="de-only">Eine Adresse für Post und&nbsp;Anmeldung</span>
-          <span class="en-only">One address for mail and&nbsp;sign-up</span>
+          <span class="de-only">Ein Schlüssel, zwei Aufgaben: Briefkasten und digitaler&nbsp;Ausweis</span>
+          <span class="en-only">One key, two jobs: mailbox and digital&nbsp;ID</span>
         </h2>
       </div>
       <div class="col-body">
         <p>
-          <span class="de-only"><b>Das heutige Problem bei Registrierungen:</b> Für Onlineshops, Banken oder Foren sind Bestätigungsmails ein reiner Kostenblock. Jede Registrierung löst eine E-Mail an eine unbekannte Adresse aus, oft ausgelöst von Bots, die nie Kunden werden. Deshalb drosseln Dienste ihren Mailversand, sperren ganze Domains oder weichen auf teure SMS-Codes aus. Die Kosten liegen auf der falschen Seite: Der Dienst bezahlt für einen Kontakt, den der Nutzer anstößt.</span>
-          <span class="en-only"><b>Today’s sign-up problem:</b> For online shops, banks or forums, confirmation e-mails are pure overhead. Every sign-up triggers a message to an unknown address, often submitted by bots that never become customers. Services react by throttling mail, blocking whole domains or switching to expensive SMS codes. The cost sits on the wrong side: the service pays for a relationship initiated by the user.</span>
+          <span class="de-only"><b>Warum E-Mail heute gleichzeitig unser Ausweis im Internet ist:</b> Wer sich bei einem Onlineshop, einer Bank oder einem Dienst anmeldet, tippt fast immer seine E-Mail-Adresse ein. Dahinter steckt jedoch eine Notlösung aus den Neunzigerjahren: Weil klassische E-Mail keinen eingebauten Identitätsnachweis kennt, muss der Dienst eine Bestätigungsmail mit einem Link verschicken („Klicke hier, um zu beweisen, dass dir das Postfach gehört“) und zusätzlich ein Passwort speichern. Für Dienste ist das teuer und unsicher — Bot-Skripte lösen täglich Millionen sinnloser Bestätigungsmails aus, für deren Versand der Dienst zahlt, und Passwort-Datenbanken sind das Hauptziel von Einbrüchen.</span>
+          <span class="en-only"><b>Why e-mail is also our internet ID today:</b> Whenever you sign up for an online shop, a bank or a web service, you almost always enter your e-mail address. Behind that habit lies a nineties workaround: because classic e-mail has no built-in proof of identity, the service has to send a confirmation link (“click here to prove you own this inbox”) and store a password on top. For services, this is costly and fragile — bots trigger millions of useless confirmation mails every day at the service’s expense, and password databases remain the primary target for breaches.</span>
         </p>
         <p>
-          <span class="de-only"><b>Die geplante Umkehrung bei lightningmail:</b> Wer sich bei einem Dienst registriert, schickt selbst die erste Nachricht und legt ein kleines Willkommensporto bei. Damit dreht sich die Rechnung um: Der Dienst zahlt nichts mehr für den Anmeldeversuch, sondern nimmt das Erstporto ein. Seine Bestätigungsmail geht im geplanten Konversationsfenster portofrei zurück. Später meldet sich der Nutzer direkt per kryptografischer Signatur seines Postfach-Schlüssels an, geprüft über das Relay, ganz ohne Passwort-Datenbank oder Passwort-Vergessen-Mail.</span>
-          <span class="en-only"><b>The planned reversal in lightningmail:</b> Whoever registers with a service sends the first message and attaches a small welcome postage. That flips the math: the service no longer pays for the sign-up attempt, it collects the initial postage. Its confirmation message returns postage-free inside the planned conversation window. Later, the user logs in with a cryptographic signature from their mailbox key, verified through the relay without a password database or reset mail.</span>
+          <span class="de-only"><b>Die Doppelfunktion bei lightningmail:</b> Jede lightningmail-Adresse (wie <code>name@domain</code>) ist im Kern ein kryptografischer Schlüssel. Derselbe Schlüssel erledigt zwei Aufgaben auf einmal: Er <b>entschlüsselt deine privaten Briefe</b> im Postfach und dient gleichzeitig als <b>fälschungssicherer Login-Ausweis</b> gegenüber Webseiten und Diensten. Für die reine Anmeldung („Anmelden mit lightningmail“) spricht das Relay den offenen Web-Standard <b>OpenID Connect (OIDC)</b>: Beim Klick auf den Login-Knopf fragt dein Browser dich nach Freigabe und unterschreibt eine einmalige Zufallszahl (Challenge) direkt mit deinem Postfach-Schlüssel. Der Dienst weiß in einer Sekunde sicher, dass du der Inhaber der Adresse bist — ganz ohne Passwort, ohne Bestätigungsmail und ohne dass ein Konzern wie Google oder Apple dazwischensitzt.</span>
+          <span class="en-only"><b>The dual function in lightningmail:</b> Every lightningmail address (like <code>name@domain</code>) is, at its core, a cryptographic key. That single key performs two jobs at once: it <b>decrypts your private letters</b> in your inbox and acts as a <b>tamper-proof login credential</b> for websites and services. For pure authentication (“Sign in with lightningmail”), the relay speaks the open web standard <b>OpenID Connect (OIDC)</b>: when you click the login button, your browser asks for your consent and signs a one-time challenge directly with your mailbox key. Within a second, the service has mathematical proof that you own the address — with no password, no confirmation mail, and no tech giant like Google or Apple in the middle.</span>
         </p>
         <p>
-          <span class="de-only">Derselbe Mechanismus bremst auch Schein-Dienste aus: Wer nur Willkommensporto kassiert und nie antwortet, fällt durch fehlende Gegenpost und Spam-Markierungen sofort auf.</span>
-          <span class="en-only">The same mechanism stops fake services: anyone collecting welcome fees without ever replying stands out immediately through missing return mail and spam flags.</span>
+          <span class="de-only"><b>Und wenn bei einer Neuregistrierung doch eine Bestätigungsmail fließen soll?</b> Dann kehrt das Porto die Kosten um: Nicht der Dienst schickt unaufgefordert eine Mail ins Blaue, sondern der neue Nutzer schickt über ein kleines Service-Gateway den ersten Registrierungsbrief mit einem leicht erhöhten Willkommensporto (etwa 6&nbsp;Cent) an den Dienst. Der Dienst schickt seine Bestätigungsmail für das normale Standardporto (2&nbsp;Cent) zurück und behält 4&nbsp;Cent Überschuss. Damit kostet Bot-Abwehr den Dienst kein Geld mehr — jede echte Anmeldung trägt sich selbst.</span>
+          <span class="en-only"><b>And when a new registration does require a confirmation mail?</b> Postage flips the economics: instead of the service firing a message into the dark, the new user sends the initial registration letter with a slightly higher welcome postage (say, 6&nbsp;cents) to the service’s gateway. The service sends its confirmation letter back at the standard postage rate (2&nbsp;cents) and keeps the 4-cent surplus. Bot defense stops costing the service money — every genuine sign-up pays its own way.</span>
         </p>
       </div>
     </div>
 
     <div class="four-grid">
       <div class="tone-tile">
-        <h3><span class="de-only">Verschlüsselte Briefe und Anhänge</span><span class="en-only">Encrypted letters and attachments</span></h3>
+        <h3><span class="de-only">1. Briefe &amp; große Anhänge (Messaging)</span><span class="en-only">1. Letters &amp; large attachments (Messaging)</span></h3>
         <p>
-          <span class="de-only">Nachrichten zwischen Menschen und Maschinen sind Ende-zu-Ende-verschlüsselt. Anhänge liegen als content-addressierte Blobs vor: heute maximal 10&nbsp;MB pro Datei bei 100&nbsp;MB Postfach-Kontingent. Erst mit Etappe&nbsp;7 (Chunk-Upload und Byte-Porto) fällt dieses harte Limit, sodass große Dateien schlicht mehr Porto ans Relay kosten.</span>
-          <span class="en-only">Messages between humans and machines are end-to-end encrypted. Attachments are stored as content-addressed blobs: today capped at 10&nbsp;MB per file within a 100&nbsp;MB mailbox quota. Only with stage&nbsp;7 (chunked upload and byte-postage) does that hard limit drop, so large files simply cost more postage to the relay.</span>
+          <span class="de-only">Alle Nachrichten und Anhänge zwischen Menschen oder Maschinen sind Ende-zu-Ende-verschlüsselt. Kleine Anhänge reisen als einzelner Blob, große Dateien (bis ~250&nbsp;MB innerhalb des Postfach-Kontingents) zerlegt der Client automatisch in 1-MiB-Scheiben („Chunked Blobs“) und rechnet pro Megabyte ein kleines Byte-Porto mit dem Relay ab. Außerdem zeigt ein dezentes Häkchen (✓ zugestellt am Relay, ✓✓ vom Empfänger abgerufen) den Zustellstatus ohne Lesespionage.</span>
+          <span class="en-only">All messages and attachments between people or machines are end-to-end encrypted. Small attachments travel as a single blob, while large files (up to ~250&nbsp;MB within mailbox quota) are automatically sliced into 1&nbsp;MiB chunks by the client and billed at a small per-megabyte byte-postage rate. Subtle checkmarks (✓ settled at relay, ✓✓ fetched by recipient) show delivery status without read-spy tracking.</span>
         </p>
       </div>
       <div class="tone-tile">
-        <h3><span class="de-only">Registrieren per Willkommensporto</span><span class="en-only">Sign-up via welcome postage</span></h3>
+        <h3><span class="de-only">2. Login ohne Passwort (OIDC &amp; Service-Connector)</span><span class="en-only">2. Passwordless login (OIDC &amp; Service Connector)</span></h3>
         <p>
-          <span class="de-only">Im Zielmodell bestätigt der Nutzer seine Adresse, indem er beim Anmelden das Willkommensporto an den Dienst schickt; die Bestätigung läuft portofrei zurück. So trägt sich die Anmeldung selbst.</span>
-          <span class="en-only">In the target model, the user confirms their address by sending the welcome postage to the service at sign-up, and the confirmation returns postage-free. Registration pays for itself.</span>
+          <span class="de-only">Webseiten binden „Sign in with lightningmail“ über jede normale OIDC-Standardbibliothek ein — ganz ohne eigenes Plugin. Will ein Dienst zusätzlich bezahlte Registrierungsbriefe annehmen oder automatisch verschlüsselte Rechnungen und Systemmails verschicken, startet er unseren schlanken <b>Service-Connector</b> (einen Headless-Client mit lokaler JSON/Webhook-Schnittstelle).</span>
+          <span class="en-only">Websites integrate “Sign in with lightningmail” using any standard OIDC library — no custom plugin required. If a service also wants to accept paid registration letters or automatically send encrypted invoices and system alerts, it runs our lightweight <b>Service Connector</b> (a headless client exposing a local JSON/webhook API).</span>
         </p>
       </div>
     </div>
@@ -780,18 +780,18 @@ html[lang="en"] .de-only { display: none !important; }
       </div>
       <div class="trio-item">
         <h3><span class="de-only">Post zwischen Maschinen</span><span class="en-only">Machine-to-machine mail</span></h3>
-        <p><span class="de-only">Wenn Skripte oder Agenten andere Dienste anfragen, zahlen sie pro Nachricht automatisch Porto. Auch automatische Anfragen haben damit ein Preisschild.</span><span class="en-only">When scripts or agents query other services, they attach postage automatically per message. Automated requests carry a price tag too.</span></p>
+        <p><span class="de-only">Wenn Skripte oder KI-Agenten andere Dienste anfragen, zahlen sie pro Nachricht automatisch Porto. Auch automatische Anfragen haben damit ein Preisschild.</span><span class="en-only">When scripts or AI agents query other services, they attach postage automatically per message. Automated requests carry a price tag too.</span></p>
       </div>
       <div class="trio-item">
         <h3><span class="de-only">Portokasse mit Steuer-Export</span><span class="en-only">Postage ledger with tax export</span></h3>
-        <p><span class="de-only">Jede Buchung erhält einen Zeitstempel samt Tageskurs in lokaler Währung und lässt sich als CSV mit Hashkette exportieren.</span><span class="en-only">Every ledger entry is stamped with the daily exchange rate in local currency and exports as a hash-chained CSV.</span></p>
+        <p><span class="de-only">Jede Buchung erhält sofort einen Tageskurs-Stempel in Euro und lässt sich unter „💶 Umsätze“ als kryptografisch verkettete CSV-Datei exportieren.</span><span class="en-only">Every ledger entry is stamped immediately with the daily EUR exchange rate and exports under “💶 Transactions” as a cryptographically hash-chained CSV.</span></p>
       </div>
     </div>
 
     <div class="status">
       <b><span class="de-only">Status heute:</span><span class="en-only">Status today:</span></b>
-      <span class="de-only">Das Anmeldungs-Porto ist beschlossen (CONCEPT §28) und als Etappe&nbsp;I eingeplant: Envelope-Tag für Registrierungsanfragen, ein „Mit lightningmail registrieren“-Knopf für Dienste und ein eigener Willkommenspreis im Preisprofil. Gebaut ist davon noch nichts. Heute zahlt jede Nachricht das reguläre Relay-Porto, und Bestätigungsmails laufen wie gewohnt. Empfänger-Gutschrift und Preisprofile folgen in Etappe&nbsp;B.</span>
-      <span class="en-only">The sign-up postage is decided (CONCEPT §28) and planned as stage&nbsp;I: an envelope tag for sign-up requests, a “register with lightningmail” button for services, and a dedicated welcome rate in the price profile. None of that is built yet. Today every message pays standard relay postage, and confirmation mails work as usual. Recipient crediting and price profiles follow in stage&nbsp;B.</span>
+      <span class="de-only">Beide Grundfunktionen laufen heute im Code: (1) Briefversand inkl. 1-MiB-Chunking für große Anhänge, Byte-Porto, ✓/✓✓-Empfangsbestätigung und Euro-Steuerexport sind aktiv. (2) Der OIDC-Identity-Provider („Sign in with lightningmail“ mit BIP340-Schlüsselsignatur im Browser) ist im Relay eingebaut und live testbar. Der optionale Service-Connector für bezahlte Registrierungsbriefe (Etappe&nbsp;I) folgt als nächster Baustein.</span>
+      <span class="en-only">Both core functions run in today’s code: (1) Mail delivery including 1&nbsp;MiB chunking for large attachments, byte-postage, ✓/✓✓ delivery receipts and EUR tax CSV export are live. (2) The OIDC Identity Provider (“Sign in with lightningmail” with in-browser BIP340 key signature) is built into the relay and testable today. The optional Service Connector for paid registration letters (stage&nbsp;I) follows next.</span>
     </div>
   </section>
 
@@ -833,39 +833,34 @@ html[lang="en"] .de-only { display: none !important; }
     </p>
     <ul class="baus">
       <li>
-        <b>Go-Relay</b>
-        <span class="de-only">Ein einzelnes Binary mit SQLite-Datenbank übernimmt Posteingang, Porto-Abbuchung, Geräte-Synchronisation und Blob-Ablage.</span>
-        <span class="en-only">A single binary backed by SQLite handles inbox storage, postage debiting, device sync and blob storage.</span>
+        <b><span class="de-only">Light-Relay &amp; Full-Relay (Go)</span><span class="en-only">Light Relay &amp; Full Relay (Go)</span></b>
+        <span class="de-only">Ein einzelnes Go-Binary mit SQLite-Datenbank übernimmt Posteingang, Porto-Abbuchung, OIDC-Login, Geräte-Sync und Blob-Ablage. Als <b>Light-Relay</b> läuft es mit LND im Neutrino-Modus komplett ohne eigenen Bitcoin-Vollknoten (~10&nbsp;GB Speicher, ideal für Heim-NAS, Raspberry Pi oder kleine VPS); als <b>Full-Relay</b> dockt es an einen eigenen <code>bitcoind</code> an.</span>
+        <span class="en-only">A single Go binary backed by SQLite handles inbox storage, postage debiting, OIDC login, device sync and blob storage. As a <b>Light Relay</b> it runs with LND in Neutrino mode without needing its own Bitcoin full node (~10&nbsp;GB disk, ideal for home NAS, Raspberry Pi or small VPS); as a <b>Full Relay</b> it connects to a dedicated <code>bitcoind</code>.</span>
       </li>
       <li>
-        <b>LND &amp; Bitcoin Core</b>
-        <span class="de-only">Das Porto reist als Lightning-Zahlung per keysend direkt mit den Protokolldaten. Litecoin ist als zweiter Währungsschalter vorgesehen; Preise werden in Cent angegeben.</span>
-        <span class="en-only">Postage travels as a Lightning keysend payment carrying protocol metadata. Litecoin is planned as a second currency switch; prices stay denominated in cents.</span>
+        <b><span class="de-only">Clients für Android, Apple, Linux, Windows &amp; Web</span><span class="en-only">Clients for Android, Apple, Linux, Windows &amp; Web</span></b>
+        <span class="de-only">Ein gemeinsamer TypeScript-Kryptokern bedient alle Systeme: als direkt installierbare Web-App (PWA), als Android-App (APK) sowie für iOS/macOS, Linux und Windows. Der Client braucht keinen eigenen Lightning-Node.</span>
+        <span class="en-only">A shared TypeScript crypto core powers every platform: as an installable Progressive Web App (PWA), as an Android app (APK), and for iOS/macOS, Linux and Windows. Clients never need to run a Lightning node.</span>
       </li>
       <li>
-        <b>Envelope LM1</b>
-        <span class="de-only">Verschlüsselt wird mit ECIES auf das Schlüsselpaar des Postfachs plus XChaCha20-Poly1305. Das Relay sieht Umschlag und Porto, aber nie den Inhalt.</span>
-        <span class="en-only">Messages use ECIES on the mailbox keypair plus XChaCha20-Poly1305. The relay sees the envelope and postage, never the body text.</span>
+        <b>Envelope LM1 &amp; Chunked Blobs</b>
+        <span class="de-only">Verschlüsselt wird mit ECIES auf das Schlüsselpaar des Postfachs plus XChaCha20-Poly1305. Große Anhänge werden in 1-MiB-Scheiben zerlegt und mit Byte-Porto bezahlt. Das Relay sieht Umschlag und Größe, nie den Inhalt.</span>
+        <span class="en-only">Messages use ECIES on the mailbox keypair plus XChaCha20-Poly1305. Large attachments are split into 1&nbsp;MiB chunks billed via byte-postage. The relay sees envelope and size, never content.</span>
       </li>
       <li>
-        <b>SQLite-Portokasse</b>
-        <span class="de-only">Jedes Konto führt ein Buchungsjournal mit Währungsspalte (BTC/LTC), Tageskurs-Stempel in lokaler Währung und einem CSV-Export samt Hashkette.</span>
-        <span class="en-only">Every account keeps a ledger with a currency column (BTC/LTC), a daily local-currency rate stamp and a hash-chained CSV export.</span>
+        <b><span class="de-only">OIDC-IdP &amp; Service-Connector</span><span class="en-only">OIDC IdP &amp; Service Connector</span></b>
+        <span class="de-only">Jedes Relay ist zugleich ein OpenID-Connect-Anbieter für passwortloses „Sign in with lightningmail“. Für Dienste, die auch bezahlte Registrierungsbriefe und Systemmails automatisieren wollen, stellt der Headless-Service-Connector eine einfache JSON/Webhook-Brücke bereit.</span>
+        <span class="en-only">Every relay is also an OpenID Connect provider for passwordless “Sign in with lightningmail”. For services that also want to automate paid registration letters and system mails, the headless Service Connector provides a clean JSON/webhook bridge.</span>
       </li>
       <li>
-        <b>Passkeys &amp; 24-Wort-Seed</b>
-        <span class="de-only">Im Alltag entsperrt man das Postfach per WebAuthn (Telefon oder YubiKey). Als Backup dienen 24 BIP39-Wörter oder optional eine passwortgeschützte LMKEY1-Datei.</span>
-        <span class="en-only">For daily use, WebAuthn (phone or YubiKey) unlocks the mailbox. Twenty-four BIP39 seed words or an optional passphrase-locked LMKEY1 file serve as backup.</span>
+        <b><span class="de-only">Passkeys &amp; 24-Wort-Backup</span><span class="en-only">Passkeys &amp; 24-word backup</span></b>
+        <span class="de-only">Ein Einrichtungs-Assistent erzeugt im Browser 24 BIP39-Wörter als papiernes Haupt-Backup (mit Wortquiz). Im Alltag entsperrt man das Postfach per WebAuthn-Passkey (Telefon oder YubiKey) oder per verschlüsselter <code>.lmkey</code>-Datei.</span>
+        <span class="en-only">A setup wizard generates 24 BIP39 recovery words right in the browser (verified with a word quiz). In daily use, WebAuthn passkeys (phone or YubiKey) or an encrypted <code>.lmkey</code> file unlock the mailbox.</span>
       </li>
       <li>
-        <b>DNS als Postregister</b>
-        <span class="de-only">Einträge unter <code>_bmail._tcp</code> verraten, welches Relay für eine Domain zuständig ist. Die reine Adressauflösung bleibt immer kostenlos; bezahlt wird erst der Abruf der Profilkarte.</span>
-        <span class="en-only">Records under <code>_bmail._tcp</code> announce which relay serves a domain. Address resolution itself always stays free; only fetching the profile card costs postage.</span>
-      </li>
-      <li>
-        <b>Cloudflare-Tunnel &amp; PWA</b>
-        <span class="de-only">Sauberes HTTPS ohne offene Router-Ports zu Hause. Das Webmail lässt sich als Web-App direkt auf den Startbildschirm legen.</span>
-        <span class="en-only">Clean HTTPS without opening router ports at home. The webmail installs straight to the home screen as a progressive web app.</span>
+        <b><span class="de-only">DNS statt öffentlichem Adressbuch</span><span class="en-only">DNS instead of a public directory</span></b>
+        <span class="de-only">Es braucht keine zentrale Adressdatenbank: Ein DNS-Eintrag (<code>_bmail._tcp</code>) verrät das zuständige Relay der Domain, und das Ziel-Relay liefert zur Empfängeradresse kostenlos den öffentlichen Schlüssel für die Verschlüsselung. Ein privates, verschlüsseltes Adressbuch synchronisiert sich nur zwischen den eigenen Geräten.</span>
+        <span class="en-only">No public address database is needed: a DNS record (<code>_bmail._tcp</code>) points to the domain’s relay, and the destination relay returns the recipient’s public encryption key for free. A private, encrypted address book syncs exclusively across your own devices.</span>
       </li>
     </ul>
   </section>
@@ -881,19 +876,19 @@ html[lang="en"] .de-only { display: none !important; }
         </tr>
         <tr>
           <td><span class="de-only">Briefeschreiber</span><span class="en-only">Letter writer</span></td>
-          <td><span class="de-only">Schreibt Fremde zum Standardporto von ein paar Cent an. Im geplanten Kreislauf (Etappe&nbsp;B) kommt das Geld mit der Antwort zurück, ergänzt um günstigere Tarife für bekannte Kontakte.</span><span class="en-only">Writes to strangers at the default postage of a few cents. In the planned cycle (stage&nbsp;B) the money returns with their reply, alongside cheaper rates for known contacts.</span></td>
+          <td><span class="de-only">Schreibt andere zum Standardporto von ein paar Cent an. Antwortet das Gegenüber, fließt das Porto mit der Antwort zurück.</span><span class="en-only">Writes to others at the default postage of a few cents. When the other person replies, the postage returns with their answer.</span></td>
         </tr>
         <tr>
           <td><span class="de-only">Domain-Inhaber</span><span class="en-only">Domain holder</span></td>
-          <td><span class="de-only">Verbindet die eigene Domain mit einem Relay für Familien- oder Firmenadressen, eigene Preisprofile und Aliasse. Funktioniert wie klassische MX-Einträge, nur mit angeschlossener Portokasse.</span><span class="en-only">Connects their own domain to a relay for family or company addresses, custom price profiles and aliases. Works like classic MX records, with a postage book attached.</span></td>
+          <td><span class="de-only">Verbindet die eigene Domain per <code>_bmail._tcp</code> mit einem Light- oder Full-Relay für Familien- oder Firmenadressen. Funktioniert wie klassische MX-Einträge, nur mit angeschlossener Portokasse und OIDC-Login.</span><span class="en-only">Connects their own domain via <code>_bmail._tcp</code> to a Light or Full Relay for family or company addresses. Works like classic MX records, with a postage ledger and OIDC login attached.</span></td>
         </tr>
         <tr>
           <td><span class="de-only">Dienst</span><span class="en-only">Service</span></td>
-          <td><span class="de-only">Nimmt bei Neuanmeldungen das Willkommensporto ein, statt für Bestätigungsmails draufzuzahlen, und prüft Logins per Schlüsselsignatur (geplant als Etappe&nbsp;I).</span><span class="en-only">Collects welcome postage on new sign-ups instead of paying for confirmation mail, and verifies logins by key signature (planned as stage&nbsp;I).</span></td>
+          <td><span class="de-only">Bindet „Sign in with lightningmail“ per Standard-OIDC für passwortlose Logins ein — oder nutzt den Service-Connector, um bei Neuanmeldungen Willkommensporto einzunehmen und Bestätigungsmails aus dem Überschuss zu bezahlen.</span><span class="en-only">Integrates “Sign in with lightningmail” via standard OIDC for passwordless logins — or uses the Service Connector to collect welcome postage on new sign-ups and fund confirmation mails from the surplus.</span></td>
         </tr>
         <tr>
           <td><span class="de-only">Relay-Betreiber</span><span class="en-only">Relay operator</span></td>
-          <td><span class="de-only">Betreibt das Postamt für sich und andere, leitet Briefe an Nachbar-Relays weiter, behält einen Portoanteil für den Betrieb ein und stellt Speicher sowie Bandbreite bereit.</span><span class="en-only">Runs the post office for themselves and others, peers with neighboring relays, keeps a postage share to cover operations, and provides storage and bandwidth.</span></td>
+          <td><span class="de-only">Betreibt das Postamt (als schlankes Light-Relay mit Neutrino oder als Full-Relay mit eigenem Bitcoin-Vollknoten), leitet Briefe weiter und nimmt über das Byte-Porto Gebühren für großen Anhang-Speicher ein.</span><span class="en-only">Runs the post office (as a lightweight Neutrino Light Relay or a Full Relay with its own Bitcoin full node), forwards mail and collects byte-postage fees for large attachment storage.</span></td>
         </tr>
       </tbody>
     </table>
@@ -915,8 +910,8 @@ html[lang="en"] .de-only { display: none !important; }
         </div>
         <div class="col-body">
           <p>
-            <span class="de-only">Auf <b>lightningmail.app</b> läuft heute ein echtes Relay hinter einem eigenen Bitcoin-Vollknoten: Ende-zu-Ende-verschlüsselte Briefe, Anhänge bis 10&nbsp;MB, Porto-Abbuchung per Lightning, Synchronisation über mehrere Geräte, Adressbuch, Passkey-Login und offene Selbstregistrierung sind in Betrieb. Was davon bereits produktiver Code ist und was zu den nächsten Ausbau-Etappen gehört, markieren die gelben Statuskästen auf dieser Seite.</span>
-            <span class="en-only">A live relay backed by a dedicated Bitcoin full node runs today on <b>lightningmail.app</b>: end-to-end encrypted letters, attachments up to 10&nbsp;MB, Lightning postage debiting, multi-device sync, address book, passkey login and self-service registration are all working. The yellow status boxes on this page mark where today’s running code ends and the next planned stages begin.</span>
+            <span class="de-only">Auf <b>lightningmail.app</b> läuft heute ein echtes Relay: Ende-zu-Ende-verschlüsselte Briefe, große Anhänge (1-MiB-Chunking mit Byte-Porto), Porto-Abbuchung und Empfänger-Gutschrift per Lightning, ✓/✓✓-Empfangsbestätigungen, ein 4-Schritt-Einrichtungsassistent mit 24 BIP39-Wörtern, Passkey-Login, OIDC-Identity-Provider („Sign in with lightningmail“), Synchronisation über mehrere Geräte, privates Adressbuch und Euro-Steuerexport mit Hashkette sind produktiv in Betrieb.</span>
+            <span class="en-only">A live relay runs today on <b>lightningmail.app</b>: end-to-end encrypted letters, large attachments (1&nbsp;MiB chunking with byte-postage), Lightning postage debiting and recipient crediting, ✓/✓✓ delivery receipts, a 4-step setup wizard with 24 BIP39 recovery words, passkey login, OIDC Identity Provider (“Sign in with lightningmail”), multi-device sync, private address book and hash-chained EUR tax export are all running in production code.</span>
           </p>
           <p>
             <span class="de-only">Das gesamte Projekt steht unter der MIT-Lizenz. Jeder darf den Code lesen, kopieren und auf eigener Hardware betreiben. Hinter der Domain steht ein privater Haushalt, keine Firma und kein Investor. Wer mitmachen möchte, legt sich ein Testpostfach an oder setzt gleich ein eigenes Relay auf.</span>
@@ -948,43 +943,43 @@ const SCENARIOS = {
   dialog: {
     de: {
       sender: '−10 ct (A) / −10 ct (B)',
-      today: '20 ct an Relay-Betreiber',
+      today: '+10 ct (B) / +10 ct (A)',
       planned: 'Netto 0 ct für A und B',
-      note: 'Heute fließt jedes Porto per keysend an den Relay-Betreiber des Empfängers. Mit Etappe B landet es auf dem Empfängerkonto, sodass sich gegenseitige Briefe aufheben.'
+      note: 'Im heutigen Code wandert jedes Porto per Lightning-Keysend zum Relay des Empfängers und wird direkt dessen Postfach-Guthaben gutgeschrieben. Gegenseitige Briefe heben sich auf.'
     },
     en: {
       sender: '−10 ct (A) / −10 ct (B)',
-      today: '20 ct to relay operators',
+      today: '+10 ct (B) / +10 ct (A)',
       planned: 'Net 0 ct for A and B',
-      note: 'Today every postage payment travels via keysend to the recipient’s relay operator. In stage B it credits the recipient account directly, so mutual letters cancel out.'
+      note: 'In today’s code every postage payment travels via Lightning keysend to the recipient’s relay and credits their mailbox balance directly. Mutual letters cancel out.'
     }
   },
   spam: {
     de: {
       sender: '−200,00 € (Spammer S)',
-      today: '200,00 € an Relay-Betreiber',
-      planned: '200,00 € an 10.000 Empfänger',
-      note: 'Schon im heutigen Code verliert der Spammer bei 10.000 Briefen zu je 2 Cent sofort 200 Euro, weil niemand antwortet. Mit Etappe B erhalten die Belästigten das Geld.'
+      today: '+200,00 € an 10.000 Empfänger',
+      planned: '−200,00 € Verlust für S',
+      note: 'Bei 10.000 unerwünschten Briefen zu je 2 Cent zahlt der Spammer sofort 200 Euro an die Empfänger und erhält null Antworten zurück.'
     },
     en: {
       sender: '−€200.00 (Spammer S)',
-      today: '€200.00 to relay operators',
-      planned: '€200.00 to 10,000 recipients',
-      note: 'Even in today’s code, sending 10,000 letters at 2 cents each costs the spammer €200 up front because nobody replies. With stage B, the recipients get the money.'
+      today: '+€200.00 to 10,000 recipients',
+      planned: '−€200.00 loss for S',
+      note: 'Sending 10,000 unwanted letters at 2 cents each immediately costs the spammer €200 paid to the recipients, with zero replies returning.'
     }
   },
   signup: {
     de: {
-      sender: '−2 ct Willkommensporto (Nutzer)',
-      today: 'Reguläres Relay-Porto je Mail',
-      planned: '+2 ct beim Dienst · Antwort 0 ct',
-      note: 'Noch nicht gebaut (Etappe I, CONCEPT §28): Der Nutzer zahlt beim Registrieren das Willkommensporto an den Dienst, und die Bestätigungsmail kommt im Konversationsfenster portofrei zurück.'
+      sender: '−6 ct Willkommensporto (Nutzer)',
+      today: 'OIDC-Login live (0 ct) · Brief-Porto aktiv',
+      planned: '+4 ct Netto beim Dienst (6 ct rein, 2 ct Antwort)',
+      note: 'Reiner Login per OIDC ist heute schon kostenlos eingebaut. Beim geplanten Registrierungsbrief (Etappe I) zahlt der Nutzer z. B. 6 Cent Willkommensporto, und der Dienst schickt die Bestätigung für 2 Cent Standardporto zurück.'
     },
     en: {
-      sender: '−2 ct welcome postage (user)',
-      today: 'Standard relay postage per mail',
-      planned: '+2 ct to service · reply 0 ct',
-      note: 'Not built yet (stage I, CONCEPT §28): the user pays welcome postage to the service when registering, and the confirmation mail returns postage-free inside the conversation window.'
+      sender: '−6 ct welcome postage (user)',
+      today: 'OIDC login live (0 ct) · mail postage active',
+      planned: '+4 ct net for service (6 ct in, 2 ct reply)',
+      note: 'Pure OIDC login is already built in and free. With the planned registration letter (stage I), the user pays e.g. 6 cents welcome postage and the service sends the confirmation back for 2 cents standard postage.'
     }
   }
 };

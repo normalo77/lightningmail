@@ -54,7 +54,7 @@ type Server struct {
 func New(cfg *config.Config, l *ledger.Ledger, ln *lnclient.Client, p *postage.Service, feed *rates.Feed) *Server {
 	return &Server{cfg: cfg, ledger: l, ln: ln, postage: p, waSessions: map[string]waSessionEntry{},
 		rateFeed: feed,
-		pubLim:   newPubLimit(cfg.Directory.PublicRPM),
+		pubLim:   newPubLimit(cfg.Rates.PublicRPM),
 		oidc:     newOIDCState(cfg.DataDir)}
 }
 
@@ -67,8 +67,7 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/balance", s.auth(s.handleBalance))
 	mux.HandleFunc("/v1/send", s.auth(s.handleSend))
 	mux.HandleFunc("/v1/inbox", s.auth(s.handleInbox))
-	mux.HandleFunc("/v1/profile", s.auth(s.handleMyProfile)) // Etappe B: PUT/DELETE eigene Karte
-	mux.HandleFunc("/v1/profile/", s.handleProfile)           // Lookups + /card (directory.go)
+	mux.HandleFunc("/v1/profile/", s.handleProfile) // Key- + Porto-Lookup
 	mux.HandleFunc("/v1/blob", s.auth(s.handleBlobUpload))
 	mux.HandleFunc("/v1/blob/", s.auth(s.handleBlobGet))
 	mux.HandleFunc("/v1/state", s.auth(s.handleState))

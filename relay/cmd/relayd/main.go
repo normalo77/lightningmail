@@ -68,9 +68,9 @@ func main() {
 	})
 
 	p := postage.New(cfg)
-	// Etappe B: EIN Kurs-Feed fuer HTTP-Server UND LN-Ingest (§25: jeder
+	// EIN Kurs-Feed fuer HTTP-Server UND LN-Ingest (§25: jeder
 	// Zufluss wird zum Tageskurs gestempelt; ohne Kurs bleibt er ungeratet).
-	feed := rates.NewFeed(cfg.Directory.RateURL, cfg.Directory.ManualEurPerBtc)
+	feed := rates.NewFeed(cfg.Rates.RateURL, cfg.Rates.ManualEurPerBtc)
 	go feed.Start()
 	srv := relaysrv.New(cfg, l, ln, p, feed)
 

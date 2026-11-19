@@ -31,8 +31,6 @@ const (
 	KindTopup      Kind = "topup"
 	KindWithdraw   Kind = "withdraw"
 	KindFee        Kind = "fee"
-	KindCardOut    Kind = "card_out" // Etappe B: Profilkarten-Kauf (Kaeufer-Seite)
-	KindCardIn     Kind = "card_in"  // Etappe B: Karten-Erloes (Kontakt-Seite)
 )
 
 var (
@@ -610,7 +608,7 @@ func (l *Ledger) CheckQuota(name string, additionalBytes int64) error {
 
 func validKind(k Kind) bool {
 	switch k {
-	case KindPostageOut, KindPostageIn, KindTopup, KindWithdraw, KindFee, KindCardOut, KindCardIn:
+	case KindPostageOut, KindPostageIn, KindTopup, KindWithdraw, KindFee:
 		return true
 	}
 	return false
