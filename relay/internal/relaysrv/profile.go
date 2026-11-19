@@ -104,46 +104,61 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	addr := strings.TrimPrefix(r.URL.Path, "/v1/profile/")
+	domain := ""
 	if i := strings.Index(addr, "@"); i >= 0 {
-		addr = addr[:i] // Adressnotation erlaubt, aufgeloest wird der Local Part
+		domain = strings.ToLower(addr[i+1:]) // §4.2: Domain → Relay-Discovery
+		addr = addr[:i]
 	}
 	if addr == "" || strings.Contains(addr, "/") {
 		http.Error(w, `{"error":"address required"}`, 400)
 		return
 	}
 	acct, err := s.ledger.GetAccount(addr)
-	if err != nil {
-		// Wenn lokal nicht gefunden und kein Peer-Loop (X-Relay-Hop):
-		// konfigurierte Peer-Relays abfragen (Föderations-Lookup), damit ein Nutzer
-		// auf Relay A auch Konten auf Relay B anschreiben kann, ohne dass das Konto
-		// manuell auf beiden Relays angelegt werden muss.
+	// Explizit fremde Domain (Peer aus Config) → auch bei lokalem Treffer fernabfragen.
+	explicitRemote := domain != "" && !strings.EqualFold(domain, s.cfg.Name) && s.lookupPeer(domain) != nil
+	if err != nil || explicitRemote {
+		// Wenn lokal nicht gefunden (oder fremde Domain adressiert) und kein
+		// Peer-Loop (X-Relay-Hop): Ziel-Relay per DNS/Peer-Discovery abfragen
+		// (Föderations-Lookup §4.2), damit ein Nutzer auf Relay A auch Konten
+		// auf Relay B anschreiben kann. Fallback: alle Peers der Reihe nach.
 		if r.Header.Get("X-Relay-Hop") == "" {
 			cl := &http.Client{Timeout: 5 * time.Second}
-			for _, peer := range s.cfg.Peers {
-				if peer.URL == "" {
-					continue
+			fetch := func(relayURL, relayName string) bool {
+				if relayURL == "" {
+					return false
 				}
-				req, err2 := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimSuffix(peer.URL, "/")+"/v1/profile/"+addr, nil)
+				req, err2 := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimSuffix(relayURL, "/")+"/v1/profile/"+addr, nil)
 				if err2 != nil {
-					continue
+					return false
 				}
 				req.Header.Set("X-Relay-Hop", "1")
 				pr, err2 := cl.Do(req)
 				if err2 != nil {
-					continue
+					return false
 				}
-				if pr.StatusCode == 200 {
-					var pbody map[string]any
-					err3 := json.NewDecoder(pr.Body).Decode(&pbody)
-					pr.Body.Close()
-					if err3 == nil && pbody["pubkey"] != nil {
-						pbody["relay"] = peer.Name
-						w.Header().Set("Content-Type", "application/json")
-						json.NewEncoder(w).Encode(pbody)
+				defer pr.Body.Close()
+				if pr.StatusCode != 200 {
+					return false
+				}
+				var pbody map[string]any
+				if err2 := json.NewDecoder(pr.Body).Decode(&pbody); err2 != nil || pbody["pubkey"] == nil {
+					return false
+				}
+				pbody["relay"] = relayName
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(pbody)
+				return true
+			}
+			if domain != "" {
+				if relayURL, _, err2 := s.resolveDomainRelay(r.Context(), domain); err2 == nil && fetch(relayURL, domain) {
+					return
+				}
+			}
+			if err != nil {
+				for _, peer := range s.cfg.Peers {
+					if fetch(peer.URL, peer.Name) {
 						return
 					}
-				} else {
-					pr.Body.Close()
 				}
 			}
 		}

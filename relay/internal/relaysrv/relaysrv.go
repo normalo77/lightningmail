@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/lightningmail/relay/internal/config"
 	"github.com/lightningmail/relay/internal/crypto"
 	"github.com/lightningmail/relay/internal/envelope"
@@ -47,6 +48,12 @@ type Server struct {
 	// In-Memory, single-process; bei Multi-Instanz-Relay externalisieren).
 	waMu       sync.Mutex
 	waSessions map[string]waSessionEntry
+
+	// Transport-Signierschluessel (TLV 34349337) + DNS-Discovery-Cache (§4.2)
+	tkeyMu sync.Mutex
+	tkey   *btcec.PrivateKey
+	dnsMu  sync.Mutex
+	dns    map[string]dnsEntry
 }
 
 // New: feed wird vom Caller gebaut und gestartet (relayd teilt ihn mit dem
@@ -55,7 +62,40 @@ func New(cfg *config.Config, l *ledger.Ledger, ln *lnclient.Client, p *postage.S
 	return &Server{cfg: cfg, ledger: l, ln: ln, postage: p, waSessions: map[string]waSessionEntry{},
 		rateFeed: feed,
 		pubLim:   newPubLimit(cfg.Rates.PublicRPM),
-		oidc:     newOIDCState(cfg.DataDir)}
+		oidc:     newOIDCState(cfg.DataDir),
+		dns:      map[string]dnsEntry{}}
+}
+
+// relayTransportKey: Transport-Signierschluessel (spec §2, TLV 34349337) —
+// wird beim ersten Senden geladen oder automatisch erzeugt und persistiert.
+func (s *Server) relayTransportKey() (*btcec.PrivateKey, error) {
+	s.tkeyMu.Lock()
+	defer s.tkeyMu.Unlock()
+	if s.tkey != nil {
+		return s.tkey, nil
+	}
+	path := s.cfg.DataDir + "/relay_transport.key"
+	if data, err := os.ReadFile(path); err == nil {
+		priv, err := crypto.LoadPrivatePEM(data)
+		if err != nil {
+			return nil, err
+		}
+		s.tkey = priv
+		return priv, nil
+	}
+	priv, err := crypto.GenerateKeyPair()
+	if err != nil {
+		return nil, err
+	}
+	pemBytes, err := crypto.PrivatePEM(priv)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(path, pemBytes, 0600); err != nil {
+		return nil, err
+	}
+	s.tkey = priv
+	return priv, nil
 }
 
 func (s *Server) ListenAndServe() error {
@@ -267,12 +307,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":"lnd: %v"}`, err), 500)
 		return
 	}
-	relayPubkeyBytes, err := hex.DecodeString(info.IdentityPubkey)
-	if err != nil {
-		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
-		http.Error(w, `{"error":"bad node pubkey"}`, 500)
-		return
-	}
+	_ = info
 
 	var destNode string
 	var destName string
@@ -281,18 +316,12 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if i := strings.Index(targetHint, "@"); i >= 0 {
 		targetRelay = targetHint[i+1:]
 	}
-	// Lokale Direktzustellung (ohne LND-Self-Payment-Loop), wenn der Empfaenger
-	// auf diesem Relay existiert UND nicht explizit ein Peer-Relay adressiert wurde.
-	isExplicitPeer := false
-	if targetRelay != "" && !strings.EqualFold(targetRelay, s.cfg.Name) {
-		for i := range s.cfg.Peers {
-			if strings.EqualFold(s.cfg.Peers[i].Name, targetRelay) || strings.Contains(strings.ToLower(s.cfg.Peers[i].URL), strings.ToLower(targetRelay)) {
-				isExplicitPeer = true
-				break
-			}
-		}
-	}
-	if localAcct, err := s.ledger.LookupByRecipientHash(env.RecipientHash); err == nil && !isExplicitPeer {
+	// Lokale Direktzustellung NUR, wenn (a) gar keine Peers konfiguriert sind
+	// (Single-Relay-Betrieb) oder (b) ?to=name@<eigener-relayname> explizit
+	// das eigene Relay adressiert. Sonst immer ueber Peer-Keysend routen,
+	// damit Cross-Relay-Tests (alice@alpha -> bob@beta, auch wenn bob als
+	// Legacy-Stub auf beiden Relays steht) weiter ueber LND + Blob-Mirror laufen.
+	if localAcct, err := s.ledger.LookupByRecipientHash(env.RecipientHash); err == nil && strings.EqualFold(targetRelay, s.cfg.Name) {
 		_, inserted, err2 := s.ledger.PutMessage(env.MsgID, localAcct.ID, envBin, postageMsat)
 		if err2 != nil {
 			s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
@@ -316,17 +345,26 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		log.Printf("send: %s -> local %s, %d sats", account, localAcct.Name, postageAmt)
 		return
 	}
-	peer := &s.cfg.Peers[0]
+	// Ziel-Ermittlung: ?to=name@domain → erst Peer/DNS-Discovery (§4.2),
+	// sonst Peer-Loop (Substring-Match) und Default-Peer.
 	if targetRelay != "" {
-		for i := range s.cfg.Peers {
-			if strings.EqualFold(s.cfg.Peers[i].Name, targetRelay) || strings.Contains(strings.ToLower(s.cfg.Peers[i].URL), strings.ToLower(targetRelay)) {
-				peer = &s.cfg.Peers[i]
-				break
-			}
+		if _, nodePub, err := s.resolveDomainRelay(r.Context(), targetRelay); err == nil {
+			destNode, destName = nodePub, targetRelay
 		}
 	}
-	destNode = peer.NodePubkey
-	destName = peer.Name
+	if destNode == "" {
+		peer := &s.cfg.Peers[0]
+		if targetRelay != "" {
+			for i := range s.cfg.Peers {
+				if strings.EqualFold(s.cfg.Peers[i].Name, targetRelay) || strings.Contains(strings.ToLower(s.cfg.Peers[i].URL), strings.ToLower(targetRelay)) {
+					peer = &s.cfg.Peers[i]
+					break
+				}
+			}
+		}
+		destNode = peer.NodePubkey
+		destName = peer.Name
+	}
 
 	now := time.Now().Unix()
 	ts := make([]byte, 8)
@@ -339,10 +377,26 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	ts[6] = byte(now >> 8)
 	ts[7] = byte(now)
 
+	// TLV 34349337 (spec §2): BIP340-Sig des Relay-Transport-Keys ueber
+	// sha256(Envelope-Binary) — vorher 64 Nullbytes (Platzhalter).
+	transportPriv, err := s.relayTransportKey()
+	if err != nil {
+		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
+		http.Error(w, fmt.Sprintf(`{"error":"transport key: %v"}`, err), 500)
+		return
+	}
+	transportSig, err := crypto.Sign(transportPriv, envBin)
+	if err != nil {
+		s.ledger.ApplyDeltaMeta(account, postageMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
+		http.Error(w, `{"error":"transport sign"}`, 500)
+		return
+	}
+
+	transportPub := crypto.PublicBytes(transportPriv)
 	customRecords := map[uint64][]byte{
 		34349334: envBin,
-		34349337: make([]byte, 64),
-		34349339: relayPubkeyBytes,
+		34349337: transportSig,
+		34349339: transportPub[:],
 		34349343: ts,
 	}
 

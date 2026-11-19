@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/lightningmail/relay/internal/config"
+	"github.com/lightningmail/relay/internal/crypto"
 	"github.com/lightningmail/relay/internal/envelope"
 	"github.com/lightningmail/relay/internal/ledger"
 	"github.com/lightningmail/relay/internal/lnclient"
@@ -132,9 +133,39 @@ func main() {
 				log.Printf("incoming: bad envelope: %v", err2)
 				continue
 			}
+			if err2 := crypto.VerifyEnvelope(env, env.SenderPubkey[:], env.Signature); err2 != nil {
+				log.Printf("incoming: invalid envelope signature: %v", err2)
+				continue
+			}
+			if tSig, ok1 := update.CustomRecords[34349337]; ok1 && len(tSig) == 64 {
+				if tPubRaw, ok2 := update.CustomRecords[34349339]; ok2 && len(tPubRaw) == 33 {
+					// Nur pruefen wenn tSig nicht 64 Null-Bytes (Legacy-Kompatibilitaet)
+					nonZero := false
+					for _, b := range tSig {
+						if b != 0 {
+							nonZero = true
+							break
+						}
+					}
+					if nonZero {
+						if tPub, err3 := crypto.ParsePubKey(tPubRaw); err3 != nil || crypto.Verify(tPub, envRaw, tSig) != nil {
+							log.Printf("incoming: invalid transport signature 34349337")
+							continue
+						}
+					}
+				}
+			}
 			acct, err2 := l.LookupByRecipientHash(env.RecipientHash)
 			if err2 != nil {
 				log.Printf("incoming: unknown recipient_hash: %v", err2)
+				continue
+			}
+			minPostage := p.ForeignSats()
+			if env.Signup {
+				minPostage = p.WelcomeSats()
+			}
+			if update.AmtPaid < minPostage {
+				log.Printf("incoming: insufficient postage for %s: paid=%d < required=%d (signup=%v)", acct.Name, update.AmtPaid, minPostage, env.Signup)
 				continue
 			}
 			seq, inserted, err2 := l.PutMessage(env.MsgID, acct.ID, envRaw, update.AmtPaid*1000)
