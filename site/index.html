@@ -462,6 +462,7 @@ html[lang="pl"] .pl-only { display: inline !important; }
     <a href="#doppelt"><span class="de-only">Anmeldung</span><span class="en-only">Sign-up</span><span class="es-only">Registro</span><span class="fr-only">Inscription</span><span class="pl-only">Rejestracja</span></a>
     <a href="#bausteine"><span class="de-only">Baukasten</span><span class="en-only">Toolbox</span><span class="es-only">Herramientas</span><span class="fr-only">Boîte à outils</span><span class="pl-only">Zestaw narzędzi</span></a>
     <a href="#tiers">Tiers</a>
+    <a href="/forum">🔐 Forum &amp; Paywall</a>
     <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektura</span></a>
     <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a>
     <a href="/app/">Webmail</a>
@@ -496,9 +497,23 @@ html[lang="pl"] .pl-only { display: inline !important; }
         </p>
         <div class="cta-row">
           <a class="btn" href="#kreislauf"><span class="de-only">Portokreislauf ansehen</span><span class="en-only">See the postage cycle</span><span class="es-only">Ver el ciclo de franqueo</span><span class="fr-only">Voir le cycle du port</span><span class="pl-only">Zobacz obieg porto</span></a>
+          <a class="btn" style="background:#122338;color:#fff" href="/forum">🔐 <span class="de-only">Sign-in Forum &amp; 5-Sat-Paywall</span><span class="en-only">Sign-in Forum &amp; 5-Sat Paywall</span><span class="es-only">Foro Sign-in y Paywall 5 sats</span><span class="fr-only">Forum Sign-in &amp; Paywall 5 sats</span><span class="pl-only">Forum Sign-in i Paywall 5 sat</span></a>
           <a class="btn secondary" href="/architecture"><span class="de-only">Architekturentscheidungen</span><span class="en-only">Architecture decisions</span><span class="es-only">Decisiones de arquitectura</span><span class="fr-only">Décisions d’architecture</span><span class="pl-only">Decyzje architektoniczne</span></a>
           <a class="btn secondary" href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a>
           <a class="btn secondary" href="/app/">Webmail</a>
+        </div>
+        <div style="margin-top:1.4rem;background:#122338;color:#f5f3ec;border-left:5px solid #f4b71a;border-radius:10px;padding:1rem 1.25rem;max-width:65ch">
+          <div style="font-size:0.84rem;text-transform:uppercase;letter-spacing:0.05em;color:#f4b71a;font-weight:700;margin-bottom:0.35rem">
+            ⚡ <span class="de-only">Countdown bis zum Mainnet-Deployment (18. Januar 2027)</span><span class="en-only">Countdown to Mainnet Deployment (January 18, 2027)</span><span class="es-only">Cuenta atrás para el despliegue en Mainnet (18 de enero de 2027)</span><span class="fr-only">Compte à rebours avant le déploiement Mainnet (18 janvier 2027)</span><span class="pl-only">Odliczanie do wdrożenia Mainnet (18 stycznia 2027)</span>
+          </div>
+          <div id="mainnet-cd" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:clamp(1.25rem,1.1rem + 0.7vw,1.7rem);font-weight:800;color:#fff;margin-bottom:0.35rem">60d : 00h : 00m : 00s</div>
+          <div style="font-size:0.9rem;color:#cbd5e1">
+            <span class="de-only">Aktuell läuft die öffentliche Regtest-Testphase: Jedes neu angelegte Konto startet automatisch mit <b>10.000 Test-Satoshis</b> zum Ausprobieren von Briefversand, <a href="/forum" style="color:#f4b71a;font-weight:700">Userforum und 5-Sat-Mikro-Paywall</a>.</span>
+            <span class="en-only">Public regtest phase is active: every newly created account starts automatically with <b>10,000 test satoshis</b> to try out encrypted mail, the <a href="/forum" style="color:#f4b71a;font-weight:700">user forum and the 5-sat micro-paywall</a>.</span>
+            <span class="es-only">Fase pública de pruebas (regtest) activa: cada cuenta nueva arranca automáticamente con <b>10.000 satoshis de prueba</b> para probar el correo cifrado, el <a href="/forum" style="color:#f4b71a;font-weight:700">foro de usuarios y el micro-paywall de 5 sats</a>.</span>
+            <span class="fr-only">Phase publique de test (regtest) active : chaque nouveau compte démarre automatiquement avec <b>10 000 satoshis de test</b> pour essayer le courrier chiffré, le <a href="/forum" style="color:#f4b71a;font-weight:700">forum utilisateurs et le micro-paywall à 5 sats</a>.</span>
+            <span class="pl-only">Trwa publiczna faza testowa (regtest): każde nowo założone konto startuje automatycznie z saldem <b>10 000 testowych satoshi</b> do wypróbowania szyfrowanej poczty, <a href="/forum" style="color:#f4b71a;font-weight:700">forum użytkowników i mikro-paywalla za 5 sat</a>.</span>
+          </div>
         </div>
         <p class="meta-note">
           <span class="de-only">Konzept und Prototyp auf lightningmail.app · MIT-Lizenz · kein Tracking, keine Cookies, kein Dienstversprechen</span>
@@ -1226,6 +1241,21 @@ try {
   const saved = localStorage.getItem('lm_lang');
   if (LANGS.includes(saved)) setLang(saved);
 } catch {}
+
+// 60-Tage-Countdown bis zum Mainnet-Deployment (18. Januar 2027, 12:00 UTC)
+const MAINNET_TS = Date.UTC(2027, 0, 18, 12, 0, 0);
+function tickCountdown() {
+  const el = document.getElementById('mainnet-cd');
+  if (!el) return;
+  const diff = Math.max(0, Math.floor((MAINNET_TS - Date.now()) / 1000));
+  const d = Math.floor(diff / 86400);
+  const h = String(Math.floor((diff % 86400) / 3600)).padStart(2, '0');
+  const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
+  const s = String(diff % 60).padStart(2, '0');
+  el.textContent = `${d}d : ${h}h : ${m}m : ${s}s`;
+}
+tickCountdown();
+setInterval(tickCountdown, 1000);
 </script>
 </body>
 </html>

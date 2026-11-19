@@ -30,7 +30,7 @@ ok(r.status === 200, "login mit frischem schluessel -> 200");
 const token = ((await r.json()) as any).token;
 r = await fetch(base + "/v1/balance", { headers: { Authorization: `Bearer ${token}` } });
 const bal = await r.json() as any;
-ok(r.status === 200 && bal.balance_msat === 0, `neues konto hat 0 guthaben (balance ${bal.balance_msat})`);
+ok(r.status === 200 && bal.balance_msat === 10_000_000, `neues konto hat 10.000 test-satoshis startguthaben (balance ${bal.balance_msat})`);
 r = await post("/v1/auth", { address: name, pubkey_hex: toHex(pubFromPriv(newPrivKey())), sig: toHex(authSign(newPrivKey(), name)) });
 ok(r.status === 401, "fremder schluessel fuer konto -> 401");
 console.log("EXITCODE", process.exitCode || 0);

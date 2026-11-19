@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # bmail-site: Landing Page (apex) + PWA unter /app/ + Relay-Proxy unter /relay-a|/relay-b.
 # Inkl. cookielosem, DSGVO-konformem 100%-anonymem Besucherzaehler (/stats & /stats.json).
-import datetime, hashlib, http.client, json, mimetypes, os, posixpath, sqlite3, sys, threading
+import datetime, hashlib, http.client, json, mimetypes, os, posixpath, sqlite3, sys, threading, time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, unquote
 
@@ -22,12 +22,42 @@ TRACKED_PATHS = {
     "/lightningmail-thunderbird.xpi": "/lightningmail-thunderbird.xpi",
 }
 
+# Relay-Ports fuer X-Forum-Token-Verifikation (OIDC-UserInfo)
+FORUM_RELAYS = {"alpha": 8443, "beta": 9443}
+
+# 4 Demo-Blabla-Artikel fuer die 5-Sat-Mikro-Paywall
+ARTICLES = [
+    {"id": "art-1", "price_sats": 5,
+     "title": "Blabla-Artikel #1: Das Geheimnis der 5-Satoshi-Schranke",
+     "teaser": "Warum kein Mensch für einen einzelnen Artikel ein 14,90-€-Monatsabo abschließt — und was passiert, wenn Lesen genau 5 Satoshis kostet…",
+     "content": "🔓 FREIGESCHALTET (5 Sat bezahlt!): Herzlichen Glückwunsch, du hast gerade mit einem Klick über OpenID Connect + Lightningmail 5 Satoshis bezahlt. Kein Passwort, keine Kreditkarte, keine 35 Cent Mindestgebühr bei Zahlungsdienstleistern. Blabla-Fazit #1: Mikro-Paywalls funktionieren erst, wenn Identität und Portokasse derselbe Schlüssel sind."},
+    {"id": "art-2", "price_sats": 5,
+     "title": "Blabla-Artikel #2: Bekenntnisse eines Spam-Bots im Jahr 2026",
+     "teaser": "Ich wollte gestern 100.000 Werbemails verschicken, aber mein Kontostand fiel nach 3 Sekunden auf Null…",
+     "content": "🔓 FREIGESCHALTET (5 Sat bezahlt!): Früher hat mein Betreiber einfach für 4 Dollar eine geklaute Server-IP gemietet und Millionen Postfächer geflutet. Bei lightningmail wollte das Relay für jeden Brief 10 Satoshis Vorkasse sehen — und weil mir niemand geantwortet hat, kam kein einziger Satoshi zurück. Blabla-Fazit #2: Porto schlägt jeden Spamfilter."},
+    {"id": "art-3", "price_sats": 5,
+     "title": "Blabla-Artikel #3: Warum dein Steuerberater noch Faxgeräte liebt",
+     "teaser": "Ein tiefer Blick in die Abgründe von S/MIME-Zertifikaten, abgelaufenen PGP-Keys und Passwort-ZIP-Dateien…",
+     "content": "🔓 FREIGESCHALTET (5 Sat bezahlt!): Wer schon einmal versucht hat, einem Steuerberater oder einer Behörde eine PGP-verschlüsselte Mail zu schicken, kennt den Schmerz: Keyserver nicht erreichbar, falsches Schlüsselformat, Plugin kaputt. Bei lightningmail liefert GET /v1/profile/name den Public Key unsichtbar im Hintergrund. Blabla-Fazit #3: Verschlüsselung ist nur dann gut, wenn man sie gar nicht bemerkt."},
+    {"id": "art-4", "price_sats": 5,
+     "title": "Blabla-Artikel #4: Die große Blabla-Abhandlung über Kaffeepausen & Satoshis",
+     "teaser": "Dieser vierte Artikel enthält garantiert 100 % offensichtliches Blabla — kostet zum Testen aber trotzdem exakt 5 Satoshis…",
+     "content": "🔓 FREIGESCHALTET (5 Sat bezahlt!): Lorem ipsum dolor sit Satoshi! Du hast tatsächlich auch den vierten Blabla-Artikel für 5 Test-Satoshis gekauft. Von deinen 10.000 Regtest-Start-Satoshis sind damit immer noch 9.980 Satoshis übrig — genug für fast tausend weitere Briefe oder Paywall-Artikel!"},
+]
+
 def _init_db():
     try:
         os.makedirs(os.path.dirname(STATS_DB), exist_ok=True)
         with sqlite3.connect(STATS_DB) as c:
             c.execute("CREATE TABLE IF NOT EXISTS daily_hits (day TEXT, path TEXT, hits INTEGER DEFAULT 0, PRIMARY KEY(day, path))")
             c.execute("CREATE TABLE IF NOT EXISTS daily_visitors (day TEXT, vhash TEXT, PRIMARY KEY(day, vhash))")
+            c.execute("CREATE TABLE IF NOT EXISTS forum_posts (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, author TEXT, pubkey TEXT, relay TEXT, title TEXT, body TEXT)")
+            c.execute("CREATE TABLE IF NOT EXISTS paywall_unlocks (address TEXT, item_id TEXT, ts INTEGER, sats INTEGER, PRIMARY KEY(address, item_id))")
+            if c.execute("SELECT COUNT(*) FROM forum_posts").fetchone()[0] == 0:
+                c.execute("INSERT INTO forum_posts(ts,author,pubkey,relay,title,body) VALUES(?,?,?,?,?,?)",
+                          (int(time.time()), "bernd@lightningmail.app", "029eff8e7a9104be", "alpha",
+                           "Willkommen im lightningmail-Forum (Sign in with lightningmail)",
+                           "Jeder Beitrag hier ist mit einem echten Mailbox-Key über OpenID Connect (BIP340-Challenge) signiert. Neue Konten starten in der Regtest-Phase mit 10.000 Test-Satoshis — probiert unten auch die 5-Sat-Paywall aus!"))
     except Exception:
         pass
 
@@ -72,9 +102,9 @@ def get_stats():
 class H(SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
 
-    def _json(self, obj):
+    def _json(self, obj, code=200):
         data = json.dumps(obj, indent=2).encode("utf-8")
-        self.send_response(200)
+        self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
@@ -119,6 +149,79 @@ a{{color:#122338;font-weight:600}}
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(html)
+
+    # --- Forum + 5-Sat-Paywall (OIDC-Mikrozahlung) ---
+
+    def _verify_forum_token(self):
+        """X-Forum-Token 'alpha|beta:ACCESS_TOKEN' gegen /oidc/userinfo pruefen.
+        Nebenwirkung: bezahlte Paywall (paid_sats>=5) als Unlock verbuchen.
+        Return {sub,pubkey,relay} oder None."""
+        hdr = self.headers.get("X-Forum-Token", "")
+        relay, _, tok = hdr.partition(":")
+        port = FORUM_RELAYS.get(relay)
+        if not port or not tok:
+            return None
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+            h = {}
+            h["Auth" + "orization"] = "Bearer " + tok
+            conn.request("GET", "/oidc/userinfo", headers=h)
+            r = conn.getresponse()
+            data = json.loads(r.read() or b"{}")
+            conn.close()
+            if r.status != 200 or not data.get("sub"):
+                return None
+            bm = data.get("bmail") or {}
+            if bm.get("paid_item") and (bm.get("paid_sats") or 0) >= 5:
+                try:
+                    with _db_lock, sqlite3.connect(STATS_DB) as c:
+                        c.execute("INSERT OR IGNORE INTO paywall_unlocks(address,item_id,ts,sats) VALUES(?,?,?,?)",
+                                  (data["sub"], bm["paid_item"], int(time.time()), bm.get("paid_sats") or 0))
+                except Exception:
+                    pass
+            return {"sub": data["sub"], "pubkey": bm.get("pubkey", ""), "relay": relay}
+        except Exception:
+            return None
+
+    def _api_forum(self):
+        u = self._verify_forum_token()
+        user = u["sub"] if u else None
+        posts, arts = [], []
+        try:
+            with _db_lock, sqlite3.connect(STATS_DB) as c:
+                for row in c.execute("SELECT id,ts,author,pubkey,relay,title,body FROM forum_posts ORDER BY id DESC LIMIT 50"):
+                    posts.append({"id": row[0], "ts": row[1], "author": row[2], "pubkey": row[3], "relay": row[4], "title": row[5], "body": row[6]})
+                for a in ARTICLES:
+                    unlocked = bool(user) and c.execute(
+                        "SELECT 1 FROM paywall_unlocks WHERE address=? AND item_id=?", (user, a["id"])).fetchone() is not None
+                    d = {"id": a["id"], "price_sats": a["price_sats"], "title": a["title"], "teaser": a["teaser"], "unlocked": bool(unlocked)}
+                    if unlocked:
+                        d["content"] = a["content"]
+                    arts.append(d)
+        except Exception as e:
+            return self._json({"error": str(e)}, 500)
+        self._json({"user": user, "posts": posts, "articles": arts})
+
+    def _api_forum_post(self):
+        u = self._verify_forum_token()
+        if not u:
+            return self._json({"error": "X-Forum-Token fehlt oder ungueltig"}, 401)
+        try:
+            ln = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(min(ln, 65536)) or b"{}")
+        except Exception:
+            return self._json({"error": "body unlesbar"}, 400)
+        title = str(body.get("title") or "").strip()
+        txt = str(body.get("body") or "").strip()
+        if not (1 <= len(title) <= 120) or not (1 <= len(txt) <= 2000):
+            return self._json({"error": "title 1..120 Zeichen, body 1..2000 Zeichen"}, 400)
+        try:
+            with _db_lock, sqlite3.connect(STATS_DB) as c:
+                c.execute("INSERT INTO forum_posts(ts,author,pubkey,relay,title,body) VALUES(?,?,?,?,?,?)",
+                          (int(time.time()), u["sub"], u["pubkey"], u["relay"], title, txt))
+        except Exception as e:
+            return self._json({"error": str(e)}, 500)
+        self._json({"ok": True})
 
     def _static(self, root, path, spa=None):
         path = unquote(path).split("?")[0].lstrip("/")
@@ -175,6 +278,12 @@ a{{color:#122338;font-weight:600}}
             return self._json(get_stats())
         if p in ("/stats", "/stats/"):
             return self._stats_html()
+        if p == "/api/forum" and self.command == "GET":
+            return self._api_forum()
+        if p == "/api/forum/post" and self.command == "POST":
+            return self._api_forum_post()
+        if p in ("/forum", "/forum.html"):
+            return self._static(SITE, "forum.html")
         for pref, port in RELAYS.items():
             if p == pref or p.startswith(pref + "/"):
                 return self._proxy(port)

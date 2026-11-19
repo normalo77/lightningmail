@@ -53,12 +53,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // --- Konten + Geld ---
 const user = await mkAccount("scu", base);
 const service = await mkAccount("scs", baseB);
-if (!topUp(user.name, 5_000_000)) {
-  ok(false, `topUp ueber sqlite (${dbPath}) — kein Zugriff, Test nicht moeglich`);
-  console.log("EXITCODE", process.exitCode || 0);
-  process.exit(1);
-}
-ok((await balance(base, user.token)) === 5_000_000, "user aufgefuellt: 5.000.000 msat");
+const userStart = await balance(base, user.token);
+const serviceStart = await balance(baseB, service.token);
+ok(userStart >= 5_000_000, `user Startguthaben bereit: ${userStart} msat`);
 
 // --- Porto-Parameter: sender-seitig (alpha charged Signup, beta die Antwort) ---
 const profA = (await (await fetch(`${base}/v1/profile/${user.name}`)).json()) as any;
@@ -78,10 +75,10 @@ const sent = await composeAndSend(base, user.token, user.priv,
   { to: service.name, subject: "Signup", body: "Please register me", signup: true });
 ok(!!sent.msg_id, `Signup-Brief gesendet (msg_id ${String(sent.msg_id).slice(0, 10)}…)`);
 
-const userAfter = await waitBalance(base, user.token, 5_000_000 - welcomeMsat);
-ok(userAfter === 5_000_000 - welcomeMsat, `user zahlt Willkommensporto: 5.000.000 -> ${userAfter} msat (-${welcomeMsat})`);
-const serviceAfter = await waitBalance(baseB, connector.token, welcomeMsat);
-ok(serviceAfter === welcomeMsat, `service erhaelt Willkommensporto: 0 -> ${serviceAfter} msat (+${welcomeMsat})`);
+const userAfter = await waitBalance(base, user.token, userStart - welcomeMsat);
+ok(userAfter === userStart - welcomeMsat, `user zahlt Porto-Vorschuss: ${userStart} -> ${userAfter} msat (-${welcomeMsat})`);
+const serviceAfter = await waitBalance(baseB, connector.token, serviceStart + welcomeMsat);
+ok(serviceAfter === serviceStart + welcomeMsat, `service erhaelt Porto-Vorschuss: ${serviceStart} -> ${serviceAfter} msat (+${welcomeMsat})`);
 
 // --- pollOnce: Signup-Mail sichtbar, Dedupe ueber lastSeq ---
 await sleep(500);
@@ -99,7 +96,7 @@ ok(mails.length === 0, "zweites pollOnce ohne neue Mail -> leer (keine Duplikate
 const reply = await connector.sendMail(user.name, "Welcome!", "Account active");
 ok(!!reply.msg_id, `Antwort via connector.sendMail gesendet (${String(reply.msg_id).slice(0, 10)}…)`);
 const net = welcomeMsat - foreignMsat;
-const serviceNet = await waitBalance(baseB, connector.token, net);
-ok(serviceNet === net, `service Netto-Gewinn: ${welcomeMsat} - ${foreignMsat} = ${serviceNet} msat`);
+const serviceNet = await waitBalance(baseB, connector.token, serviceStart + net);
+ok(serviceNet === serviceStart + net, `service Netto-Gewinn: +${net} msat (Saldo ${serviceNet} msat)`);
 
 console.log("EXITCODE", process.exitCode || 0);

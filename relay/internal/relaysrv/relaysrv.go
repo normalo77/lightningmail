@@ -516,6 +516,10 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 409)
 		return
 	}
+	// Regtest-Phase: jedes neu angelegte Konto erhält 10.000 Test-Satoshis (10.000.000 msat).
+	if s.cfg.LND.Network == "" || s.cfg.LND.Network == "regtest" {
+		_ = s.ledger.ApplyDeltaMeta(acct.Name, 10_000_000, ledger.KindTopup, "regtest-faucet", "btc", s.ratePtr())
+	}
 	json.NewEncoder(w).Encode(map[string]any{
 		"name":           acct.Name,
 		"pubkey":         hex.EncodeToString(acct.MailboxPubkey),

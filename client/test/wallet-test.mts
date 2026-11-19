@@ -37,7 +37,8 @@ const topUpDB = (db: string, name: string, msat: number) => {
 
 const payer = await mkAccount(A, "wpay");
 const payee = await mkAccount(B, "wrcv");
-topUpDB(dbA, payer.name, 2_000_000); // 2000 sat
+const payerStart = ((await (await fetch(`${A}/v1/balance`, { headers: auth(payer.token) })).json()) as any).balance_msat;
+const payeeStart = ((await (await fetch(`${B}/v1/balance`, { headers: auth(payee.token) })).json()) as any).balance_msat;
 
 // 1) LUD-16 /.well-known/lnurlp/<name> auf Beta
 let r = await fetch(`${B}/.well-known/lnurlp/${payee.name}`);
@@ -60,14 +61,14 @@ ok(r.status === 200 && wd.amount_sats === 200 && typeof wd.preimage === "string"
 
 // 4) Salden pruefen: payer -200.000 msat, payee +200.000 msat (nach Invoice-Subscriber-Poll)
 const balPayer = ((await (await fetch(`${A}/v1/balance`, { headers: auth(payer.token) })).json()) as any).balance_msat;
-ok(balPayer === 1_800_000, `Payer-Guthaben nach Withdraw: ${balPayer} msat (want 1800000)`);
+ok(balPayer === payerStart - 200_000, `Payer-Guthaben nach Withdraw: ${balPayer} msat (want ${payerStart - 200_000})`);
 
 let balPayee = 0;
 for (let i = 0; i < 15; i++) {
   balPayee = ((await (await fetch(`${B}/v1/balance`, { headers: auth(payee.token) })).json()) as any).balance_msat;
-  if (balPayee === 200_000) break;
+  if (balPayee === payeeStart + 200_000) break;
   await new Promise((res) => setTimeout(res, 700));
 }
-ok(balPayee === 200_000, `Payee-Guthaben nach Topup-Settle: ${balPayee} msat (want 200000)`);
+ok(balPayee === payeeStart + 200_000, `Payee-Guthaben nach Topup-Settle: ${balPayee} msat (want ${payeeStart + 200_000})`);
 
 console.log("EXITCODE", process.exitCode || 0);

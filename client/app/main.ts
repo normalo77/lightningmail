@@ -600,7 +600,7 @@ async function openWizard() {
     <label>Kontoname (klein, a-z 0-9 . _ -, 2–32 Zeichen)</label><input id="w-name" value="${esc(($('l-acct') as HTMLInputElement).value.trim())}">
     <label>Relay</label><input value="${esc(relayName)}" disabled>
     <p class="meta">Womit zahlst du Porto? ${currencies.map(c => '⚡ ' + c.toUpperCase()).join(' · ')}
-    — heute zahlt alles in Bitcoin-Lightning; die echte Auswahl (BTC/LTC, §26) kommt, wenn dein Relay mehrere Währungen besiedelt.</p>
+    — in der aktuellen Regtest-Testphase wird jedes neue Konto mit <b>10.000 Test-Satoshis</b> initialisiert.</p>
     ${ERRROW}<div class="row"><button id="w-next">Weiter</button><button id="w-x">Abbrechen</button></div>`;
   wireCancel();
   $('w-next').onclick = () => {
@@ -1000,9 +1000,13 @@ async function oidcFlow() {
       return;
     }
     const challenge = fromB64(lj.challenge_b64);
+    const payBadge = lj.pay_sats > 0
+      ? `<div style="background:#fff7dc;border:2px solid #f4b71a;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:14px;font-weight:700;color:#122338">⚡ Mikro-Paywall: ${lj.pay_sats} sats für ${esc(lj.pay_item || lj.client_name)}</div>`
+      : '';
     oidcScreen(`<p style="font-size:14px;margin-top:0"><b>${esc(lj.client_name)}</b> möchte dich anmelden als<br><b>${esc(lj.address)}</b></p>
       <p class="meta">Der Dienst erhält deine Adresse, den Anmeldezeitpunkt und einen mit deinem Mailbox-Key signierten Nachweis (BIP340). Kein Kontozugriff, kein Mitlesen, keine Mails.</p>
-      <div class="row"><button id="oidc-ok">Erlauben</button><button id="oidc-no">Ablehnen</button></div>
+      ${payBadge}
+      <div class="row"><button id="oidc-ok">${lj.pay_sats > 0 ? '⚡ ' + lj.pay_sats + ' sats zahlen & freischalten' : 'Erlauben'}</button><button id="oidc-no">Ablehnen</button></div>
       <p id="oidc-err" class="meta"></p>`);
     const finish = (redirect: string) => {
       // OIDC-Parameter aus der URL putzen, damit ein Zurück nicht erneut triggert

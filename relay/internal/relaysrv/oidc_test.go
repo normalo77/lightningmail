@@ -379,6 +379,101 @@ func TestPkceAndPad(t *testing.T) {
 	}
 }
 
+// TestOIDCPaywall: pay_sats=5&pay_item=art-1&pay_to=bob → alice −5.000 msat,
+// bob +5.000 msat, paid_sats/paid_item im id_token-bmail-Claim und in /oidc/userinfo.
+func TestOIDCPaywall(t *testing.T) {
+	srv, priv := newOIDCTestServer(t)
+	bobPriv, _ := crypto.GenerateKeyPair()
+	bobPub := crypto.PublicBytes(bobPriv)
+	if _, err := srv.ledger.CreateAccount("bob", bobPub[:]); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.ledger.ApplyDeltaMeta("alice", 1_000_000, ledger.KindTopup, "test-faucet", "btc", nil); err != nil {
+		t.Fatal(err)
+	}
+	aliceBefore, _ := srv.ledger.Balance("alice")
+
+	q := authQuery(testVerifier)
+	q.Set("pay_sats", "5")
+	q.Set("pay_item", "art-1")
+	q.Set("pay_to", "bob")
+	w := srv.do(t, "GET", "/oidc/auth?"+q.Encode(), nil, nil, "")
+	if w.Code != http.StatusFound {
+		t.Fatalf("auth: %d %s", w.Code, w.Body.String())
+	}
+	lu, _ := url.Parse(w.Result().Header.Get("Location"))
+	sid := lu.Query().Get("sid")
+
+	// Login-Antwort muss die Paywall-Parameter spiegeln
+	w = srv.do(t, "POST", "/oidc/auth/login", map[string]string{"sid": sid}, nil, "tok123")
+	if w.Code != 200 {
+		t.Fatalf("login: %d %s", w.Code, w.Body.String())
+	}
+	var lj map[string]any
+	json.Unmarshal(w.Body.Bytes(), &lj)
+	if lj["pay_sats"].(float64) != 5 || lj["pay_item"] != "art-1" || lj["pay_to"] != "bob" {
+		t.Fatalf("login pay-Parameter: %v", lj)
+	}
+	ch, _ := base64.StdEncoding.DecodeString(lj["challenge_b64"].(string))
+	sig, _ := crypto.Sign(priv, ch)
+	w = srv.do(t, "POST", "/oidc/auth/sign", map[string]string{"sid": sid, "sig": hex.EncodeToString(sig)}, nil, "")
+	if w.Code != 200 {
+		t.Fatalf("sign: %d %s", w.Code, w.Body.String())
+	}
+	var sj map[string]string
+	json.Unmarshal(w.Body.Bytes(), &sj)
+	ru, _ := url.Parse(sj["redirect"])
+	code := ru.Query().Get("code")
+
+	// Geldbewegung: alice −5.000 msat, bob +5.000 msat
+	aliceAfter, _ := srv.ledger.Balance("alice")
+	bobAfter, _ := srv.ledger.Balance("bob")
+	if aliceBefore-aliceAfter != 5_000 {
+		t.Fatalf("alice delta = %d msat, want 5000", aliceBefore-aliceAfter)
+	}
+	if bobAfter != 5_000 {
+		t.Fatalf("bob balance = %d msat, want 5000", bobAfter)
+	}
+
+	// Token: bmail-Claim mit paid_sats/paid_item
+	form := url.Values{"grant_type": {"authorization_code"}, "code": {code},
+		"redirect_uri": {"https://idp.test/oidc/demo-callback.html"}, "client_id": {"demo"},
+		"code_verifier": {testVerifier}}
+	w = srv.do(t, "POST", "/oidc/token", nil, form, "")
+	if w.Code != 200 {
+		t.Fatalf("token: %d %s", w.Code, w.Body.String())
+	}
+	var tok map[string]any
+	json.Unmarshal(w.Body.Bytes(), &tok)
+	parts := strings.Split(tok["id_token"].(string), ".")
+	payload, _ := base64.RawURLEncoding.DecodeString(parts[1])
+	var claims map[string]any
+	json.Unmarshal(payload, &claims)
+	bm := claims["bmail"].(map[string]any)
+	if bm["paid_sats"].(float64) != 5 || bm["paid_item"] != "art-1" || bm["paid_to"] != "bob" {
+		t.Fatalf("id_token bmail-Claim: %v", bm)
+	}
+
+	// UserInfo: dieselben paid_*-Felder
+	w = srv.do(t, "GET", "/oidc/userinfo", nil, nil, tok["access_token"].(string))
+	if w.Code != 200 {
+		t.Fatalf("userinfo: %d", w.Code)
+	}
+	var ui map[string]any
+	json.Unmarshal(w.Body.Bytes(), &ui)
+	uib := ui["bmail"].(map[string]any)
+	if uib["paid_sats"].(float64) != 5 || uib["paid_item"] != "art-1" {
+		t.Fatalf("userinfo bmail: %v", uib)
+	}
+
+	// pay_sats > Obergrenze → 400
+	q.Set("pay_sats", "1000001")
+	w = srv.do(t, "GET", "/oidc/auth?"+q.Encode(), nil, nil, "")
+	if w.Code != 400 {
+		t.Fatalf("pay_sats zu groß: %d, want 400", w.Code)
+	}
+}
+
 func TestOIDCStatelessOriginClient(t *testing.T) {
 	srv, priv := newOIDCTestServer(t)
 	h := sha256.Sum256([]byte(testVerifier))

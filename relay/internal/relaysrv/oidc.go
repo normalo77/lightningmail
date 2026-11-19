@@ -32,12 +32,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/lightningmail/relay/internal/config"
 	"github.com/lightningmail/relay/internal/crypto"
+	"github.com/lightningmail/relay/internal/ledger"
 )
 
 var errOidcNotConfigured = errors.New("oidc: not configured (relay.yaml oidc.issuer fehlt)")
@@ -63,6 +65,12 @@ type oidcSession struct {
 	sig           string // nach /oidc/auth/sign
 	expires       time.Time
 	done          bool
+	// Mikro-Paywall (OIDC Micropayment): RP verlangt pay_sats fuer pay_item,
+	// Zahlung geht an pay_to (nur bei lokalem Konto), abgebucht bei sign.
+	paySats int64
+	payTo   string
+	payItem string
+	paid    bool
 }
 
 type oidcCode struct {
@@ -74,6 +82,10 @@ type oidcCode struct {
 type oidcToken struct {
 	account string
 	expires time.Time
+	paySats int64
+	payTo   string
+	payItem string
+	paid    bool
 }
 
 type oidcState struct {
@@ -361,6 +373,13 @@ func (s *Server) oidcAuth(w http.ResponseWriter, r *http.Request) {
 		bad("oidc.login_page nicht konfiguriert")
 		return
 	}
+	paySats, _ := strconv.ParseInt(q.Get("pay_sats"), 10, 64)
+	if paySats < 0 || paySats > 1_000_000 {
+		bad("pay_sats muss zwischen 0 und 1000000 liegen")
+		return
+	}
+	payTo := strings.TrimSpace(q.Get("pay_to"))
+	payItem := strings.TrimSpace(q.Get("pay_item"))
 	sid := randHex(16)
 	now := time.Now()
 	st := s.oidc
@@ -374,6 +393,7 @@ func (s *Server) oidcAuth(w http.ResponseWriter, r *http.Request) {
 		clientID: q.Get("client_id"), redirectURI: ru, scope: q.Get("scope"),
 		state: q.Get("state"), nonce: q.Get("nonce"), codeChallenge: q.Get("code_challenge"),
 		expires: now.Add(oidcSessionTTL),
+		paySats: paySats, payTo: payTo, payItem: payItem,
 	}
 	st.mu.Unlock()
 	sep := "?"
@@ -434,6 +454,9 @@ func (s *Server) oidcAuthLogin(w http.ResponseWriter, r *http.Request) {
 		"challenge_b64": base64.StdEncoding.EncodeToString(challenge),
 		"client_name":   clientName,
 		"address":       account + "@" + s.oidcDomain(),
+		"pay_sats":      sess.paySats,
+		"pay_to":        sess.payTo,
+		"pay_item":      sess.payItem,
 	})
 }
 
@@ -489,6 +512,27 @@ func (s *Server) oidcAuthSign(w http.ResponseWriter, r *http.Request) {
 		oidcJSON(w, 403, map[string]any{"error": "Mailbox-Key-Signatur ungueltig"})
 		return
 	}
+	// Mikro-Paywall: erst nach gueltiger Signatur kassieren (Consent gedeckt).
+	if sess.paySats > 0 {
+		payMsat := sess.paySats * 1000
+		if err := s.ledger.ApplyDeltaMeta(sess.account, -payMsat, ledger.KindPostageOut, "oidc-pay:"+sess.payItem, "btc", s.ratePtr()); err != nil {
+			if errors.Is(err, ledger.ErrInsufficient) {
+				oidcJSON(w, 402, map[string]any{"error": "Guthaben reicht für diese Zahlung nicht aus"})
+				return
+			}
+			oidcJSON(w, 500, map[string]any{"error": "zahlung fehlgeschlagen"})
+			return
+		}
+		if sess.payTo != "" && sess.payTo != sess.account {
+			if _, err := s.ledger.GetAccount(sess.payTo); err == nil {
+				s.ledger.ApplyDeltaMeta(sess.payTo, payMsat, ledger.KindPostageIn, "oidc-pay:"+sess.payItem+":"+sess.account, "btc", s.ratePtr())
+			}
+		}
+		st := s.oidc
+		st.mu.Lock()
+		sess.paid = true
+		st.mu.Unlock()
+	}
 	code := randHex(32)
 	st := s.oidc
 	st.mu.Lock()
@@ -539,16 +583,22 @@ func (s *Server) oidcToken(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now()
 	addr := sess.account + "@" + s.oidcDomain()
+	bmail := map[string]any{
+		"pubkey":    hex.EncodeToString(acct.MailboxPubkey),
+		"sig":       sess.sig,
+		"challenge": base64.StdEncoding.EncodeToString(sess.challenge),
+		"alg":       "bip340-sha256",
+	}
+	if sess.paid && sess.paySats > 0 {
+		bmail["paid_sats"] = sess.paySats
+		bmail["paid_to"] = sess.payTo
+		bmail["paid_item"] = sess.payItem
+	}
 	claims := map[string]any{
 		"iss": s.oidcIssuer(), "sub": addr, "aud": sess.clientID,
 		"exp": now.Add(oidcTokenTTL).Unix(), "iat": now.Unix(), "auth_time": now.Unix(),
 		"email": addr, "email_verified": true, "preferred_username": sess.account,
-		"bmail": map[string]any{
-			"pubkey":    hex.EncodeToString(acct.MailboxPubkey),
-			"sig":       sess.sig,
-			"challenge": base64.StdEncoding.EncodeToString(sess.challenge),
-			"alg":       "bip340-sha256",
-		},
+		"bmail": bmail,
 	}
 	if sess.nonce != "" {
 		claims["nonce"] = sess.nonce
@@ -565,7 +615,8 @@ func (s *Server) oidcToken(w http.ResponseWriter, r *http.Request) {
 			delete(st.tokens, k)
 		}
 	}
-	st.tokens[access] = &oidcToken{account: sess.account, expires: now.Add(oidcTokenTTL)}
+	st.tokens[access] = &oidcToken{account: sess.account, expires: now.Add(oidcTokenTTL),
+		paySats: sess.paySats, payTo: sess.payTo, payItem: sess.payItem, paid: sess.paid}
 	st.mu.Unlock()
 	oidcJSON(w, 200, map[string]any{
 		"access_token": access, "token_type": "Bearer",
@@ -591,7 +642,13 @@ func (s *Server) oidcUserinfo(w http.ResponseWriter, r *http.Request) {
 		"sub": addr, "email": addr, "email_verified": true, "preferred_username": te.account,
 	}
 	if acct, err := s.ledger.GetAccount(te.account); err == nil {
-		claims["bmail"] = map[string]any{"pubkey": hex.EncodeToString(acct.MailboxPubkey)}
+		bmail := map[string]any{"pubkey": hex.EncodeToString(acct.MailboxPubkey)}
+		if te.paid && te.paySats > 0 {
+			bmail["paid_sats"] = te.paySats
+			bmail["paid_to"] = te.payTo
+			bmail["paid_item"] = te.payItem
+		}
+		claims["bmail"] = bmail
 	}
 	oidcJSON(w, 200, claims)
 }
