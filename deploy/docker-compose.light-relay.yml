@@ -14,6 +14,8 @@ services:
       - --bitcoin.active
       - --bitcoin.mainnet
       - --bitcoin.node=neutrino
+      # LND >=0.21: ohne fee.url crasht Neutrino-Mainnet sofort
+      - --fee.url=https://nodes.lightning.computer/fees/v1/btc-fee-estimates.json
       - --neutrino.addpeer=btcd.lnolympus.com
       - --neutrino.addpeer=faucet.lightning.community
       - --restlisten=0.0.0.0:8080
