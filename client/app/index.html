@@ -742,7 +742,12 @@ form.compose textarea {
           <select id="l-relay">
             <option value="/relay-a">alpha (lightningmail.app)</option>
             <option value="/relay-b">beta (lightningmail.app)</option>
+            <option value="__custom__">⚙️ Eigenes Relay (URL) …</option>
           </select>
+          <div id="l-relay-custom-wrap" style="display:none;margin-top:6px">
+            <input id="l-relay-custom" type="url" placeholder="https://relay.example.org:8443" autocapitalize="none" spellcheck="false" style="width:100%">
+            <p class="meta" style="margin:4px 0 0">Öffnet die App direkt auf deinem Relay (dort Anmeldung wie gewohnt). <button type="button" id="l-relay-custom-go">Öffnen</button></p>
+          </div>
         </div>
       </div>
     </details>

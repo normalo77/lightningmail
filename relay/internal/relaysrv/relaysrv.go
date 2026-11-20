@@ -99,10 +99,9 @@ func (s *Server) relayTransportKey() (*btcec.PrivateKey, error) {
 	return priv, nil
 }
 
-func (s *Server) ListenAndServe() error {
-	// Clean expired tokens on startup
-	s.ledger.CleanExpiredTokens()
-
+// routes versammelt die komplette HTTP-API (+ optionale Web-UI aus ui_dir) —
+// abgetrennt fuer In-Process-Tests per httptest.
+func (s *Server) routes() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/auth", s.handleAuth)
 	mux.HandleFunc("/v1/balance", s.auth(s.handleBalance))
@@ -146,6 +145,17 @@ func (s *Server) ListenAndServe() error {
 		}
 		json.NewEncoder(w).Encode(resp)
 	})
+
+	// Etappe O (Selbstbau): Web-UI aus ui_dir (siehe ui.go)
+	s.registerUI(mux)
+
+	return mux
+}
+
+func (s *Server) ListenAndServe() error {
+	// Clean expired tokens on startup
+	s.ledger.CleanExpiredTokens()
+	mux := s.routes()
 
 	// Etappe 6b: Retry-Ticker fuer Receipts, deren Peer-Mirror fehlschlug
 	go func() {

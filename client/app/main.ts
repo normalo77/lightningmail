@@ -42,6 +42,7 @@ let pendingWrap = '';
 
 const $ = (id: string) => document.getElementById(id)!;
 let base = '/relay-b', token = '', priv: Uint8Array | null = null, acct = '';
+let SELF_RELAY = false; // UI laeuft auf ihrem eigenen Relayd (Etappe O, Selbstbau)
 let msgs: MsgRow[] = [];
 let tipSats = 0, myForeign = 0, myWelcome = 0, portoBase = ''; // §30.4 Beilage + Test/Mainnet-Kennung
 let receipts: Record<string, number> = {}; // msg_id(hex) -> ✓✓-Zeitstempel (Etappe 6b)
@@ -129,6 +130,17 @@ async function api(path: string, init?: RequestInit) {
   return r;
 }
 
+// Gewählter Basis-Pfad des Relay-Dropdowns. '__custom__' (eigenes Relay per URL)
+// ist kein fetch-Basis — dort führt die Navigation zum /app/ des fremden Relays;
+// als API-Basis bleibt bis dahin der erste echte Vorschlag.
+function relayVal(sel?: HTMLSelectElement | null): string {
+  const s = sel ?? ($('l-relay') as HTMLSelectElement | null);
+  const v = s?.value || '';
+  if (!v.startsWith('__')) return v;
+  const real = s ? [...s.options].find(o => o.value && !o.value.startsWith('__')) : null;
+  return real?.value || '';
+}
+
 function relayCandidates(preferred = ''): string[] {
   const selEl = document.getElementById('l-relay') as HTMLSelectElement | null;
   const opts = selEl ? [...selEl.options].map(o => o.value).filter(v => v && !v.startsWith('__')) : ['/relay-a', '/relay-b'];
@@ -143,6 +155,10 @@ function relayCandidates(preferred = ''): string[] {
   const lu = loadLastUser();
   if (lu?.base) push(lu.base);
   for (const o of opts) push(o);
+  // Synchroner Fallback vor der asynchronen Selbstbau-Erkennung (Etappe O):
+  // die API dieses Origins als letzte Kandidatin (am Hosting-UI ein 404 mehr,
+  // auf einem Fremd-Relay der Treffer).
+  out.push('');
   return out;
 }
 
@@ -290,7 +306,9 @@ async function loginAuto(pem: string, hintedAcct = '', onErr?: (msg: string) => 
 
 async function login(pem: string, explicitAcct = '', explicitBase = ''): Promise<boolean> {
   const targetAcct = (explicitAcct || ($('l-acct') as HTMLInputElement).value || '').trim().toLowerCase();
-  const targetBase = explicitBase || ($('l-relay') as HTMLSelectElement).value;
+  // Auf der relay-eigenen UI gibt es nur "dieses Origin" — ein gemerkter
+  // /relay-a-Pfad aus einem Android-Vault (geraete-global!) ins Leere fuehren wuerde.
+  const targetBase = SELF_RELAY ? '' : (explicitBase || relayVal());
   if (!targetAcct) return loginAuto(pem);
   try {
     const p = parseSec1PEM(pem);
@@ -972,7 +990,7 @@ const wizOverlay = (title: string, width = 560): { body: HTMLElement; close: () 
 const ERRROW = `<p id="w-err" class="meta" style="color:#8b0000"></p>`;
 
 async function openWizard() {
-  base = ($('l-relay') as HTMLSelectElement).value; // vor Login ist base noch der Default
+  base = relayVal(); // vor Login ist base noch der Default
   const mn = newMnemonic();
   const { body, close } = wizOverlay('✨ Neues lightningmail-Postfach anlegen', 540);
   const setErr = (t: string) => { const e = $('w-err'); if (e) e.textContent = t; };
@@ -1611,10 +1629,63 @@ async function oidcFlow() {
   }
 }
 
+// ---- Selbstbau & eigenes Relay (Etappe O) --------------------------------
+// Serviert dieses Origin sein relayd gleich die UI mit (/app/, ui_dir), liegt
+// die API auf demselben Origin ganz oben — alpha/beta-Vorschlaege waeren hier
+// Unsinn, also ein einziges „Dieses Relay" (base = '', same-origin ohne CORS).
+// Synchron erkannt ueber ?self=1 (Navigation aus der App), asynchron per
+// /health-Probe als Fallback fuer direkt aufgerufene Relay-Adressen.
+function applySelfRelayUi() {
+  if (SELF_RELAY) return;
+  SELF_RELAY = true;
+  base = '';
+  const sel0 = $('l-relay') as HTMLSelectElement;
+  sel0.innerHTML = `<option value="">📟 Dieses Relay · ${esc(location.hostname)}</option>`;
+  const w = document.getElementById('l-relay-custom-wrap'); if (w) w.remove();
+  applyNetBadge('');
+}
+if (new URLSearchParams(location.search).has('self')) applySelfRelayUi();
+(async () => {
+  if (SELF_RELAY) return;
+  let j: any = null;
+  try { j = await (await fetch('/health')).json(); } catch { /* Site-Frontend, kein Relayd */ }
+  if (j && typeof j.network === 'string') applySelfRelayUi();
+})();
+
+// Dropdown-Eintrag „Eigenes Relay (URL)": URL-Feld einblenden; Enter oder
+// „Öffnen" NAVIGIERT zum /app/ des eigegebenen Relays (keine CORS, Seite kommt
+// dort vom Relay selbst). Auf Android merkt die APK das Relay als Start-Ziel.
+{
+  const custWrap = document.getElementById('l-relay-custom-wrap');
+  const custInp = $('l-relay-custom') as HTMLInputElement | null;
+  const custGo = $('l-relay-custom-go');
+  const normOrigin = (raw: string): string => {
+    let u = (raw || '').trim().replace(/\/+$/, '');
+    if (!u) return '';
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    try { return new URL(u).origin; } catch { return ''; }
+  };
+  const openCustom = () => {
+    const origin = normOrigin(custInp?.value || '');
+    if (!origin) { setLoginStatus('✗ Das ist keine gültige Relay-Adresse (z. B. relay.example.org:8443).'); return; }
+    try { (window as any).AndroidNative?.setHomeRelay?.(origin); } catch { /* Browser ohne native Bruecke */ }
+    location.href = origin + '/app/?self=1';
+  };
+  if (custWrap && custInp && custGo) {
+    $('l-relay')?.addEventListener('change', (e) => {
+      const show = (e.target as HTMLSelectElement).value === '__custom__';
+      custWrap.style.display = show ? '' : 'none';
+      if (show) custInp.focus();
+    });
+    custGo.addEventListener('click', openCustom);
+    custInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); openCustom(); } });
+  }
+}
+
 // Letzten bekannten Kontonamen (ohne Geheimnis) für Passkey-Komfort vorbelegen
 const relSel0 = document.getElementById('l-relay') as HTMLSelectElement | null;
-relSel0?.addEventListener('change', () => applyNetBadge(relSel0.value));
-applyNetBadge(relSel0 ? relSel0.value : base);
+relSel0?.addEventListener('change', () => applyNetBadge(relayVal(relSel0)));
+applyNetBadge(relSel0 ? relayVal(relSel0) : base);
 const rememberedUser = loadLastUser();
 if (rememberedUser) {
   ($('l-acct') as HTMLInputElement).value = rememberedUser.acct;

@@ -55,6 +55,11 @@ name: $NAME
 listen_addr: 0.0.0.0:8443
 data_dir: /var/lib/bmail
 
+# Web-UI (Etappe O): relayd serviert die gebaute PWA unter /app/ — Nutzer
+# schalten dann direkt auf dieses Relay auf (https://$DOMAIN/app/).
+# Inhalte siehe Bau-Anweisung am Ende. Leer/fehlend = UI wird nicht serviert.
+ui_dir: /var/lib/bmail/ui
+
 lnd:
   network: mainnet
   rpc_host: lnd:8080                # REST; relayd leitet gRPC 10009 selbst ab
@@ -104,7 +109,15 @@ Naechste Schritte:
   3. Alles starten (relayd crasht bis Schritt 2 fertig ist und startet dann neu):
        docker compose -f $COMPOSE up -d
 
-  4. DNS-TXT-Record bei deinem Registrar/Nameserver anlegen (CONCEPT §4.2):
+  4. Web-UI am Relay aktivieren (aus dem Repo-Checkout, relativ zu dieser Datei):
+       cd client/app && npm install && npx vite build
+       mkdir -p ../../deploy/ui && cp -r dist/. ../../deploy/ui/
+       docker compose -f deploy/docker-compose.$MODE-relay.yml up -d relayd
+     Danach liegt die App direkt auf diesem Relay:  https://$DOMAIN/app/
+     (Oder das Verzeichnis leer lassen — Gaeste koennen in jeder App per
+      „Eigenes Relay (URL)“ hierher wechseln, Discovery bleibt bei Schritt 5.)
+
+  5. DNS-TXT-Record bei deinem Registrar/Nameserver anlegen (CONCEPT §4.2):
 
        _bmail._tcp.$DOMAIN.  IN TXT  "v=bmail1; relay=https://$DOMAIN:8443; node=<NODE_PUBKEY>"
 
@@ -113,7 +126,7 @@ Naechste Schritte:
      Optionale Felder: onion=<v3>.onion; policy=https://$DOMAIN/policy.json; key=pgp:<fpr>
      Pruefen: dig +short TXT _bmail._tcp.$DOMAIN
 
-  5. TLS: relayd spricht HTTP — vor Produktivbetrieb TLS-Terminierung
+  6. TLS: relayd spricht HTTP — vor Produktivbetrieb TLS-Terminierung
      (Reverse Proxy, z.B. Caddy/nginx mit Cert fuer $DOMAIN) davorsetzen
      und ggf. den Port-Bindung in $COMPOSE auf 127.0.0.1:8443 begrenzen.
 EOF

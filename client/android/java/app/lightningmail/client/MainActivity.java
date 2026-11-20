@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
 
     private static final String ALIAS = "lightningmail_vault_key";
     private static final String PREFS = "lm_native";
+    private static final String DEFAULT_RELAY = "https://lightningmail.app";
     private static final int REQ_UPLOAD = 1001;
     private static final int REQ_NOTIF = 1002;
     private static final int REQ_KEYFILE = 1003;
@@ -60,6 +61,17 @@ public class MainActivity extends Activity {
     private WebView webView;
     private ValueCallback<Uri[]> uploadCallback;
     private int notifId = 1;
+
+    /** Heim-Relay, den der Nutzer in der App per "Eigenes Relay" gesetzt hat
+     *  (Etappe O) — oder der Default. Start-, Navigations- und Fehler-Pfade
+     *  richten sich danach. */
+    private String homeRelay() {
+        try {
+            String r = getSharedPreferences(PREFS, MODE_PRIVATE).getString("home_relay", "");
+            if (r != null && r.startsWith("http")) return r;
+        } catch (Exception ignored) { }
+        return DEFAULT_RELAY;
+    }
 
     // Blob-Downloads (.lmkey-Export): Anchor-Click abfangen, Blob als Data-URL
     // zur Java-Seite reichen, die ihn in den App-Downloads-Ordner schreibt.
@@ -131,15 +143,29 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 String u = r.getUrl().toString();
-                if (u.startsWith("https://lightningmail.app/app") || u.startsWith("about:")) return false;
+                if (u.startsWith(homeRelay() + "/app") || u.startsWith("about:")) return false;
                 // externe Links (Impressum etc.) im Systembrowser öffnen
                 try { startActivity(new Intent(Intent.ACTION_VIEW, r.getUrl())); } catch (Exception ignored) { }
                 return true;
             }
 
             @Override
+            public void onReceivedError(WebView v, WebResourceRequest req, android.webkit.WebResourceError err) {
+                // Fremd-Relay weg/offline: sonst hinge die App auf einer leeren
+                // Fehlerseite — zurueck auf den eingebauten Default-Relay.
+                if (req.isForMainFrame() && !homeRelay().equals(DEFAULT_RELAY)
+                        && req.getUrl().toString().startsWith(homeRelay() + "/app")) {
+                    getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove("home_relay").apply();
+                    Toast.makeText(MainActivity.this,
+                            "Eigenes Relay nicht erreichbar — wieder auf lightningmail.app",
+                            Toast.LENGTH_LONG).show();
+                    v.loadUrl(DEFAULT_RELAY + "/app/index.html");
+                }
+            }
+
+            @Override
             public void onPageFinished(WebView v, String url) {
-                if (url != null && url.startsWith("https://lightningmail.app/app")) {
+                if (url != null && (url.startsWith(homeRelay() + "/app") || url.startsWith("https://lightningmail.app/app"))) {
                     v.evaluateJavascript(BLOB_HOOK, null);
                 }
             }
@@ -171,7 +197,11 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF);
         }
 
-        webView.loadUrl("https://lightningmail.app/app/index.html");
+        // Etappe O: gemerktes Heim-Relay (aus "Eigenes Relay") direkt aufschalten;
+        // die APK-Assets bleiben nur am Default-Relay gebuendelt (s.o.).
+        // ?self=1 schaltet die UI dort synchron auf "dieses Relay" (kein Proxy-Pfad).
+        String home = homeRelay();
+        webView.loadUrl(home + "/app/index.html" + (home.equals(DEFAULT_RELAY) ? "" : "?self=1"));
     }
 
     @Override
@@ -379,6 +409,29 @@ public class MainActivity extends Activity {
         public void clearVault() {
             try {
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove("vault").apply();
+            } catch (Exception ignored) { }
+        }
+
+        /** Heim-Relay merken (Etappe O, "Eigenes Relay" in der App): nur
+         *  Scheme+Host+Port als Origin, mehr nicht. */
+        @JavascriptInterface
+        public void setHomeRelay(String url) {
+            try {
+                Uri u = Uri.parse(url == null ? "" : url);
+                String scheme = u.getScheme();
+                if (u.getHost() == null || !("https".equals(scheme) || "http".equals(scheme))) return;
+                int port = u.getPort();
+                String origin = scheme + "://" + u.getHost() + (port > 0 ? ":" + port : "");
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putString("home_relay", origin).apply();
+            } catch (Exception ignored) { }
+        }
+
+        /** Heim-Relay-Merkung loeschen — zurueck zum eingebauten Default-Relay. */
+        @JavascriptInterface
+        public void clearHomeRelay() {
+            try {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove("home_relay").apply();
             } catch (Exception ignored) { }
         }
 

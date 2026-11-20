@@ -113,6 +113,12 @@ type Config struct {
 	WebAuthn    WebAuthn  `yaml:"webauthn"`
 	Rates       Rates     `yaml:"rates"`
 	Oidc        Oidc      `yaml:"oidc"`
+	// UIDir (Etappe O, Selbstbau): Verzeichnis mit den gebauten PWA-Assets
+	// (client/app/dist). Setzt relayd die Web-Oberflaeche unter /app/ —
+	// Selbstbauer oeffnen dann https://<domain>/app/ und haben API + UI
+	// same-origin, ganz ohne CORS. Leer = UI wird nicht serviert (Hosting-
+	// Fall: dort uebernimmt das Site-Frontend das).
+	UIDir string `yaml:"ui_dir"`
 }
 
 const DefaultBlobMaxBytes = 10 * 1024 * 1024 // 10 MiB (PRECODING §B)

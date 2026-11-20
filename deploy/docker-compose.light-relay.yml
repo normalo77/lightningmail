@@ -40,6 +40,7 @@ services:
       - relay-data:/var/lib/bmail
       - lnd-data:/lnd:ro     # tls.cert + admin.macaroon (read-only)
       - ./relay.yaml:/data/relay.yaml:ro
+      - ./ui:/var/lib/bmail/ui:ro
     ports:
       - "8443:8443"          # ACHTUNG: relayd spricht HTTP — TLS-Terminierung davor!
 
