@@ -297,55 +297,6 @@ section {
   margin-bottom: 1rem;
 }
 
-/* Live interactive widget: Postage Stamp Desk */
-.frank-desk {
-  background: var(--bg);
-  padding: clamp(1.5rem, 3vw, 2.5rem);
-  margin-top: 2.5rem;
-}
-.frank-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin: 1.25rem 0 1.5rem;
-}
-.mode-btn {
-  background: var(--surface);
-  color: var(--ink);
-  border: 0;
-  padding: 0.75rem 1.15rem;
-  font-family: inherit;
-  font-size: var(--step-small);
-  font-weight: 700;
-  cursor: pointer;
-}
-.mode-btn[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--bg);
-}
-.frank-readout {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  background: var(--surface);
-  padding: 1.5rem;
-  font-variant-numeric: tabular-nums;
-}
-.readout-num {
-  font-size: var(--step-lead);
-  font-weight: 700;
-  display: block;
-  margin-top: 0.25rem;
-}
-.readout-label {
-  font-size: var(--step-small);
-  color: var(--muted);
-}
-.frank-verdict {
-  margin-top: 1rem;
-  font-size: var(--step-small);
-  font-weight: 600;
-}
 
 /* Doppelfunktion Trio */
 .trio-strip {
@@ -525,19 +476,14 @@ html[lang="pl"] .pl-only { display: inline !important; }
     padding: 1.25rem;
   }
   .hero-stamp svg.big { max-width: 170px; }
-  .four-grid, .trio-strip, ol.ziele-list, ul.baus, .frank-readout {
+  .four-grid, .trio-strip, ol.ziele-list, ul.baus {
     grid-template-columns: 1fr;
     gap: 0.85rem;
   }
-  .tone-tile, .trio-item, ol.ziele-list li, ul.baus li, .frank-desk {
+  .tone-tile, .trio-item, ol.ziele-list li, ul.baus li {
     padding: 1.25rem;
     border-radius: 10px;
   }
-  .frank-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .mode-btn { width: 100%; text-align: left; border-radius: 7px; }
   table.tiers tr {
     display: block;
     margin-bottom: 0.75rem;
@@ -876,67 +822,6 @@ html[lang="pl"] .pl-only { display: inline !important; }
         </div>
       </div>
 
-      <!-- ONE LIVE INTERACTIVE ELEMENT: Honest Postage Calculator -->
-      <div class="frank-desk" data-ui="postage-desk">
-        <h3>
-          <span class="de-only">Rechenbeispiel am Frankiertisch: Wer zahlt was?</span>
-          <span class="en-only">Worked example at the stamping desk: who pays what?</span>
-          <span class="es-only">Ejemplo práctico en la mesa de franqueo: ¿quién paga qué?</span>
-          <span class="fr-only">Exemple chiffré au bureau d’affranchissement : qui paie quoi ?</span>
-          <span class="pl-only">Przykład z lady do frankowania: kto ile płaci?</span>
-        </h3>
-        <p style="font-size:var(--step-small);color:var(--muted)">
-          <span class="de-only">Wähle einen Fall aus, um zu sehen, wie das Porto (Beispiel: 2&nbsp;Cent Standardporto) zwischen Gesprächspartnern, Spammern und Diensten fließt.</span>
-          <span class="en-only">Pick a case to see how postage (example: 2-cent standard rate) flows between correspondents, spammers and services.</span>
-          <span class="es-only">Elige un caso para ver cómo fluye el franqueo (ejemplo: tarifa estándar de 2&nbsp;céntimos) entre corresponsales, spammers y servicios.</span>
-          <span class="fr-only">Choisissez un cas pour voir comment le port (exemple : tarif standard de 2&nbsp;centimes) circule entre correspondants, spammeurs et services.</span>
-          <span class="pl-only">Wybierz przypadek, aby zobaczyć, jak porto (przykład: standardowa stawka 2&nbsp;centy) przepływa między korespondentami, spamerami i usługami.</span>
-        </p>
-        <div class="frank-controls" role="group" aria-label="Postage scenario">
-          <button type="button" class="mode-btn" id="mode-dialog" aria-pressed="true" onclick="setScenario('dialog')">
-            <span class="de-only">Briefwechsel (A ↔ B, je 5 Mails)</span>
-            <span class="en-only">Correspondence (A ↔ B, 5 mails each)</span>
-            <span class="es-only">Correspondencia (A ↔ B, 5 correos cada uno)</span>
-            <span class="fr-only">Correspondance (A ↔ B, 5 e-mails chacun)</span>
-            <span class="pl-only">Korespondencja (A ↔ B, po 5 maili)</span>
-          </button>
-          <button type="button" class="mode-btn" id="mode-spam" aria-pressed="false" onclick="setScenario('spam')">
-            <span class="de-only">Massenversand (10.000 Mails, 0 Antworten)</span>
-            <span class="en-only">Bulk spam (10,000 mails, 0 replies)</span>
-            <span class="es-only">Spam masivo (10.000 correos, 0 respuestas)</span>
-            <span class="fr-only">Spam de masse (10 000 e-mails, 0 réponse)</span>
-            <span class="pl-only">Masowy spam (10 000 maili, 0 odpowiedzi)</span>
-          </button>
-          <button type="button" class="mode-btn" id="mode-signup" aria-pressed="false" onclick="setScenario('signup')">
-            <span class="de-only">Dienst-Anmeldung (Registrierung + Bestätigung)</span>
-            <span class="en-only">Service sign-up (registration + confirmation)</span>
-            <span class="es-only">Alta en servicio (registro + confirmación)</span>
-            <span class="fr-only">Inscription à un service (enregistrement + confirmation)</span>
-            <span class="pl-only">Rejestracja w usłudze (rejestracja + potwierdzenie)</span>
-          </button>
-        </div>
-        <div class="frank-readout">
-          <div>
-            <span class="readout-label"><span class="de-only">Absender-Abbuchung</span><span class="en-only">Sender debit</span><span class="es-only">Cargo al remitente</span><span class="fr-only">Débit de l’expéditeur</span><span class="pl-only">Obciążenie nadawcy</span></span>
-            <span class="readout-num" id="out-sender">−10 ct (A) / −10 ct (B)</span>
-          </div>
-          <div>
-            <span class="readout-label"><span class="de-only">Beim Empfänger gutgeschrieben</span><span class="en-only">Credited to recipient</span><span class="es-only">Abonado al destinatario</span><span class="fr-only">Crédité au destinataire</span><span class="pl-only">Uznanie odbiorcy</span></span>
-            <span class="readout-num" id="out-today">+10 ct (B) / +10 ct (A)</span>
-          </div>
-          <div>
-            <span class="readout-label"><span class="de-only">Bilanz unter dem Strich</span><span class="en-only">Net result</span><span class="es-only">Resultado neto</span><span class="fr-only">Résultat net</span><span class="pl-only">Bilans netto</span></span>
-            <span class="readout-num" id="out-planned">Netto 0 ct für A und B</span>
-          </div>
-        </div>
-        <p class="frank-verdict" id="out-note">
-          <span class="de-only">Im heutigen Code wandert jedes Porto per Lightning-Keysend zum Relay des Empfängers und wird direkt dessen Postfach-Guthaben gutgeschrieben. Gegenseitige Briefe heben sich auf.</span>
-          <span class="en-only">In today’s code every postage payment travels via Lightning keysend to the recipient’s relay and credits their mailbox balance directly. Mutual letters cancel out.</span>
-          <span class="es-only">En el código actual, cada franqueo viaja mediante Lightning Keysend al relay del destinatario y se acredita directamente en el saldo de su buzón. Las cartas mutuas se compensan.</span>
-          <span class="fr-only">Dans le code actuel, chaque port voyage par keysend Lightning jusqu’au relais du destinataire et est crédité directement sur le solde de sa boîte aux lettres. Les lettres mutuelles se compensent.</span>
-          <span class="pl-only">W dzisiejszym kodzie każde porto wędruje przez Lightning keysend do relay odbiorcy i jest bezpośrednio księgowane na saldzie jego skrzynki. Wzajemne listy się bilansują.</span>
-        </p>
-      </div>
 
       <div class="status">
         <b><span class="de-only">Status heute (v1.0):</span><span class="en-only">Status today (v1.0):</span><span class="es-only">Estado actual (v1.0):</span><span class="fr-only">État actuel (v1.0) :</span><span class="pl-only">Stan na dziś (v1.0):</span></b>
@@ -1229,123 +1114,6 @@ html[lang="pl"] .pl-only { display: inline !important; }
 </footer>
 
 <script>
-let currentScenario = 'dialog';
-
-const SCENARIOS = {
-  dialog: {
-    de: {
-      sender: '−10 ct (A) / −10 ct (B)',
-      today: '+10 ct (B) / +10 ct (A)',
-      planned: 'Netto 0 ct für A und B',
-      note: 'Im heutigen Code wandert jedes Porto per Lightning-Keysend zum Relay des Empfängers und wird direkt dessen Postfach-Guthaben gutgeschrieben. Gegenseitige Briefe heben sich auf.'
-    },
-    en: {
-      sender: '−10 ct (A) / −10 ct (B)',
-      today: '+10 ct (B) / +10 ct (A)',
-      planned: 'Net 0 ct for A and B',
-      note: 'In today’s code every postage payment travels via Lightning keysend to the recipient’s relay and credits their mailbox balance directly. Mutual letters cancel out.'
-    },
-    es: {
-      sender: '−10 ct (A) / −10 ct (B)',
-      today: '+10 ct (B) / +10 ct (A)',
-      planned: 'Neto 0 ct para A y B',
-      note: 'En el código actual, cada franqueo viaja mediante Lightning Keysend al relay del destinatario y se acredita directamente en el saldo de su buzón. Las cartas mutuas se compensan.'
-    },
-    fr: {
-      sender: '−10 ct (A) / −10 ct (B)',
-      today: '+10 ct (B) / +10 ct (A)',
-      planned: 'Net 0 ct pour A et B',
-      note: 'Dans le code actuel, chaque port voyage par keysend Lightning jusqu’au relais du destinataire et est crédité directement sur le solde de sa boîte aux lettres. Les lettres mutuelles se compensent.'
-    },
-    pl: {
-      sender: '−10 ct (A) / −10 ct (B)',
-      today: '+10 ct (B) / +10 ct (A)',
-      planned: 'Netto 0 ct dla A i B',
-      note: 'W dzisiejszym kodzie każde porto wędruje przez Lightning keysend do relay odbiorcy i jest bezpośrednio księgowane na saldzie jego skrzynki. Wzajemne listy się bilansują.'
-    }
-  },
-  spam: {
-    de: {
-      sender: '−200,00 € (Spammer S)',
-      today: '+200,00 € an 10.000 Empfänger',
-      planned: '−200,00 € Verlust für S',
-      note: 'Bei 10.000 unerwünschten Briefen zu je 2 Cent zahlt der Spammer sofort 200 Euro an die Empfänger und erhält null Antworten zurück.'
-    },
-    en: {
-      sender: '−€200.00 (Spammer S)',
-      today: '+€200.00 to 10,000 recipients',
-      planned: '−€200.00 loss for S',
-      note: 'Sending 10,000 unwanted letters at 2 cents each immediately costs the spammer €200 paid to the recipients, with zero replies returning.'
-    },
-    es: {
-      sender: '−200,00 € (spammer S)',
-      today: '+200,00 € a 10.000 destinatarios',
-      planned: '−200,00 € de pérdida para S',
-      note: 'Con 10.000 cartas no deseadas a 2 céntimos cada una, el spammer paga de inmediato 200 euros a los destinatarios y no recibe ni una sola respuesta.'
-    },
-    fr: {
-      sender: '−200,00 € (spammeur S)',
-      today: '+200,00 € à 10 000 destinataires',
-      planned: '−200,00 € de perte pour S',
-      note: 'Avec 10 000 lettres indésirables à 2 centimes chacune, le spammeur paie immédiatement 200 euros aux destinataires et ne reçoit aucune réponse en retour.'
-    },
-    pl: {
-      sender: '−200,00 € (spamer S)',
-      today: '+200,00 € do 10 000 odbiorców',
-      planned: '−200,00 € straty dla S',
-      note: 'Przy 10 000 niechcianych listów po 2 centy każdy spamer natychmiast płaci odbiorcom 200 euro i nie dostaje żadnej odpowiedzi.'
-    }
-  },
-  signup: {
-    de: {
-      sender: '−6 ct Porto-Vorschuss (Nutzer)',
-      today: 'OIDC-Login (0 ct) + Tag 0x0A live',
-      planned: '+4 ct Netto beim Dienst (6 ct Vorschuss, 2 ct Antwort)',
-      note: 'Beides läuft im Code: Reiner Login per OIDC ist kostenlos eingebaut, und beim Registrierungsbrief (Tag 0x0A) zahlt der Nutzer den Porto-Vorschuss (z. B. 6 Cent), woraus der Service-Connector die Bestätigungsmail (2 Cent Standardporto) bezahlt.'
-    },
-    en: {
-      sender: '−6 ct postage advance (user)',
-      today: 'OIDC login (0 ct) + tag 0x0A live',
-      planned: '+4 ct net for service (6 ct advance, 2 ct reply)',
-      note: 'Both run in today’s code: pure OIDC login is built in for free, and with a registration letter (tag 0x0A) the user pays a postage advance (e.g. 6 cents) out of which the Service Connector pays the 2-cent confirmation reply.'
-    },
-    es: {
-      sender: '−6 ct de anticipo de franqueo (usuario)',
-      today: 'Inicio de sesión OIDC (0 ct) + tag 0x0A operativo',
-      planned: '+4 ct netos para el servicio (6 ct de anticipo, 2 ct de respuesta)',
-      note: 'Ambas cosas funcionan en el código actual: el inicio de sesión puro por OIDC viene integrado gratis, y en la carta de registro (tag 0x0A) el usuario paga el anticipo de franqueo (p. ej. 6 céntimos), del cual el Service Connector paga la confirmación (2 céntimos de franqueo estándar).'
-    },
-    fr: {
-      sender: '−6 ct d’avance sur port (utilisateur)',
-      today: 'Connexion OIDC (0 ct) + étiquette 0x0A en production',
-      planned: '+4 ct nets pour le service (6 ct d’avance, 2 ct de réponse)',
-      note: 'Les deux tournent dans le code actuel : la connexion OIDC pure est intégrée gratuitement, et pour la lettre d’inscription (étiquette 0x0A) l’utilisateur paie l’avance sur port (p. ex. 6 centimes), sur laquelle le Service Connector prélève la confirmation (2 centimes au tarif standard).'
-    },
-    pl: {
-      sender: '−6 ct zaliczki na porto (użytkownik)',
-      today: 'Logowanie OIDC (0 ct) + znacznik 0x0A działa',
-      planned: '+4 ct netto dla usługi (6 ct zaliczki, 2 ct odpowiedzi)',
-      note: 'Obie rzeczy działają w dzisiejszym kodzie: czyste logowanie przez OIDC jest wbudowane za darmo, a przy liście rejestracyjnym (znacznik 0x0A) użytkownik płaci zaliczkę na porto (np. 6 centów), z której Service Connector opłaca potwierdzenie (2 centy standardowego porto).'
-    }
-  }
-};
-
-function renderScenario() {
-  const lang = ['de','en','es','fr','pl'].includes(document.documentElement.lang) ? document.documentElement.lang : 'de';
-  const data = SCENARIOS[currentScenario][lang];
-  document.getElementById('out-sender').textContent = data.sender;
-  document.getElementById('out-today').textContent = data.today;
-  document.getElementById('out-planned').textContent = data.planned;
-  document.getElementById('out-note').textContent = data.note;
-}
-
-function setScenario(id) {
-  currentScenario = id;
-  ['dialog', 'spam', 'signup'].forEach(function(k) {
-    document.getElementById('mode-' + k).setAttribute('aria-pressed', k === id ? 'true' : 'false');
-  });
-  renderScenario();
-}
 
 const LANGS = ['de','en','es','fr','pl'];
 const TITLES = {
@@ -1362,7 +1130,6 @@ function setLang(l) {
   langSel.value = l;
   document.title = TITLES[l];
   try { localStorage.setItem('lm_lang', l); } catch {}
-  renderScenario();
 }
 langSel.addEventListener('change', function() { setLang(langSel.value); });
 try {
