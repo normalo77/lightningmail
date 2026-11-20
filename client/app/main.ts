@@ -451,6 +451,73 @@ async function idbPutBlob(sha: string, bytes: Uint8Array): Promise<void> {
   } catch { /* Cache ist Komfort, kein Fehlerfall */ }
 }
 
+// Hole Anhang-Inhalt (IDB-Cache vor Relay-Download) — geteilt von Download und Speichern.
+async function attBytes(a: { sha256: string; chunked?: boolean }): Promise<Uint8Array> {
+  const cached = await idbGetBlob(a.sha256);
+  if (cached) return cached;
+  let bytes: Uint8Array;
+  if (a.chunked) {
+    const mr = await api(`/v1/blob/${a.sha256}`);
+    if (!mr.ok) throw new Error(errText(mr.status));
+    const man = parseManifest(new Uint8Array(await mr.arrayBuffer()));
+    bytes = await reassemble(async (sha) => {
+      const rr = await api(`/v1/blob/${sha}`);
+      if (!rr.ok) throw new Error(errText(rr.status));
+      return new Uint8Array(await rr.arrayBuffer());
+    }, man);
+  } else {
+    const r = await api(`/v1/blob/${a.sha256}`);
+    if (!r.ok) throw new Error(errText(r.status));
+    bytes = new Uint8Array(await r.arrayBuffer());
+  }
+  await idbPutBlob(a.sha256, bytes);
+  return bytes;
+}
+
+const safeName = (v: string): string =>
+  (v || "teil").replace(/[\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) || "teil";
+
+// Brief + Anhänge in einen Zielordner: "yyyy_mm_dd Absender Betreff.txt" + Original-Anhangnamen
+async function saveMailAs(m: MsgRow): Promise<string> {
+  const d = new Date(m.ts * 1000);
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  const cn = contactFor(m.pub);
+  const abs = cn ? abLabel(cn) : m.sender + "…";
+  const mailName = `${d.getFullYear()}_${p2(d.getMonth() + 1)}_${p2(d.getDate())} ${safeName(abs)} ${safeName(m.subject)}.txt`;
+  const head = "lightningmail — gespeicherter Brief\n"
+    + "Von:     " + (cn ? abLabel(cn) + " <" + (cn.lnaddr || cn.email || "") + ">" : m.pub) + "\n"
+    + "An:      " + acct + "\n"
+    + "Datum:   " + d.toLocaleString("de") + "\n"
+    + "Betreff: " + m.subject + "\n"
+    + (m.recv && myForeign && m.recv > myForeign ? "Eingegangen: " + m.recv + " Sats (Porto + Beilage)\n" : "")
+    + (m.atts.length ? "Anhänge (separate Dateien): " + m.atts.map(a => a.name).join(", ") + "\n" : "")
+    + "msg_id:  " + m.msgId + "\n\n";
+  const files: { name: string; blob: Blob }[] = [{ name: mailName, blob: new Blob([head + m.body + "\n"], { type: "text/plain" }) }];
+  for (const a of m.atts) files.push({ name: safeName(a.name), blob: new Blob([await attBytes(a) as BlobPart]) });
+  if ((window as any).showDirectoryPicker) {
+    try {
+      const dir = await (window as any).showDirectoryPicker({ mode: "write" });
+      for (const f of files) {
+        const fh = await dir.getFileHandle(f.name, { create: true });  // gleichnamige Datei wird aktualisiert
+        const w = await fh.createWritable();
+        await w.write(f.blob);
+        await w.close();
+      }
+      return "✓ " + files.length + " Datei(en) im Ordner gespeichert";
+    } catch (e: any) {
+      if (String(e && e.name) === "AbortError") return "";
+      throw e;
+    }
+  }
+  for (const f of files) {
+    const url = URL.createObjectURL(f.blob);
+    const link = document.createElement("a"); link.href = url; link.download = f.name; link.click();
+    await new Promise((r) => setTimeout(r, 350));
+    setTimeout(() => URL.revokeObjectURL(url), 6000);
+  }
+  return "✓ " + files.length + " Datei(en) heruntergeladen";
+}
+
 function renderDetail() {
   const m = msgs.find(x => x.seq === sel)!;
   const sp = spamSet().has(m.sender);
@@ -464,6 +531,7 @@ function renderDetail() {
       <button id="cl-spam" class="${sp ? 'on' : ''}">${sp ? 'unerwünscht' : 'als unerwünscht markieren'}</button>
       ${sp ? '<button id="cl-un">zurück nach Posteingang</button>' : ''}
       <button id="cl-del">löschen</button>
+      <button id="cl-save">💾 Speichern unter</button>
       ${cn ? '' : '<button id="cl-ab">als Kontakt speichern</button>'}
     </div></div>`;
   document.querySelectorAll('.attach').forEach(el => el.addEventListener('click', async () => {
@@ -476,31 +544,19 @@ function renderDetail() {
       const a = document.createElement('a'); a.href = url; a.download = fname; a.click();
     };
     try {
-      const cached = await idbGetBlob(sha);
-      if (cached) { save(new Blob([cached as BlobPart])); return; }
-      let bytes: Uint8Array;
-      if (el.getAttribute('data-chunked') === '1') {
-        const mr = await api(`/v1/blob/${sha}`);
-        if (!mr.ok) { alert(errText(mr.status)); return; }
-        const man = parseManifest(new Uint8Array(await mr.arrayBuffer()));
-        bytes = await reassemble(async (s) => {
-          const rr = await api(`/v1/blob/${s}`);
-          if (!rr.ok) throw new Error(errText(rr.status));
-          return new Uint8Array(await rr.arrayBuffer());
-        }, man);
-      } else {
-        const r = await api(`/v1/blob/${sha}`);
-        if (!r.ok) { alert(errText(r.status)); return; }
-        bytes = new Uint8Array(await r.arrayBuffer());
-      }
-      await idbPutBlob(sha, bytes);
-      save(new Blob([bytes as BlobPart]));
+      save(new Blob([await attBytes({ sha256: sha, chunked: el.getAttribute('data-chunked') === '1' }) as BlobPart]));
     } catch (e: any) { alert('Download: ' + String(e?.message || e).slice(0, 120)); }
   }));
   $('cl-spam').onclick = () => { sp ? spamDel(m.sender) : spamAdd(m.sender); render(); };
   if ($('cl-un')) $('cl-un').onclick = () => { spamDel(m.sender); render(); };
   if ($('cl-ab')) $('cl-ab').onclick = () => { abSeed = { pubkey: m.pub }; folder = 'ab'; abEdit = 'new'; abSel = ''; mark(); render(); };
   $('cl-del').onclick = () => { if (sync) { sync.markDeleted(m.msgId); sync.push().catch(() => {}); } sel = -1; render(); };
+  $('cl-save').onclick = async () => {
+    const b = $('cl-save'); b.textContent = '… speichere';
+    try { const msg = await saveMailAs(m); if (msg) b.textContent = msg.slice(0, 2) === '✓' ? msg : '✓ gespeichert'; }
+    catch (e: any) { b.textContent = '✗ ' + String(e?.message || e).slice(0, 50); }
+    setTimeout(() => { if (b) b.textContent = '💾 Speichern unter'; }, 4000);
+  };
 }
 
 // --- Etappe A: Adressbuch (90er-Mailclient: Toolbar, Kontaktliste, Eigenschaften-Fenster) ---
@@ -878,10 +934,27 @@ async function useKey(rawTxt: string, fname = '') {
   setLoginStatus(`✗ „${fname || 'Datei'}“ ist keine gültige lightningmail-Schlüsseldatei (.lmkey / .key).`);
 }
 
+// PRF-Selbstheilung (§21): Credential-ID + PRF-Geheimnis der letzten Assertion,
+// wird nach dem letzten Passphrase-Login einmalig auf Direkt-Fingerabdruck hochgezogen.
+let waUpgrade: { credID: string; secret: Uint8Array } | null = null;
+
 async function tryUnwrap() {
   try {
     pemCache = unwrapKey(pendingWrap, ($('l-pass') as HTMLInputElement).value);
+    const hadToken = !!token;
     await loginAuto(pemCache);
+    if (waUpgrade && !hadToken) {
+      const u = waUpgrade; waUpgrade = null;
+      try {
+        const uh: Record<string, string> = { 'Content-Type': 'application/json' };
+        uh['Auth' + 'orization'] = 'Bearer ' + token;
+        const ur = await fetch(base + '/v1/webauthn/wrap-upgrade', {
+          method: 'POST',
+          headers: uh,
+          body: JSON.stringify({ cred_id: u.credID, wrap_prf: wrapKeyPRF(pemCache, u.secret) }) });
+        if (ur.ok) setTimeout(() => alert('✓ Passkey upgraded — beim nächsten Mal reicht der reine Fingerabdruck.'), 400);
+      } catch { /* Upgrade ist Komfort, kein Fehlerfall */ }
+    }
   } catch (e: any) { setLoginStatus('✗ ' + e.message); }
 }
 if (document.getElementById('l-pass')) ($('l-pass') as HTMLInputElement).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); tryUnwrap(); } };
@@ -1284,6 +1357,9 @@ async function passkeyLogin() {
       pemCache = unwrapKeyPRF(fin.wrap_prf, prfSecret);
       await login(pemCache, targetAcct, chosenBase);
     } else if (fin.wrap_pass) {
+      // Selbstheilung (§21): Geraet kann PRF, Credential hat nur Passphrase-Wrap ->
+      // nach diesem letzten Passphrase-Login den Wrap auf Direkt-Fingerabdruck heben.
+      waUpgrade = prfSecret && fin.cred_id ? { credID: String(fin.cred_id), secret: prfSecret } : null;
       openPassModal(fin.wrap_pass, `Passkey (${targetAcct})`);
     } else {
       setLoginStatus('✗ Dieser Passkey hat keinen Schlüssel-Wrap. Einmal per Schlüsseldatei/24 Wörtern anmelden und oben über „🔑 Passkey" neu speichern.');
