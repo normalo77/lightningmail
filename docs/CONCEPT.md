@@ -624,8 +624,28 @@ Channels (Porto = Guthaben beim Relay, Schlüssel = ein secp256k1-Paar).
   Bitcoin-P2P-Knoten (~10 GB Disk, <300 MB RAM, in 30–60 Min einsatzbereit).
   Macht jedes Heim-NAS (QNAP/Odroid), jeden Raspberry Pi oder kleinen VPS zum
   vollwertigen Postamt.
-- **Full-Relay (`relayd` + `lnd` + `bitcoind`):** Eigener Vollknoten (~700 GB)
+- **Full-Relay (`relayd` + `lnd` + eigener `bitcoind`):** Eigener Vollknoten (~700 GB)
   für große Betreiber und maximale Unabhängigkeit.
+
+**3. Etappe O gebaut (20.11.2026, v1.0.5) — das Dritt-Relay ist gleich das komplette Postamt:**
+- `relayd` serviert die gebaute PWA selbst (`ui_dir` in `relay.yaml` → `/app/`):
+  Selbstbauer öffnen `https://<domain>/app/`, API und UI sind same-origin,
+  CORS kommt im Client-Design gar nicht vor. Der Installer erzeugt `ui_dir`
+  und die ./ui-Bauanleitung gleich mit.
+- Clients brauchen am Fremd-Relay null Einstellungen: die App erkennt ihr
+  eigenes Origin (synchron per `?self=1`-Navigation, asynchron per
+  `/health`-Probe) und stellt dann nur „Dieses Relay" bereit; von außen führt
+  der dritte Dropdown-Eintrag „⚙️ Eigenes Relay (URL)…" als reine Navigation
+  zum Dritt-Relay (kein Cross-Origin-Fetch).
+- Die Android-APK merkt sich das Heim-Relay (`home_relay`-Preferences über die
+  native Bridge) und startet direkt dort; ist es nicht erreichbar, fällt sie
+  mit Toast auf lightningmail.app zurück. Der native Linux-Client konnte
+  fremde Relays schon vorher (`BMAIL_RELAY`-Umgebungsvariable).
+- Föderation eingehender Post bleibt bei einer einzigen DNS-Pflicht
+  (`_bmail._tcp.<domain>`-TXT, §4.2); Abnahme: `client/test/selfhost-smoke.mts`
+  (Konto+Auth+Inbox+Balance gegen ein live Fremd-Relay ohne jede
+  Client-Einstellung). Vorführ-Instanz: `https://relay.lightningmail.app/app/`
+  (Mainnet-Light-Relay, CT112).
 
 ## 28. Anmeldungs-Porto & Authentifizierung: "Mit lightningmail anmelden" (Etappe I, konsolidiert 19.11.2026)
 
