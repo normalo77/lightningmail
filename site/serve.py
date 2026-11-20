@@ -190,6 +190,11 @@ def _init_db():
             c.execute("CREATE TABLE IF NOT EXISTS bot_hits (day TEXT PRIMARY KEY, hits INTEGER DEFAULT 0)")
             c.execute("CREATE TABLE IF NOT EXISTS forum_posts (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, author TEXT, pubkey TEXT, relay TEXT, title TEXT, body TEXT)")
             c.execute("CREATE TABLE IF NOT EXISTS paywall_unlocks (address TEXT, item_id TEXT, ts INTEGER, sats INTEGER, PRIMARY KEY(address, item_id))")
+            try:
+                c.execute("ALTER TABLE forum_posts ADD COLUMN parent INTEGER NOT NULL DEFAULT 0")
+            except Exception:
+                pass  # bereits migriert
+            c.execute("CREATE TABLE IF NOT EXISTS forum_votes (post_id INTEGER, voter TEXT, val INTEGER, PRIMARY KEY(post_id, voter))")
             if c.execute("SELECT COUNT(*) FROM forum_posts").fetchone()[0] == 0:
                 c.execute("INSERT INTO forum_posts(ts,author,pubkey,relay,title,body) VALUES(?,?,?,?,?,?)",
                           (int(time.time()), "bernd@lightningmail.app", "029eff8e7a9104be", "alpha",
@@ -392,8 +397,10 @@ a{{color:#122338;font-weight:600}}
         posts, arts = [], []
         try:
             with _db_lock, sqlite3.connect(STATS_DB) as c:
-                for row in c.execute("SELECT id,ts,author,pubkey,relay,title,body FROM forum_posts ORDER BY id DESC LIMIT 50"):
-                    posts.append({"id": row[0], "ts": row[1], "author": row[2], "pubkey": row[3], "relay": row[4], "title": row[5], "body": row[6]})
+                vmap = dict(c.execute("SELECT post_id, SUM(val) FROM forum_votes GROUP BY post_id"))
+                mine = dict(c.execute("SELECT post_id, val FROM forum_votes WHERE voter=?", (u["pubkey"],)) if (u and u.get("pubkey")) else [])
+                for row in c.execute("SELECT id,ts,author,pubkey,relay,title,body,parent FROM forum_posts ORDER BY id DESC LIMIT 100"):
+                    posts.append({"id": row[0], "ts": row[1], "author": row[2], "pubkey": row[3], "relay": row[4], "title": row[5], "body": row[6], "parent": row[7], "score": vmap.get(row[0], 0) or 0, "my": mine.get(row[0], 0)})
                 for a in ARTICLES:
                     unlocked = bool(user) and c.execute(
                         "SELECT 1 FROM paywall_unlocks WHERE address=? AND item_id=?", (user, a["id"])).fetchone() is not None
@@ -421,13 +428,42 @@ a{{color:#122338;font-weight:600}}
         txt = str(body.get("body") or "").strip()
         if not (1 <= len(title) <= 120) or not (1 <= len(txt) <= 2000):
             return self._json({"error": "title 1..120 Zeichen, body 1..2000 Zeichen"}, 400)
+        parent = int(body.get("parent") or 0)
         try:
             with _db_lock, sqlite3.connect(STATS_DB) as c:
-                c.execute("INSERT INTO forum_posts(ts,author,pubkey,relay,title,body) VALUES(?,?,?,?,?,?)",
-                          (int(time.time()), u["sub"], u["pubkey"], u["relay"], title, txt))
+                if parent and not c.execute("SELECT 1 FROM forum_posts WHERE id=?", (parent,)).fetchone():
+                    return self._json({"error": "Eltern-Beitrag existiert nicht"}, 404)
+                cur = c.execute("INSERT INTO forum_posts(ts,author,pubkey,relay,title,body,parent) VALUES(?,?,?,?,?,?,?)",
+                          (int(time.time()), u["sub"], u["pubkey"], u["relay"], title, txt, parent))
+                new_id = cur.lastrowid
         except Exception as e:
             return self._json({"error": str(e)}, 500)
-        self._json({"ok": True})
+        self._json({"ok": True, "id": new_id})
+
+    def _api_forum_vote(self):
+        u = self._verify_forum_token()
+        if not u or not u.get("pubkey"):
+            return self._json({"error": "Zum Abstimmen bitte einmal mit lightningmail anmelden"}, 401)
+        try:
+            ln = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(min(ln, 4096)) or b"{}")
+            pid = int(body.get("id")); dir_ = int(body.get("dir"))
+        except Exception:
+            return self._json({"error": "body: {id, dir:-1|0|1}"}, 400)
+        if dir_ not in (-1, 0, 1):
+            return self._json({"error": "dir -1|0|1"}, 400)
+        try:
+            with _db_lock, sqlite3.connect(STATS_DB) as c:
+                if not c.execute("SELECT 1 FROM forum_posts WHERE id=?", (pid,)).fetchone():
+                    return self._json({"error": "Beitrag nicht gefunden"}, 404)
+                if dir_ == 0:
+                    c.execute("DELETE FROM forum_votes WHERE post_id=? AND voter=?", (pid, u["pubkey"]))
+                else:
+                    c.execute("INSERT OR REPLACE INTO forum_votes(post_id,voter,val) VALUES(?,?,?)", (pid, u["pubkey"], dir_))
+                score = c.execute("SELECT COALESCE(SUM(val),0) FROM forum_votes WHERE post_id=?", (pid,)).fetchone()[0]
+        except Exception as e:
+            return self._json({"error": str(e)}, 500)
+        self._json({"ok": True, "score": int(score), "my": dir_})
 
     def _static(self, root, path, spa=None):
         path = unquote(path).split("?")[0].lstrip("/")
@@ -500,6 +536,8 @@ a{{color:#122338;font-weight:600}}
             return self._api_forum()
         if p == "/api/forum/post" and self.command == "POST":
             return self._api_forum_post()
+        if p == "/api/forum/vote" and self.command == "POST":
+            return self._api_forum_vote()
         if p in ("/forum", "/forum/", "/forum.html"):
             record_hit(self, "/forum")
             return self._static(SITE, "forum.html")

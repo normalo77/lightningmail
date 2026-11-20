@@ -205,6 +205,17 @@ h2 {
 
 /* Forum Posts */
 .posts { display: grid; gap: 1rem; margin-bottom: 3.5rem; }
+.reply-wrap { margin: 0 0 0 1.1rem; padding-left: 0.9rem; border-left: 2px solid rgba(18,35,56,0.18); display: grid; gap: 0.8rem; }
+.votebox { display: inline-flex; align-items: center; gap: 0.35rem; margin-right: 0.5rem; vertical-align: middle; }
+.votebox button { background: none; border: 0; cursor: pointer; font-size: 0.95rem; color: #94a3b8; padding: 0.1rem 0.25rem; line-height: 1; }
+.votebox button:hover { color: #122338; }
+.votebox button.on-up { color: #b8860b; }
+.votebox button.on-dn { color: #dc2626; }
+.votebox .vscore { font-size: 0.9rem; color: #122338; min-width: 1.2rem; text-align: center; }
+.reply-form { display: none; margin-top: 0.6rem; gap: 0.5rem; }
+.reply-form.open { display: flex; }
+.reply-form textarea { flex: 1; }
+.reply-btn { background: none; border: 0; cursor: pointer; color: inherit; font: inherit; font-size: 0.85rem; padding: 0; text-decoration: underline dotted; }
 .post {
   background: var(--card);
   border: 1px solid rgba(18,35,56,0.14);
@@ -642,11 +653,20 @@ async function loadForum() {
 
   // Render Posts
   const pl = document.getElementById('posts-list');
-  pl.innerHTML = (data.posts || []).map(p => {
+  const posts = data.posts || [];
+  const byId = {}; posts.forEach(p => { byId[p.id] = p; });
+  const kids = {}; const tops = [];
+  posts.forEach(p => {
+    if (p.parent && byId[p.parent]) (kids[p.parent] = kids[p.parent] || []).push(p);
+    else tops.push(p);
+  });
+  tops.sort((a, b) => ((b.score || 0) - (a.score || 0)) || (b.ts - a.ts));
+  const card = (p) => {
     const dt = new Date(p.ts * 1000).toLocaleString('de-DE');
     const fp = p.pubkey ? p.pubkey.slice(0, 10) + '…' + p.pubkey.slice(-6) : 'verified';
-    return `<article class="post">
+    return `<article class="post" id="post-${p.id}">
       <div class="post-head">
+        <span class="votebox"><button type="button" data-vote="1" data-id="${p.id}" class="${p.my === 1 ? 'on-up' : ''}" title="Hilfreich">▲</button><b class="vscore">${p.score || 0}</b><button type="button" data-vote="-1" data-id="${p.id}" class="${p.my === -1 ? 'on-dn' : ''}" title="Weniger">▼</button></span>
         <span class="post-title">${esc(p.title)}</span>
         <span class="post-meta">
           <b>${esc(p.author)}</b> · ${esc(dt)}
@@ -654,9 +674,47 @@ async function loadForum() {
         </span>
       </div>
       <div class="post-body">${esc(p.body)}</div>
-      <a class="reply-link" href="/app/?an=${encodeURIComponent(p.author.split('@')[0])}">✉ Per lightningmail anschreiben</a>
+      <span>
+        <button type="button" class="reply-btn" data-rb="${p.id}">💬 Antworten</button>
+        <a class="reply-link" href="/app/?an=${encodeURIComponent(p.author.split('@')[0])}">✉ Per lightningmail anschreiben</a>
+      </span>
+      <form class="reply-form" data-pid="${p.id}"><textarea maxlength="2000" rows="2" placeholder="Antwort…"></textarea><button class="btn" type="submit">Senden</button></form>
     </article>`;
-  }).join('');
+  };
+  pl.innerHTML = tops.map(p => card(p) + (kids[p.id] || []).sort((a, b) => a.ts - b.ts).map(r => `<div class="reply-wrap">${card(r)}</div>`).join('')).join('')
+    || '<div class="meta">Noch keine Beiträge.</div>';
+  pl.querySelectorAll('button[data-vote]').forEach(b => b.onclick = async () => {
+    const id = +b.getAttribute('data-id');
+    let dir = +b.getAttribute('data-vote');
+    const was = b.className.includes('on-up') || b.className.includes('on-dn');
+    if (was) dir = 0;  // nochmal derselbe Pfeil = Stimme zurueckziehen
+    const r = await fetch('/api/forum/vote', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forum-Token': localStorage.getItem('lm_forum_token') || '' },
+      body: JSON.stringify({ id, dir }) });
+    if (r.status === 401) { showMsg('Bitte einmal oben mit lightningmail anmelden — dann geht das Abstimmen mit einem Klick.'); return; }
+    if (r.ok) await loadForum();
+  });
+  pl.querySelectorAll('.reply-btn').forEach(b => b.onclick = () => {
+    const f = document.getElementById('post-' + b.getAttribute('data-rb')).querySelector('.reply-form');
+    f.classList.toggle('open');
+    if (f.classList.contains('open')) f.querySelector('textarea').focus();
+  });
+  pl.querySelectorAll('.reply-form').forEach(f => f.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const pid = +f.getAttribute('data-pid');
+    const body = f.querySelector('textarea').value.trim();
+    if (!body) return;
+    const title = ('Re: ' + (byId[pid] ? byId[pid].title : 'Antwort')).slice(0, 120);
+    const r = await fetch('/api/forum/post', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forum-Token': localStorage.getItem('lm_forum_token') || '' },
+      body: JSON.stringify({ title, body, parent: pid }) });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      showMsg((j.error === 'Zum Abstimmen bitte einmal mit lightningmail anmelden' ? 'Zum Antworten bitte oben anmelden.' : 'Fehler: ' + (j.error || r.status)));
+      return;
+    }
+    await loadForum();
+  });
 }
 
 document.getElementById('post-form').onsubmit = async (ev) => {
@@ -671,7 +729,7 @@ document.getElementById('post-form').onsubmit = async (ev) => {
   });
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
-    showMsg('Fehler beim Senden: ' + (j.error || r.status));
+    showMsg(j.error && j.error.includes('anmelden') ? 'Bitte oben erst mit lightningmail anmelden.' : 'Fehler beim Senden: ' + (j.error || r.status));
     return;
   }
   document.getElementById('p-title').value = '';
