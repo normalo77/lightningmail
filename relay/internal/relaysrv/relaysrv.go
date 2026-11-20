@@ -130,6 +130,7 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/v1/webauthn/login/finish", s.handleWALoginFinish)
 	mux.HandleFunc("/v1/webauthn/credentials", s.auth(s.handleWAList))
 	mux.HandleFunc("/v1/webauthn/credentials/delete", s.auth(s.handleWADelete))
+	mux.HandleFunc("/v1/webauthn/wrap-upgrade", s.auth(s.handleWAWrapUpgrade))
 	// IdP (§21/§29): OIDC — Discovery, JWKS, Auth/Token/Userinfo, Demo-RP
 	mux.HandleFunc("/.well-known/openid-configuration", s.handleOIDCDiscovery)
 	mux.HandleFunc("/oidc/", s.handleOIDCRouter)

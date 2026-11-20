@@ -17,6 +17,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -351,6 +352,7 @@ func (s *Server) handleWALoginFinish(w http.ResponseWriter, r *http.Request) {
 		"token":     tokenStr,
 		"wrap_prf":  prf,
 		"wrap_pass": pass,
+		"cred_id":   credID,
 		"cred_name": name,
 	})
 }
@@ -397,6 +399,44 @@ func (s *Server) handleWADelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.ledger.WADeleteCredential(req.CredID); err != nil {
+		waError(w, 500, "interner Fehler")
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+// --- POST /v1/webauthn/wrap-upgrade (authentifiziert) — §21 PRF-Selbstheilung ---
+// Liefert eine Assertion das PRF-Geheimnis, waehrend die Credential nur einen
+// Passphrase-Wrap hat, wird der Wrap nach dem letzten Passphrase-Login auf
+// LMKEY1$PRF$ gehoben — kuenftige Logins brauchen nur noch den Fingerabdruck.
+func (s *Server) handleWAWrapUpgrade(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		waError(w, 405, "method not allowed")
+		return
+	}
+	acct := r.Header.Get("X-Bmail-Account")
+	var req struct {
+		CredID  string `json:"cred_id"`
+		WrapPRF string `json:"wrap_prf"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.CredID == "" {
+		waError(w, 400, "bad request")
+		return
+	}
+	if !strings.HasPrefix(req.WrapPRF, "LMKEY1$PRF$") || len(req.WrapPRF) > 8192 {
+		waError(w, 400, "kein LMKEY1$PRF-Wrap")
+		return
+	}
+	row, err := s.ledger.WALookupCredential(req.CredID)
+	if err != nil {
+		waError(w, 500, "interner Fehler")
+		return
+	}
+	if row.CredID == "" || row.Account != acct {
+		waError(w, 404, "Passkey nicht gefunden")
+		return
+	}
+	if err := s.ledger.WAUpdateWrapPRF(req.CredID, req.WrapPRF); err != nil {
 		waError(w, 500, "interner Fehler")
 		return
 	}

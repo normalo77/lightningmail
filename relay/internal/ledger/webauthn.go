@@ -104,6 +104,19 @@ func (l *Ledger) WAStoreWraps(credID, wrapPRF, wrapPass string) error {
 	return err
 }
 
+// WAUpdateWrapPRF hebt nur den PRF-Anteil (PRF-Selbstheilung); der
+// Passphrase-Wrap bleibt als Fallback erhalten.
+func (l *Ledger) WAUpdateWrapPRF(credID, wrapPRF string) error {
+	if err := l.ensureWA(); err != nil {
+		return err
+	}
+	_, err := l.db.Exec(
+		`INSERT INTO wa_wraps (cred_id, wrap_prf, wrap_pass) VALUES (?,?,'')
+		 ON CONFLICT(cred_id) DO UPDATE SET wrap_prf=excluded.wrap_prf`,
+		credID, wrapPRF)
+	return err
+}
+
 func (l *Ledger) WAGetWraps(credID string) (prf, pass string, err error) {
 	if err = l.ensureWA(); err != nil {
 		return "", "", err
