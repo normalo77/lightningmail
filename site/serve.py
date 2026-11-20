@@ -32,7 +32,7 @@ ARTICLES = [
     {"id": "art-1", "price_sats": 5,
      "title": "Blabla-Artikel #1: Das Geheimnis der 5-Satoshi-Schranke",
      "teaser": "Warum kein Mensch für einen einzelnen Artikel ein 14,90-€-Monatsabo abschließt — und was passiert, wenn Lesen genau 5 Satoshis kostet…",
-     "content_html": """<p><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Herzlichen Glückwunsch — du hast gerade für den Gegenwert eines drittel Pfefferkorns die erste Paywall der Welt überwunden, die dich weder nach deiner Kreditkarte noch nach dem Mädchennamen deiner Großmutter gefragt hat. Klassische Verlage stehen seit 25 Jahren vor demselben Rätsel: Ein einzelner Artikel ist niemandem 14,90 € Monatsabo wert, aber bei 0,01 € Einzelpreis frisst der Zahlungsdienstleister 35 Cent Mindestgebühr und drei Seiten Cookie-Banner.</p>
+     "content_html": """<p><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Herzlichen Glückwunsch — du hast gerade für den Gegenwert eines drittel Pfefferkorns eine der ersten Paywalls der Welt überwunden, die dich weder nach deiner Kreditkarte noch nach dem Mädchennamen deiner Großmutter gefragt hat. Klassische Verlage stehen seit 25 Jahren vor demselben Rätsel: Ein einzelner Artikel ist niemandem 14,90 € Monatsabo wert, aber bei 0,01 € Einzelpreis frisst der Zahlungsdienstleister 35 Cent Mindestgebühr und drei Seiten Cookie-Banner.</p>
 <div class="art-figs">
   <figure class="art-fig">
     <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
