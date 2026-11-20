@@ -3,7 +3,7 @@
 import io, importlib.util, json, os, sys, tempfile, base64, hashlib, time as tm
 import hmac as hm
 
-spec = importlib.util.spec_from_file_location("bserve", "/root/lm-work/lightningmail/site/serve.py")
+spec = importlib.util.spec_from_file_location("bserve", os.path.join(os.path.dirname(os.path.abspath(__file__)), "serve.py"))
 m = importlib.util.module_from_spec(spec)
 sys.modules["bserve"] = m
 try:
