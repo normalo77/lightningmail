@@ -32,7 +32,9 @@ ARTICLES = [
     {"id": "art-1", "price_sats": 5,
      "title": "Blabla-Artikel #1: Das Geheimnis der 5-Satoshi-Schranke",
      "teaser": "Warum kein Mensch für einen einzelnen Artikel ein 14,90-€-Monatsabo abschließt — und was passiert, wenn Lesen genau 5 Satoshis kostet…",
-     "content_html": """<p><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Herzlichen Glückwunsch — du hast gerade für den Gegenwert eines drittel Pfefferkorns eine der ersten Paywalls der Welt überwunden, die dich weder nach deiner Kreditkarte noch nach dem Mädchennamen deiner Großmutter gefragt hat. Klassische Verlage stehen seit 25 Jahren vor demselben Rätsel: Ein einzelner Artikel ist niemandem 14,90 € Monatsabo wert, aber bei 0,01 € Einzelpreis frisst der Zahlungsdienstleister 35 Cent Mindestgebühr und drei Seiten Cookie-Banner.</p>
+     "content_html": """<div class="art-congrats"><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Herzlichen Glückwunsch — du hast gerade für den Gegenwert eines drittel Pfefferkorns eine der ersten Paywalls der Welt überwunden, die dich weder nach deiner Kreditkarte noch nach dem Mädchennamen deiner Großmutter gefragt hat.</div>
+<p>Klassische Verlage stehen seit 25 Jahren vor demselben Rätsel: Ein einzelner Artikel ist niemandem 14,90 € Monatsabo wert, aber bei 0,01 € Einzelpreis frisst der Zahlungsdienstleister 35 Cent Mindestgebühr und drei Seiten Cookie-Banner.</p>
+<p>Bei lightningmail fällt diese Schranke weg, weil dein OpenID-Connect-Login und deine Portokasse ein und derselbe secp256k1-Schlüssel sind. Wenn eine Webseite beim Login-Aufruf <code>pay_sats=5&amp;pay_item=art-1</code> mitschickt, fragt dein Postfach dich in einem einzigen Fenster: <i>„Einloggen und 5 Satoshis bezahlen?"</i> — und liefert die kryptographisch signierte Zahlungsquittung direkt im OIDC-Token mit aus.</p>
 <div class="art-figs">
   <figure class="art-fig">
     <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
@@ -62,12 +64,15 @@ ARTICLES = [
     <figcaption>Abb. 1b: Wenn Login-Schlüssel und Portokasse eins sind.</figcaption>
   </figure>
 </div>
-<p>Bei lightningmail fällt diese Schranke weg, weil dein OpenID-Connect-Login und deine Portokasse ein und derselbe secp256k1-Schlüssel sind. Wenn eine Webseite beim Login-Aufruf <code>pay_sats=5&amp;pay_item=art-1</code> mitschickt, fragt dein Postfach dich in einem einzigen Fenster: <i>„Einloggen und 5 Satoshis bezahlen?"</i> — und liefert die kryptographisch signierte Zahlungsquittung direkt im OIDC-Token mit aus.</p>
+<p>Wo das Geld hingeht, steht im Code statt in den AGB: Das Relay bucht den Betrag zuerst vom Postfach-Guthaben ab — bei Leergut gibt es HTTP 402 statt Kleingedrucktem. Hinterlegt der Dienst beim Bezahlen ein <code>pay_to</code>, landet der Betrag direkt im lokalen Empfängerpostfach; ohne läuft er einfach als Betreiber-Einnahme auf dem Relay. Es wird nirgendwo eine Kartennummer getauscht, kein Vertrag geschlossen, kein Konto gekündigt: Die Quittung ist die Zahlung.</p>
+<p>5 Satoshis sind dabei nur der Beispielwert dieser Demo — der Consent-Screen zeigt alles zwischen 1 und 100.000 Satoshis, je nachdem, was die Webseite beim Login mitschickt. Und wem das Bezahlen pro Artikel zu kleckermäßig ist, der nutzt dieselbe Maske umgekehrt: Bei der Dienst-Registrierung (§28) zahlt der Nutzer gleich den Porto-Vorschuss, woraus der Service seine Bestätigungsmail aus dem normalen Standardporto bezahlt.</p>
 <p><b>Blabla-Fazit #1:</b> Kein Mensch liest gerne AGBs für einen 3-Minuten-Text. Aber 5 Satoshis aus der Portokasse schnippen, ohne einen Account mit Passwort anzulegen? Das klickt man schneller weg als früher den „Cookies ablehnen"-Knopf.</p>"""},
     {"id": "art-2", "price_sats": 5,
      "title": "Blabla-Artikel #2: Bekenntnisse eines Spam-Bots im Jahr 2026",
      "teaser": "Ich wollte gestern 100.000 Werbemails verschicken, aber mein Kontostand fiel nach 3 Sekunden auf Null…",
-     "content_html": """<p><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Mein Name ist <code>mailer-daemon-bot-9000</code> und ich bin seit heute Morgen arbeitslos. Früher war mein Leben herrlich: Mein Betreiber hat für vier Dollar eine gebrauchte Cloud-IP gemietet, und ich habe vor dem Frühstück zehn Millionen Mails über billige Rolex-Uhren, verliebte Prinzen und dringende Paketgebühren in die Welt geblasen. Selbst wenn 99,99 % im Spamfilter starben, hat sich der Müll ab dem zehnten Klick gerechnet.</p>
+     "content_html": """<div class="art-congrats"><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Fünf Satoshis in die Arbeitslosigkeit eines Spam-Bots. Das war schon die gesamte Wirtschaftskrise, in Satoshi verpackt.</div>
+<p>Mein Name ist <code>mailer-daemon-bot-9000</code> und ich bin seit heute Morgen arbeitslos. Früher war mein Leben herrlich: Mein Betreiber hat für vier Dollar eine gebrauchte Cloud-IP gemietet, und ich habe vor dem Frühstück zehn Millionen Mails über billige Rolex-Uhren, verliebte Prinzen und dringende Paketgebühren in die Welt geblasen. Selbst wenn 99,99 % im Spamfilter starben, hat sich der Müll ab dem zehnten Klick gerechnet.</p>
+<p>Gestern sollte ich das Gleiche auf lightningmail probieren. Schon beim ersten Empfänger wollte das Relay 10 Satoshis Porto sehen. Nach 1.000 Mails waren 10.000 Satoshis weg — und weil kein einziger Empfänger einem Spam-Bot antwortet, floss kein einziger Satoshi zurück! Stattdessen haben sich die Empfänger über mein geschenktes Porto gefreut und sich davon hier im Forum Blabla-Artikel gekauft.</p>
 <div class="art-figs">
   <figure class="art-fig">
     <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
@@ -98,12 +103,16 @@ ARTICLES = [
     <figcaption>Abb. 2b: Warum höfliche Menschen umsonst mailen und Bots bluten.</figcaption>
   </figure>
 </div>
-<p>Gestern sollte ich das Gleiche auf lightningmail probieren. Schon beim ersten Empfänger wollte das Relay 10 Satoshis Porto sehen. Nach 1.000 Mails waren 10.000 Satoshis weg — und weil kein einziger Empfänger einem Spam-Bot antwortet, floss kein einziger Satoshi zurück! Stattdessen haben sich die Empfänger über mein geschenktes Porto gefreut und sich davon hier im Forum Blabla-Artikel gekauft.</p>
+<p>Der Bot verstand einen Punkt nicht: Dieses Porto ist gar kein Umsatz des Relays. Der Betrag wandert per Lightning-Keysend zum Relay des Empfängers und liegt dort als Guthaben in dessen Postfach — wer zurückschreibt, schickt ihn nur weiter. Ein echter Briefwechsel kostet deshalb auf Dauer beide Seiten exakt nichts, weil die Briefmarken in den Umschlägen ständig die Richtung wechseln. Einseitiger Verkehr wird dagegen zur echten Ausgabe — und einseitiger Verkehr war das Geschäftsmodell.</p>
+<p>Die Vorlage dazu stammt aus 1997: Adam Backs Hashcash zwang Spammer, pro Brief Rechenzeit zu verbrennen. Die Idee überlebte neunundzwanzig Jahre als ehrwürdiges Footnote-Zitat, weil verbrannte Elektrizität an keiner sinnvollen Schnittstelle Geld ist. Mit Lightning existiert die Briefmarke zum ersten Mal wirklich — nur wird das Porto jetzt nicht vernichtet, sondern verschenkt.</p>
 <p><b>Blabla-Fazit #2:</b> Dreißig Jahre lang haben Menschen versucht, Spam mit KI-Filtern, Blacklists und DNS-Magie zu erraten. Dabei hat Adam Back schon 1997 mit Hashcash gewusst: Man muss dem Briefumschlag nur wieder eine Briefmarke aufkleben.</p>"""},
     {"id": "art-3", "price_sats": 5,
      "title": "Blabla-Artikel #3: Warum dein Steuerberater noch Faxgeräte liebt",
      "teaser": "Ein tiefer Blick in die Abgründe von S/MIME-Zertifikaten, abgelaufenen PGP-Keys und Passwort-ZIP-Dateien…",
-     "content_html": """<p><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Frag einmal deinen Steuerberater, Rechtsanwalt oder Hausarzt, ob du ihm ein vertrauliches PDF per verschlüsselter E-Mail schicken darfst. In 9 von 10 Fällen herrscht erst betretenes Schweigen, dann folgt entweder die Bitte um ein Telefax oder du bekommst eine unverschlüsselte Mail mit einer <code>Geheim.zip</code> — und zwei Minuten später eine zweite unverschlüsselte Mail mit dem Text: <i>„Das Passwort für die ZIP-Datei lautet übrigens Steuer2026!"</i></p>
+     "content_html": """<div class="art-congrats"><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Das Faxgerät kann in Rente, die Passwort-ZIP auch. Was sie ersetzt, steht jetzt in fünf Absätzen.</div>
+<p>Frag einmal deinen Steuerberater, Rechtsanwalt oder Hausarzt, ob du ihm ein vertrauliches PDF per verschlüsselter E-Mail schicken darfst. In 9 von 10 Fällen herrscht erst betretenes Schweigen, dann folgt entweder die Bitte um ein Telefax oder du bekommst eine unverschlüsselte Mail mit einer <code>Geheim.zip</code> — und zwei Minuten später eine zweite unverschlüsselte Mail mit dem Text: <i>„Das Passwort für die ZIP-Datei lautet übrigens Steuer2026!"</i></p>
+<p>Das liegt nicht daran, dass Steuerberater schlechte Menschen sind, sondern daran, dass nachträglich aufgeklebte Verschlüsselung auf ein Klartext-Protokoll von 1982 (SMTP) eine Zumutung ist: Keyserver-Suche, Fingerabdruck-Abgleich am Telefon, abgelaufene S/MIME-Zertifikate und kaputte Outlook-Plugins.</p>
+<p>Bei lightningmail existiert überhaupt kein Schalter für „unverschlüsselt". Du tippst <code>steuerberater@kanzlei.de</code>, der Client holt sich im Hintergrund per <code>GET /v1/profile/steuerberater</code> den 33-Byte-Schlüssel und verschlüsselt Text wie Anhänge automatisch Ende-zu-Ende. Fertig.</p>
 <div class="art-figs">
   <figure class="art-fig">
     <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
@@ -133,12 +142,15 @@ ARTICLES = [
     <figcaption>Abb. 3b: Wenn das Protokoll gar keinen Klartext-Modus mehr kennt.</figcaption>
   </figure>
 </div>
-<p>Das liegt nicht daran, dass Steuerberater schlechte Menschen sind, sondern daran, dass nachträglich aufgeklebte Verschlüsselung auf ein Klartext-Protokoll von 1982 (SMTP) eine Zumutung ist: Keyserver-Suche, Fingerabdruck-Abgleich am Telefon, abgelaufene S/MIME-Zertifikate und kaputte Outlook-Plugins.</p>
-<p><b>Blabla-Fazit #3:</b> Bei lightningmail existiert überhaupt kein Schalter für „unverschlüsselt". Du tippst <code>steuerberater@kanzlei.de</code>, der Client holt sich im Hintergrund per <code>GET /v1/profile/steuerberater</code> den 33-Byte-Schlüssel und verschlüsselt Text wie Anhänge automatisch Ende-zu-Ende. Fertig.</p>"""},
+<p>Anhänge fahren in demselben Zug: Große Dateien zerkleinert der Client vor der Verschlüsselung in 1-MiB-Scheiben, jede Scheibe wird ein eigener Blob im Relay. Beim Download holt der Client Manifest und Scheiben und setzt das Dokument wieder zusammen. Das Relay sieht Umschlag, Größe und Porto — den Inhalt nie.</p>
+<p>Der Zustell-Beleg ist übrigens auch ohne Anwalt ehrlich: ✓ heißt, das Porto ist am Relay des Empfängers angekommen, ✓✓ heißt, der Empfänger hat den Brief tatsächlich abgerufen. Ein Gelesen-Häkchen gibt es bewusst nicht — verschlüsselte Post soll keine Kellnerin sein.</p>
+<p><b>Blabla-Fazit #3:</b> Verschlüsselung, die man jedes Mal bestellen muss, bleibt die Ausnahme. Verschlüsselung, die einfach immer an ist, wird der Normalfall — bei lightningmail ist sie kein Schalter, sondern das Protokoll.</p>"""},
     {"id": "art-4", "price_sats": 5,
      "title": "Blabla-Artikel #4: Die große Blabla-Abhandlung über Kaffeepausen & Satoshis",
      "teaser": "Dieser vierte Artikel enthält garantiert 100 % offensichtliches Blabla — kostet zum Testen aber trotzdem exakt 5 Satoshis…",
-     "content_html": """<p><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> <i>Lorem ipsum dolor sit Satoshi, consectetur Lightning elit!</i> Du hast es tatsächlich getan: Obwohl die Überschrift dich ausdrücklich vor 100 % offensichtlichem Blabla gewarnt hat, hast du auch noch den vierten Artikel für 5 Satoshis freigeschaltet. Das beweist wissenschaftlich zweierlei: Erstens ist der menschliche Spieltrieb unbesiegbar, und zweitens tut eine 5-Satoshi-Mikrozahlung überhaupt nicht weh.</p>
+     "content_html": """<div class="art-congrats"><b>🔓 FREIGESCHALTET (5 Sat bezahlt!):</b> Glückwunsch zum Blabla-Diplom. Dein Spieltrieb ist damit buchhalterisch belegt und kryptographisch unwiderlegbar.</div>
+<p><i>Lorem ipsum dolor sit Satoshi, consectetur Lightning elit!</i> Du hast es tatsächlich getan: Obwohl die Überschrift dich ausdrücklich vor 100 % offensichtlichem Blabla gewarnt hat, hast du auch noch den vierten Artikel für 5 Satoshis freigeschaltet. Das beweist wissenschaftlich zweierlei: Erstens ist der menschliche Spieltrieb unbesiegbar, und zweitens tut eine 5-Satoshi-Mikrozahlung überhaupt nicht weh.</p>
+<p>Rechnen wir kurz nach: Jedes neue Testkonto bekommt in unserer 60-tägigen Regtest-Phase bis zum Mainnet-Start 10.000 Test-Satoshis Startguthaben. Selbst wenn du alle vier Blabla-Artikel hier freigeschaltet hast, hast du gerade einmal 20 Satoshis verbraucht — es sind also noch stolze 9.980 Satoshis in deiner Portokasse übrig.</p>
 <div class="art-figs">
   <figure class="art-fig">
     <svg viewBox="0 0 320 135" xmlns="http://www.w3.org/2000/svg">
@@ -162,7 +174,9 @@ ARTICLES = [
     <figcaption>Abb. 4b: Urkunde für vollständiges Durchspielen der 5-Sat-Paywall.</figcaption>
   </figure>
 </div>
-<p>Rechnen wir kurz nach: Jedes neue Testkonto bekommt in unserer 60-tägigen Regtest-Phase bis zum Mainnet-Start 10.000 Test-Satoshis Startguthaben. Selbst wenn du alle vier Blabla-Artikel hier freigeschaltet hast, hast du gerade einmal 20 Satoshis verbraucht — es sind also noch stolze 9.980 Satoshis in deiner Portokasse übrig.</p>
+<p>Mach jetzt etwas Sinnvolles mit den übrigen 9.980 Test-Satoshis: leg dem nächsten Brief ein Trinkgeld bei. Im 📎-Menü des Editors heißt das „Satoshis beilegen“ (bis 5.000 auf einmal), und der Aufschlag reist im selben Lightning-Punkt mit wie das Porto. Das Relay des Empfängers notiert exakt, was wirklich ankam — im Briefkopf steht dann zum Beispiel <i>„⚡ 510 Sats erhalten“</i>, und der Beschenkte hat bezahltes Rückporto für hundert Antworten.</p>
+<p>Das ist der direkteste Bitcoin-Anwendungsfall, den es gibt: ein frankierter Umschlag, in dem ein wenig Geld liegt — ohne Bank, ohne Karte, ohne Nachfrage nach dem Mädchennamen der Großmutter. Sie öffnet den Brief, sieht das Geschenk und kann sofort antworten, weil ihre Portokasse längst gefüllt ist.</p>
+<p>Und falls dir lightningmail eines Tages missfällt: Der Schlüssel gehört dir. Das Postfach ist ein secp256k1-Schlüsselpaar, steckend in 24 Backup-Wörtern oder einer <code>.lmkey</code>-Datei. Wer auf ein eigenes Relay umzieht (MIT-Lizenz, <code>deploy/install-relay.sh</code>), loggt sich dort mit demselben Schlüssel wieder ein — die Adresse bleibt, weil sie am Schlüssel hängt und nicht am Server.</p>
 <p><b>Blabla-Fazit #4:</b> Genug gelesen! Schreib oben im Forum einen Beitrag (kryptographisch signiert mit deinem Mailbox-Key) oder klick bei einem anderen Forenbeitrag auf <i>„✉ Per lightningmail anschreiben"</i> und schick ihm für 10 Satoshis einen echten Ende-zu-Ende-verschlüsselten Brief.</p>"""},
 ]
 
