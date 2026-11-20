@@ -256,13 +256,14 @@ section {
   background: var(--bg);
   padding: clamp(1.25rem, 2.5vw, 2rem);
 }
-.hero-stamp-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+.stamp-badge {
+  display: block;
+  text-align: center;
+  margin-top: 0.6rem;
   font-weight: 700;
   font-size: var(--step-small);
-  margin-bottom: 0.5rem;
+  letter-spacing: 0.02em;
+  color: #f4b71a;
 }
 .hero-stamp svg.big {
   width: 100%;
@@ -607,10 +608,6 @@ html[lang="pl"] .pl-only { display: inline !important; }
 
       <div class="hero-stamp">
         <div class="hero-stamp-inner">
-          <div class="hero-stamp-head">
-            <span>LIGHTNINGMAIL POST</span>
-            <span>2&nbsp;ct / KEYSEND</span>
-          </div>
           <svg class="big" viewBox="0 0 200 200" role="img" aria-label="Pirate octopus mascot">
             <defs>
               <symbol id="oktix" viewBox="0 0 200 200">
@@ -652,9 +649,12 @@ html[lang="pl"] .pl-only { display: inline !important; }
             </defs>
             <use href="#oktix" width="200" height="200"/>
           </svg>
-          <div class="hero-stamp-head" style="margin-top:0.5rem;margin-bottom:0">
-            <span>LM1 · ECIES</span>
-            <span>LIGHTNING.APP</span>
+          <div class="stamp-badge">
+            <span class="de-only">Spam und Passwörter ade</span>
+            <span class="en-only">Spam and passwords — goodbye</span>
+            <span class="es-only">Adiós al spam y las contraseñas</span>
+            <span class="fr-only">Adieu spam et mots de passe</span>
+            <span class="pl-only">Pożegnanie spamu i haseł</span>
           </div>
         </div>
       </div>
