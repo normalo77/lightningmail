@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /stats
+Disallow: /stats.json
+Disallow: /api/
+Disallow: /relay-a/
+Disallow: /relay-b/
+
+Sitemap: https://lightningmail.app/sitemap.xml

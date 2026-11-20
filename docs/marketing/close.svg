@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#0d1017"/>
+  <circle cx="960" cy="540" r="620" fill="none" stroke="#f7931a" stroke-opacity="0.07" stroke-width="2"/>
+  <path d="M42 0 L8 70 H30 L20 120 L62 50 H36 Z" fill="#f7931a" transform="translate(925,235) scale(0.95)"/>
+  <text x="960" y="480" text-anchor="middle" font-family="DejaVu Sans" font-size="56" font-weight="bold" fill="#ede8dc">Selbstbestimmte, bezahlbare Identität —</text>
+  <text x="960" y="560" text-anchor="middle" font-family="DejaVu Sans" font-size="56" font-weight="bold" fill="#ede8dc">Mail ist nur die erste Anwendung.</text>
+  <g font-family="DejaVu Sans" font-size="32" fill="#8b93a7" text-anchor="middle">
+    <text x="960" y="680">Passkey-Login ohne Passwort · ✓✓ ohne Lese-Schnüffelei · E2E zwischen Relays</text>
+    <text x="960" y="730">OIDC „Sign in with lightningmail" · riesige Anhänge · Gruppen als Adressen</text>
+  </g>
+  <rect x="610" y="800" width="700" height="120" rx="60" fill="#f7931a"/>
+  <text x="960" y="878" text-anchor="middle" font-family="DejaVu Sans" font-size="52" font-weight="bold" fill="#0d1017">MIT-lizenziert. Fork uns.</text>
+  <text x="960" y="1000" text-anchor="middle" font-family="DejaVu Sans" font-size="28" fill="#5c6474">lightningmail · gebaut auf dem Lightning Network · 2026</text>
+</svg>
