@@ -154,6 +154,19 @@ nav a {
   padding: 0.4rem 0.2rem;
 }
 nav a:hover { text-decoration: underline; }
+
+/* Funktions-Punkte im Menu: gelblich abgesetzt, Info-Punkte bleiben schlicht */
+.nav-sep { align-self: stretch; width: 1px; margin: 0.15rem 0.1rem; background: rgba(18,35,56,0.28); }
+nav a.funk {
+  background: rgba(244,183,26,0.18);
+  border: 1px solid rgba(146,64,14,0.30);
+  color: #92400e;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0.32rem 0.7rem;
+}
+nav a.funk:hover { background: rgba(244,183,26,0.34); text-decoration: none; }
+
 .lang {
   background: var(--surface);
   color: var(--ink);
@@ -437,6 +450,7 @@ html[lang="pl"] .pl-only { display: inline !important; }
     border-radius: 10px;
   }
   nav.open { display: flex; }
+  .nav-sep { width: 100%; height: 1px; align-self: auto; margin: 0.3rem 0; }
   nav a {
     padding: 0.65rem 0.75rem;
     font-size: 1rem;
@@ -530,14 +544,15 @@ html[lang="pl"] .pl-only { display: inline !important; }
   <nav id="mainNav" aria-label="Primary" onclick="if(event.target.tagName==='A')this.classList.remove('open')">
     <a href="#idee"><span class="de-only">Vorgeschichte</span><span class="en-only">Prehistory</span><span class="es-only">Antecedentes</span><span class="fr-only">Préhistoire</span><span class="pl-only">Prehistoria</span></a>
     <a href="#kreislauf"><span class="de-only">Portokreislauf</span><span class="en-only">Postage cycle</span><span class="es-only">Ciclo de franqueo</span><span class="fr-only">Cycle du port</span><span class="pl-only">Obieg porto</span></a>
-    <a href="#doppelt"><span class="de-only">Anmeldung</span><span class="en-only">Sign-up</span><span class="es-only">Registro</span><span class="fr-only">Inscription</span><span class="pl-only">Rejestracja</span></a>
+    <a href="#doppelt"><span class="de-only">Passwortlose Anmeldung</span><span class="en-only">Passwordless sign-in</span><span class="es-only">Acceso sin contraseña</span><span class="fr-only">Connexion sans mot de passe</span><span class="pl-only">Logowanie bez hasła</span></a>
     <a href="#bausteine"><span class="de-only">Baukasten</span><span class="en-only">Toolbox</span><span class="es-only">Herramientas</span><span class="fr-only">Boîte à outils</span><span class="pl-only">Zestaw narzędzi</span></a>
     <a href="#tiers">Tiers</a>
-    <a href="/forum">🔐 Forum Sign-in</a>
-    <a href="/paywall">⚡ Paywall Demo</a>
     <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektura</span></a>
     <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a>
-    <a href="/app/">Webmail</a>
+    <span class="nav-sep" aria-hidden="true"></span>
+    <a class="funk" href="/app/">Webmail</a>
+    <a class="funk" href="/forum">🔐 Forum Signin-Demo</a>
+    <a class="funk" href="/paywall">⚡ Paywall-Demo</a>
   </nav>
 </header>
 

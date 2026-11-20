@@ -68,6 +68,19 @@ header.top {
 nav { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap; }
 nav a { color: var(--ink); text-decoration: none; font-weight: 600; font-size: 0.93rem; }
 nav a:hover { text-decoration: underline; }
+
+/* Funktions-Punkte im Menu: gelblich abgesetzt, Info-Punkte bleiben schlicht */
+.nav-sep { align-self: stretch; width: 1px; margin: 0.15rem 0.1rem; background: rgba(18,35,56,0.28); }
+nav a.funk {
+  background: rgba(244,183,26,0.18);
+  border: 1px solid rgba(146,64,14,0.30);
+  color: #92400e;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0.32rem 0.7rem;
+}
+nav a.funk:hover { background: rgba(244,183,26,0.34); text-decoration: none; }
+
 .lang {
   background: var(--surface);
   color: var(--ink);
@@ -390,10 +403,11 @@ footer {
   </div>
   <nav id="forumNav" onclick="if(event.target.tagName==='A')this.classList.remove('open')">
     <a href="/"><span class="de-only">← Startseite</span><span class="en-only">← Home</span><span class="es-only">← Inicio</span><span class="fr-only">← Accueil</span><span class="pl-only">← Strona główna</span></a>
-    <a href="/paywall">⚡ Paywall Demo</a>
     <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektur</span></a>
     <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a>
-    <a href="/app/">Webmail</a>
+    <span class="nav-sep" aria-hidden="true"></span>
+    <a class="funk" href="/app/">Webmail</a>
+    <a class="funk" href="/paywall">⚡ Paywall-Demo</a>
   </nav>
 </header>
 
