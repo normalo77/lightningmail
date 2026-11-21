@@ -11,8 +11,8 @@ lm-mail:// anzeigt. Beweis = Screenshot + sauberer Console-Log.
   Debian 13, GTK 4.16 / libadwaita 1.6 / webkitgtk-6.0 (2.48) runtime+dev, Go 1.24.4,
   xvfb-run, import (ImageMagick), Fonts (liberation/dejavu/noto-color-emoji). Repo liegt in <repo>.
 - Arbeitszyklus: Dateien in <workspace> bearbeiten ->
-  rsync -a -e "ssh -i <ssh-key> -o StrictHostKeyChecking=no" <workspace>/desktop/ <dev-sandbox-host>:/root/lm/desktop/
-  -> ssh ... 'cd /root/lm/desktop && bash spike/run-spike.sh' -> scp screenshot zurück ->
+  rsync -a -e "ssh -i <ssh-key> -o StrictHostKeyChecking=no" <workspace>/desktop/ <dev-sandbox-host>:<repo>/desktop/
+  -> ssh ... 'cd <repo>/desktop && bash spike/run-spike.sh' -> scp screenshot zurück ->
   vision_analyze selbst prüfen. NIEMALS Build/Versuch direkt auf Hermes (kein GTK).
 
 ## Stack-Entscheidung (researchiert, vertrau dem)
