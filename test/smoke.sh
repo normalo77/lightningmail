@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# bmail Etappe 1 — Smoke-Test.
-# Bringt den regtest-Stack hoch, roelt 110 Blende fuer alpha, eroeffnet Kanal
-# alpha->beta (6 BTC, 200k sats push -> beta erhaelt Outbound), zahlt keysend
-# alpha->beta (1000 sats) mit bmail-Custom-TLV (34349334..34349343) und
-# verifiziert am Ziel: Geldeingang + TLV-Inhalt lesbar.
-# Idempotent: vorhandener Zustand (Wallet/Kanal) wird erkannt und genutzt.
-# Exit 0 = gruen, 1 = Fehler.
+# bmail Etappe 1 — smoke test.
+# Brings up the regtest stack, rolls 110 blocks for alpha, opens a channel
+# alpha->beta (6 BTC, 200k sats push -> beta gets outbound), pays a keysend
+# alpha->beta (1000 sats) with bmail custom TLVs (34349334..34349343) and
+# verifies at the destination: funds received + TLV content readable.
+# Idempotent: existing state (wallet/channel) is detected and reused.
+# Exit 0 = green, 1 = error.
 set -euo pipefail
 cd "$(dirname "$0")/docker"
 
-PW=bmaildevpass              # lnd-Wallet-Passwort (regtest-only, oeffentlich per Design)
+PW=bmaildevpass              # lnd wallet password (regtest-only, public by design)
 MSG="hello-bmail-$(date +%s)"
 AMT=1000
 
@@ -27,7 +27,7 @@ fail() {
 }
 note() { echo "[smoke] $*"; }
 
-# Wallet: beim ersten Lauf anlegen, nach Neustart entsperren.
+# Wallet: create on first run, unlock after restart.
 ensure_wallet() { # $1=service
   local svc="$1" st
   for _ in $(seq 1 24); do
@@ -50,7 +50,7 @@ ensure_wallet lnd-alpha
 ensure_wallet lnd-beta
 note "beide LND-Knoten laufen"
 
-# Geld: alpha braucht confirmed >= 1 BTC fuer den Kanal.
+# Money: alpha needs confirmed >= 1 BTC for the channel.
 if [ "$(lnA walletbalance | jget 'json.loads(sys.stdin.read())["confirmed_balance"]' 2>/dev/null || echo 0)" -lt 100000000 ]; then
   ADDR=$(lnA newaddress p2wkh | jget 'json.loads(sys.stdin.read())["address"]')
   btc generatetoaddress 110 "$ADDR" >/dev/null || fail "mining"
@@ -66,7 +66,7 @@ done
 BETA_PUB=$(lnB getinfo | jget 'json.loads(sys.stdin.read())["identity_pubkey"]')
 ALPHA_PUB=$(lnA getinfo | jget 'json.loads(sys.stdin.read())["identity_pubkey"]')
 
-# Kanal alpha->beta, falls noch keiner existiert.
+# Channel alpha->beta, if none exists yet.
 if [ "$(lnA listchannels | jget 'len(json.loads(sys.stdin.read()).get("channels",[]))')" -eq 0 ]; then
   lnA connect "$BETA_PUB@lnd-beta:9735" >/dev/null 2>&1 || true
   note "Kanal alpha->beta: 600000000 sats (6 BTC), 2000000 sats push"
@@ -81,8 +81,8 @@ done
 [ "$ACT" -eq 1 ] || fail "Kanal nicht ACTIVE nach 12 Blenden"
 note "Kanal ACTIVE"
 
-# keysend mit bmail-TLVs: 34349334=Nachricht, 34349337=Signatur-Platzhalter (64x00),
-# 34349339=Absender-Pubkey, 34349343=Timestamp.
+# keysend with bmail TLVs: 34349334=message, 34349337=signature placeholder (64x00),
+# 34349339=sender pubkey, 34349343=timestamp.
 DATA=$(python3 -c '
 import sys, time
 msg, pub = sys.argv[1], sys.argv[2]
@@ -109,7 +109,7 @@ done
 [ "$ok" -eq 1 ] || fail "Geldeingang bei beta nicht sichtbar ($BEFORE -> $AFTER)"
 note "Geldeingang beta: local_balance $BEFORE -> $AFTER"
 
-# TLV-Roundtrip: keysend-Records landen bei lnd 0.21 in htlcs[].custom_records (hex).
+# TLV roundtrip: with lnd 0.21, keysend records land in htlcs[].custom_records (hex).
 lnB listinvoices | python3 -c '
 import sys, json, base64, binascii
 msg = sys.argv[1]

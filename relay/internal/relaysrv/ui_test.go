@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// Etappe O (Selbstbau): ui_dir setzt relayd die PWA unter /app/ — same-origin.
+// Etappe O (self-hosting): with ui_dir, relayd serves the PWA under /app/ — same-origin.
 func TestUIStaticServe(t *testing.T) {
 	srv, _ := newOIDCTestServer(t)
 	dir := t.TempDir()
@@ -30,7 +30,7 @@ func TestUIStaticServe(t *testing.T) {
 		t.Fatalf("GET /app/: %d %q", res.StatusCode, body)
 	}
 
-	// /app ohne Slash: Redirect auf /app/ (Client nicht automatisch folgen lassen)
+	// /app without slash: redirect to /app/ (don't let the client follow automatically)
 	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}}
@@ -43,7 +43,7 @@ func TestUIStaticServe(t *testing.T) {
 		t.Fatalf("GET /app: %d Location=%q", res.StatusCode, res.Header.Get("Location"))
 	}
 
-	// Ohne ui_dir bleibt /app/ dicht (Hosting-Fall: UI liegt am Site-Frontend).
+	// Without ui_dir, /app/ stays closed (hosting case: UI lives at the site frontend).
 	srv.cfg.UIDir = ""
 	ts2 := httptest.NewServer(srv.routes())
 	defer ts2.Close()

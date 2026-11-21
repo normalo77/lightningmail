@@ -1,5 +1,5 @@
-// send.ts — Envelope-Bau & Versand, DOM-frei (DOM-app und Smoke-Test teilen diesen Pfad).
-// Spiegelt relay/internal/envelope encode() + lmcli send bytegenau.
+// send.ts — envelope build & send, DOM-free (DOM app and smoke test share this path).
+// Mirrors relay/internal/envelope encode() + lmcli send byte-for-byte.
 import { sha256 } from '@noble/hashes/sha2.js';
 import { schnorr } from '@noble/curves/secp256k1.js';
 import { toHex, fromHex, pubFromPriv, encryptPayload, TAG, u8 } from './crypto';
@@ -32,7 +32,7 @@ export interface EnvBuild {
   recipientHash: Uint8Array; msgID: Uint8Array; blobRefs: Uint8Array[];
   senderPub: Uint8Array; timestamp: number; payload: Uint8Array; ephPub: Uint8Array;
   signature?: Uint8Array;
-  signup?: boolean; // Tag 0x0A: Erstkontakt → Willkommensporto
+  signup?: boolean; // Tag 0x0A: first contact → welcome postage
 }
 
 export function encodeEnvelope(e: EnvBuild, includeSig: boolean): Uint8Array {
@@ -56,12 +56,12 @@ export function encodeEnvelope(e: EnvBuild, includeSig: boolean): Uint8Array {
 export interface ComposeOpts {
   to: string; subject: string; body: string;
   attachments?: { name: string; bytes: Uint8Array }[];
-  onProgress?: (msg: string) => void; // Etappe 7: Scheiben-Fortschritt
-  signup?: boolean; // Erstkontakt: zahlt welcome_sats statt foreign_sats
-  tipSats?: number; // §30.4: optionale Satoshis-Beilage (0..5000) im selben Keysend
+  onProgress?: (msg: string) => void; // Etappe 7: slice progress
+  signup?: boolean; // first contact: pays welcome_sats instead of foreign_sats
+  tipSats?: number; // §30.4: optional satoshis enclosure (0..5000) in the same keysend
 }
 
-// kompletter Pfad: blob-uploads, profil, verschluesseln, signieren, POST /v1/send
+// full path: blob uploads, profile, encrypt, sign, POST /v1/send
 export async function composeAndSend(
   base: string, token: string, priv: Uint8Array, opts: ComposeOpts
 ): Promise<{ msg_id: string }> {
@@ -75,7 +75,7 @@ export async function composeAndSend(
   };
   for (const a of opts.attachments ?? []) {
     if (needsChunking(a.bytes.length)) {
-      // Etappe 7 (§22): 1-MiB-Scheiben + Manifest, alle Hashes ins Envelope (ACL/Mirror)
+      // Etappe 7 (§22): 1-MiB slices + manifest, all hashes into the envelope (ACL/mirror)
       const total = Math.ceil(a.bytes.length / CHUNK);
       const hashes: string[] = [];
       let i = 0;

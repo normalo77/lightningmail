@@ -1,10 +1,10 @@
-// contacts-test.mts — Etappe A: privates Adressbuch im State-Slot (Sync, LWW, Tombstein).
+// contacts-test.mts — Etappe A: private address book in the state slot (sync, LWW, tombstone).
 import { newPrivKey, pubFromPriv, authSign, toHex } from "../src/crypto";
 import { StateSync, mergeDocs, emptyDoc, type Contact } from "../src/state";
 
 const ok = (cond: boolean, msg: string) => { console.log((cond ? "PASS " : "FAIL ") + msg); if (!cond) process.exitCode = 1; };
 
-// --- Unit: Merge-Semantik ohne Server ---
+// --- Unit: merge semantics without a server ---
 const c = (id: string, ts: number, over: Partial<Contact> = {}): Contact =>
   ({ id, ts, name: "x", given: "", org: "", title: "", url: "", cell: "", phone: "", fax: "", email: "", addr: "", lnaddr: "", btc: "", crypto: "", pubkey: "", pgp: "", note: "", ...over });
 const m1 = mergeDocs({ ...emptyDoc(), contacts: { a: c("a", 1, { name: "alt" }) } },
@@ -16,10 +16,10 @@ ok(m2.contacts.a.name === "neuer" && !m2.contacts.a.gone, "Re-Merge: aelterer To
 const m3 = mergeDocs({ ...emptyDoc(), contacts: { a: c("a", 1) } }, { ...emptyDoc(), contacts: { b: c("b", 1) } });
 ok(!!m3.contacts.a && !!m3.contacts.b, "Verschiedene ids ueberleben beide Seiten");
 
-// --- Integration: zwei Geraete, echtes Relay ---
+// --- Integration: two devices, real relay ---
 const base = process.env.RELAY || "http://127.0.0.1:8443";
-// Selbst-provisioniertes Einweg-Konto: der e2e-home/bernd-Key passt seit dem
-// Browser-Signup (17.11.) nicht mehr zum Prod-bernd.
+// Self-provisioned throwaway account: since the browser signup (17.11.) the
+// e2e-home/bernd key no longer matches prod-bernd.
 const priv = newPrivKey();
 const acct = "cts" + Date.now().toString(36);
 const cr = await fetch(base + "/v1/account", { method: "POST", headers: { "Content-Type": "application/json" },

@@ -1,6 +1,6 @@
-// connector.ts — Headless Service-Connector (Etappe I, CONCEPT §28/§29).
-// DOM-frei: Dienste pollen ihre Inbox und senden Briefe über denselben
-// crypto/send-Pfad wie die PWA. Optionaler Webhook-Push pro neuer Mail.
+// connector.ts — headless service connector (Etappe I, CONCEPT §28/§29).
+// DOM-free: services poll their inbox and send letters over the same
+// crypto/send path as the PWA. Optional webhook push per new mail.
 import { authSign, pubFromPriv, toHex, fromB64, decodeEnvelope, decryptPayload, TAG } from './crypto';
 import { composeAndSend } from './send';
 
@@ -46,8 +46,8 @@ export class ServiceConnector {
     return this.token;
   }
 
-  // Holt alles nach lastSeq, entschlüsselt, rückt lastSeq vor und pusht optional
-  // jede Mail an den Webhook. Ein toter Webhook darf Mails nicht verschlucken.
+  // Fetches everything after lastSeq, decrypts, advances lastSeq and optionally
+  // pushes each mail to the webhook. A dead webhook must not swallow mails.
   async pollOnce(): Promise<IncomingMail[]> {
     if (!this.token) await this.login();
     const r = await fetch(`${this.relayUrl}/v1/inbox?after=${this.lastSeq}`, { headers: this.authHeaders() });
@@ -74,7 +74,7 @@ export class ServiceConnector {
       if (this.webhookUrl) {
         await fetch(this.webhookUrl, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mail),
-        }).catch(() => { /* Webhook ist Komfort — Polling läuft weiter */ });
+        }).catch(() => { /* webhook is a convenience — polling keeps going */ });
       }
     }
     return out;

@@ -9,7 +9,7 @@ postage:
   foreign_sats: 10
   contact_sats: 0
   min_sats: 1
-  # Etappe 7 (§22): Byte-Porto — 10 mEUR/MiB = 1 ct pro MiB (Vorschlag, Bernd kann vetieren)
+  # Etappe 7 (§22): byte postage — 10 mEUR/MiB = 1 ct per MiB (proposal, Bernd can veto)
   byte_porto_meur_per_mb: 10
 peers:
   - name: beta
@@ -26,19 +26,19 @@ webauthn:
     - "https://lightningmail.app"
     - "https://bmail.192-168-177-77.sslip.io:5173"
 
-# Kurs-Feed (§25/§22) — Tageskurs fuer Steuerstempel und Byte-Porto,
-# plus 429-Budget fuer anonyme Key-Lookups.
-# Regtest-Betrieb: manueller Testkurs (rate_src="manual", Testdaten-Kennzeichnung
-# gemaess §25). Mainnet: manual_eur_per_btc loeschen, rate_url setzen (Tageskurs,
-# z.B. https://api.binance.com/api/v3/ticker/price?symbol=BTCEUR).
+# Rate feed (§25/§22) — daily rate for tax stamps and byte postage,
+# plus the 429 budget for anonymous key lookups.
+# Regtest operation: manual test rate (rate_src="manual", test-data marking
+# per §25). Mainnet: delete manual_eur_per_btc, set rate_url (daily rate,
+# e.g. https://api.binance.com/api/v3/ticker/price?symbol=BTCEUR).
 rates:
   manual_eur_per_btc: 50000
   public_rpm: 30
 
-# IdP (§21/§29): "Sign in with lightningmail" — OIDC Authorization-Code + PKCE.
-# ES256-IdP-Schluessel wird erzeugt: data_dir/idp_es256.pem (600) — NIEMALS
-# loeschen, sonst bricht das Vertrauen aller angebundenen Dienste.
-# Foederations-Beweis = BIP340-Sig des Mailbox-Keys (bmail-Claim im ID-Token).
+# IdP (§21/§29): "Sign in with lightningmail" — OIDC authorization code + PKCE.
+# ES256 IdP key is generated: data_dir/idp_es256.pem (600) — NEVER
+# delete it, or the trust of all connected services breaks.
+# Federation proof = BIP340 sig of the mailbox key (bmail claim in the ID token).
 oidc:
   issuer: "https://relay-a.lightningmail.app"
   login_page: "https://lightningmail.app/app/"

@@ -1,4 +1,4 @@
-// G2 (§25): Hash-Ketten-Statement — Konto- und Betreiber-Sicht.
+// G2 (§25): hash-chain statement — account and operator views.
 package ledger
 
 import (
@@ -27,7 +27,7 @@ func TestStatementChainKonto(t *testing.T) {
 	l := openTestLedger(t)
 	mustAccount(t, l, "s1", 0)
 	rate := &RateStamp{MEurPerBtc: 50_000_000, Ts: 1760000000, Src: "manual"}
-	if err := l.ApplyDelta("s1", 1_000_000, KindTopup, "seed"); err != nil { // ungeratet
+	if err := l.ApplyDelta("s1", 1_000_000, KindTopup, "seed"); err != nil { // unrated
 		t.Fatal(err)
 	}
 	if err := l.ApplyDeltaMeta("s1", 50_000, KindPostageIn, "msg1", "btc", rate); err != nil {
@@ -37,7 +37,7 @@ func TestStatementChainKonto(t *testing.T) {
 	if err != nil || len(rows) != 2 {
 		t.Fatalf("rows=%d err=%v", len(rows), err)
 	}
-	// Genesis + Verkettung muss exakt der Doku-Formel folgen
+	// genesis + chaining must follow the doc formula exactly
 	if rows[0].PrevHash != GenesisHash("s1") {
 		t.Fatal("erste Zeile haengt nicht am Genesis")
 	}
@@ -50,14 +50,14 @@ func TestStatementChainKonto(t *testing.T) {
 	if head != rows[1].Hash {
 		t.Fatal("head != letzter Hash")
 	}
-	// Zeile 1 ungeratet (NULL bleibt NULL → Canon ""), Zeile 2 gestempelt
+	// row 1 unrated (NULL stays NULL → canon ""), row 2 stamped
 	if rows[0].EurMicro != nil || rows[0].RateSrc != nil {
 		t.Fatalf("ungeratete Zeile hat Stempel: %+v", rows[0])
 	}
 	if rows[1].EurMicro == nil || *rows[1].EurMicro != 25_000 || *rows[1].RateSrc != "manual" {
 		t.Fatalf("Stempel falsch: %+v", rows[1])
 	}
-	// from filtert NUR die Ausgabe — Kopf bleibt derselbe (Kette laeuft durch)
+	// from filters ONLY the output — head stays the same (chain runs through)
 	rows2, head2, err := l.StatementChain("s1", rows[1].CreatedAt+1, 0)
 	if err != nil || len(rows2) != 0 || head2 != head {
 		t.Fatalf("from-Filter: rows=%d head-gleich=%v err=%v", len(rows2), head2 == head, err)
@@ -68,7 +68,7 @@ func TestOperatorChain(t *testing.T) {
 	l := openTestLedger(t)
 	mustAccount(t, l, "buyer", 500_000)
 	rate := &RateStamp{MEurPerBtc: 50_000_000, Ts: 1760000000, Src: "manual"}
-	// Byte-Porto (fee, negativ beim Nutzer) + Refund
+	// byte postage (fee, negative for the user) + refund
 	if err := l.ApplyDeltaMeta("buyer", -20_000, KindFee, "blob:abc", "btc", rate); err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestOperatorChain(t *testing.T) {
 	if rf := byLabel["refund"]; rf.AmountMsat != -5_000 {
 		t.Fatalf("refund muss negativ sein (Betreiber zahlt zurueck): %+v", rf)
 	}
-	// Kette + Determinismus
+	// chain + determinism
 	prev := OperatorGenesisHash("relaytest")
 	for _, r := range rows {
 		if r.PrevHash != prev || r.Hash != shaHex(prev+r.CanonRow()) {
@@ -108,7 +108,7 @@ func TestOperatorChain(t *testing.T) {
 
 func TestRateStampEurMicro(t *testing.T) {
 	r := &RateStamp{MEurPerBtc: 50_000_000} // 50k EUR/BTC
-	// 100 sat = 1e-6 BTC = 0,05 EUR = 50000 µEUR
+	// 100 sat = 1e-6 BTC = 0.05 EUR = 50000 µEUR
 	if got := r.EurMicro(100_000); got != 50_000 {
 		t.Fatalf("EurMicro(100sat) = %d, want 50000", got)
 	}

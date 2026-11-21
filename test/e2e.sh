@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# bmail Etappe 4a -- E2E: Portomail + 1-MB-Attachment + Replay + Blob-ACL +
-# Persistent-Sessions + Quota.
+# bmail Etappe 4a -- E2E: postage mail + 1-MB attachment + replay + blob ACL +
+# persistent sessions + quota.
 set -euo pipefail
 reap() {
   pkill -f "cmd/relayd" 2>/dev/null || true
@@ -45,7 +45,7 @@ cd relay && go build -o /dev/null ./... && cd "$REPO"
 # 3. Clean state
 rm -rf /tmp/bmail-alpha /tmp/bmail-beta "$HOME_B"
 mkdir -p "$HOME_B"
-# Prod-Configs zeigen nach /var/lib/bmail — e2e laeuft auf abgeleiteten /tmp-Configs
+# Prod configs point to /var/lib/bmail — e2e runs on derived /tmp configs
 sed "s|data_dir: /var/lib/bmail/|data_dir: /tmp/bmail-|" "$REPO/relay-alpha.yaml" > /tmp/relay-alpha-e2e.yaml
 sed "s|data_dir: /var/lib/bmail/|data_dir: /tmp/bmail-|" "$REPO/relay-beta.yaml" > /tmp/relay-beta-e2e.yaml
 
@@ -91,7 +91,7 @@ db.commit()
 db.close()
 " || fail "fund bernd"
 
-# -- A: Basic Portomail + Balance-Assertions --
+# -- A: Basic postage mail + balance assertions --
 BAL=$(run_lmcli "$HOME_B/bernd" bernd "$RELAY_ALPHA" balance)
 echo "$BAL" | grep -q '"balance_msat":100000000000' || fail "bernd start balance: $BAL"
 note "Balance start: 100000000000 msat OK"
@@ -120,7 +120,7 @@ echo "$BAL" | grep -q '"balance_msat":10000' || fail "gisela credit: $BAL"
 note "Balance gisela: 10000 msat credit OK"
 note "PASS A: Portomail + Balances"
 
-# -- B: 1-MB-Attachment-Roundtrip --
+# -- B: 1-MB attachment roundtrip --
 note "Creating 1 MB test blob..."
 dd if=/dev/urandom of=/tmp/e2e-blob.bin bs=1024 count=1024 2>/dev/null
 BLOB_SHA=$(sha256sum /tmp/e2e-blob.bin | awk '{print $1}')
@@ -150,7 +150,7 @@ DOWNLOAD_SHA=$(sha256sum /tmp/e2e-blob-dl.bin | awk '{print $1}')
 [ "$(stat -c%s /tmp/e2e-blob-dl.bin)" -eq 1048576 ] || fail "blob size mismatch"
 note "PASS B: 1-MB attachment roundtrip OK"
 
-# -- C: Replay-Ablehnung --
+# -- C: Replay rejection --
 note "Testing replay rejection..."
 
 ENV_HEX=$(python3 -c "

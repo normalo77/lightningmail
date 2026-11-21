@@ -1,5 +1,5 @@
-// tip-test.mts — §30.4 Satoshis-Beilage: Cross-Relay-Keysend, Lokalzustellung, Deckel.
-// Beweist msat-exakt: Empfaenger-Inbox zeigt received_sats = Porto + Beilage (real, faelschungssicher).
+// tip-test.mts — §30.4 satoshis enclosure: cross-relay keysend, local delivery, cap.
+// Proves msat-exact: the recipient inbox shows received_sats = postage + enclosure (real, forgery-proof).
 import { newPrivKey, pubFromPriv, authSign, toHex } from "../src/crypto";
 import { composeAndSend } from "../src/send";
 import { execFileSync } from "node:child_process";
@@ -35,7 +35,7 @@ const getJSON = async (url: string, t: string) => {
 const b64ToHex = (s: string) => Buffer.from(s, "base64").toString("hex");
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Auf beta eintreffende Nachricht (Poll, Keysend-Settle ~1s) -> received_sats
+// Message arriving at beta (poll, keysend settle ~1s) -> received_sats
 async function recvSatsAt(base: string, tok: string, msgId: string): Promise<number | undefined> {
   for (let i = 0; i < 15; i++) {
     const ib = await getJSON(base + "/v1/inbox", tok);
@@ -53,13 +53,13 @@ topUp(dbA, sender.name, 5_000_000);
 
 const foreign = (await getJSON(`${B}/v1/profile/${recip.name}`, "")).foreign_sats ?? 10;
 
-// 1) Grundfall OHNE Beilage: received_sats == reines Porto
+// 1) Base case WITHOUT enclosure: received_sats == pure postage
 const bal0 = (await getJSON(A + "/v1/balance", sender.token)).balance_msat;
 const s1 = await composeAndSend(A, sender.token, sender.priv, { to: recip.name + "@beta", subject: "ohne Beilage", body: "nur porto" });
 const r1 = await recvSatsAt(B, recip.token, s1.msg_id);
 ok(r1 === foreign, `ohne Beilage: received_sats == Porto (${r1})`);
 
-// 2) Beilage 500 ueber Cross-Relay-Keysend
+// 2) Enclosure 500 via cross-relay keysend
 const s2 = await composeAndSend(A, sender.token, sender.priv, { to: recip.name + "@beta", subject: "mit Beilage", body: "porto + 500", tipSats: 500 });
 ok((s2 as any).tip_sats === 500, "send-Antwort liefert tip_sats=500");
 const r2 = await recvSatsAt(B, recip.token, s2.msg_id);
@@ -67,18 +67,18 @@ ok(r2 === foreign + 500, `Beilage kommt an: received_sats == ${foreign}+500 (${r
 const bal2 = (await getJSON(A + "/v1/balance", sender.token)).balance_msat;
 ok(bal0 - bal2 === (foreign + foreign + 500) * 1000, `Absender-Buchung msat-exakt Porto+Beilage (delta ${(bal0 - bal2) / 1000} sats)`);
 
-// 3) Lokalzustellung mit Beilage (?to=name@eigenes-Relay)
+// 3) Local delivery with enclosure (?to=name@own-relay)
 const s3 = await composeAndSend(A, sender.token, sender.priv, { to: local2.name + "@alpha", subject: "lokal+beilage", body: "200 drauf", tipSats: 200 });
 const r3 = await recvSatsAt(A, local2.token, s3.msg_id);
 ok(r3 === foreign + 200, `Lokale Zustellung: received_sats == ${foreign}+200 (${r3})`);
 
-// 4) Harter Deckel am Relay (Trust-Boundary, nicht nur UI): >5.000 -> 400
+// 4) Hard cap at the relay (trust boundary, not just UI): >5,000 -> 400
 let capped = false;
 try {
   await composeAndSend(A, sender.token, sender.priv, { to: recip.name + "@beta", subject: "zu viel", body: "x", tipSats: 6000 });
 } catch (e: any) { capped = / 400 /.test(String(e?.message || e)); }
 ok(capped, "tip_sats=6000 wird vom Relay mit 400 abgewiesen");
 
-// 5) Balance-Gutschrift beim Empfaenger enthaelt die Beilage
+// 5) The recipient's balance credit includes the enclosure
 const rb = (await getJSON(B + "/v1/balance", recip.token)).balance_msat;
 ok(rb >= (foreign + 500) * 1000, `Empfaenger-Balance enthaelt Porto+Beilage-Gutschriften (${Math.floor(rb / 1000)} sats)`);

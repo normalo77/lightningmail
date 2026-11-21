@@ -1,5 +1,5 @@
-// Etappe J1 (Drive): kind-Promotion stickig, Sweep verschont drive-shas,
-// RemoveDriveRef-Zaehlung, AddQuotaBytes.
+// Etappe J1 (Drive): kind promotion is sticky, sweep spares drive shas,
+// RemoveDriveRef counting, AddQuotaBytes.
 package ledger
 
 import (
@@ -38,7 +38,7 @@ func TestDrivePromotionSticky(t *testing.T) {
 	if k := refKind(t, l, a.ID, sha); k != "mail" {
 		t.Fatalf("kind nach mail-Upload: %s", k)
 	}
-	// Promotion mail→drive: Zeile existiert schon (fresh=false), kind kippt.
+	// promotion mail→drive: row already exists (fresh=false), kind flips.
 	fresh, err = l.RegisterBlobRef(a.ID, sha, 100, "drive")
 	if err != nil || fresh {
 		t.Fatalf("promotion: fresh=%v err=%v", fresh, err)
@@ -46,7 +46,7 @@ func TestDrivePromotionSticky(t *testing.T) {
 	if k := refKind(t, l, a.ID, sha); k != "drive" {
 		t.Fatalf("kind nach promotion: %s, want drive", k)
 	}
-	// drive→mail darf NICHT zuruecksetzen (stickig).
+	// drive→mail must NOT reset it (sticky).
 	if _, err = l.RegisterBlobRef(a.ID, sha, 100, "mail"); err != nil {
 		t.Fatal(err)
 	}
@@ -76,11 +76,11 @@ func TestDriveSweepSpared(t *testing.T) {
 	}
 	now := int64(1_000_000_000)
 	day := int64(86400)
-	// Alle laengst faellig (geladen +10d, grace 7d) — nur kind entscheidet:
+	// all long overdue (uploaded +10d, grace 7d) — only kind decides:
 	shaMail := mk(0xA1, a.ID, now-20*day, now-10*day, "mail")
 	shaMix := mk(0xB2, a.ID, now-20*day, now-10*day, "mail")
-	mk(0xB2, b.ID, now-20*day, now-10*day, "drive")               // Mischfall: eine drive-Ref reicht
-	shaDrive := mk(0xC3, a.ID, now-200*day, now-150*day, "drive") // sogar ueber maxAge
+	mk(0xB2, b.ID, now-20*day, now-10*day, "drive")               // mixed case: one drive ref is enough
+	shaDrive := mk(0xC3, a.ID, now-200*day, now-150*day, "drive") // even beyond maxAge
 
 	victims, err := l.RetentionSweep(now, 7*day, 90*day)
 	if err != nil {
@@ -116,11 +116,11 @@ func TestRemoveDriveRef(t *testing.T) {
 	if _, err := l.RegisterBlobRef(b.ID, sha, 100, "mail"); err != nil {
 		t.Fatal(err)
 	}
-	// bob haelt nur eine mail-Ref → kein drive-Zugriff
+	// bob holds only a mail ref → no drive access
 	if own, err := l.HasDriveRef(b.ID, sha); err != nil || own {
 		t.Fatalf("HasDriveRef(bob, mail-ref)=%v err=%v", own, err)
 	}
-	// alice released: bobs mail-Ref bleibt stehen → remaining 1
+	// alice released: bob's mail ref stays → remaining 1
 	rem, err := l.RemoveDriveRef(a.ID, sha)
 	if err != nil || rem != 1 {
 		t.Fatalf("remaining=%d err=%v, want 1", rem, err)
@@ -128,11 +128,11 @@ func TestRemoveDriveRef(t *testing.T) {
 	if own, _ := l.HasDriveRef(a.ID, sha); own {
 		t.Error("drive-Ref von alice muesste weg sein")
 	}
-	// kein drive-Zweig zweimal: DELETE ist No-op, remaining unveraendet
+	// no drive branch twice: DELETE is a no-op, remaining unchanged
 	if rem, err = l.RemoveDriveRef(a.ID, sha); err != nil || rem != 1 {
 		t.Fatalf("repeat: remaining=%d err=%v", rem, err)
 	}
-	// letzte Ref überhaupt → remaining 0
+	// last ref overall → remaining 0
 	sha2 := driveSha(0xE5)
 	if _, err := l.RegisterBlobRef(a.ID, sha2, 50, "drive"); err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func TestAddQuotaBytes(t *testing.T) {
 	if err := l.AddQuotaBytes("nobody", 1); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("unbekanntes Konto: %v, want ErrNotFound", err)
 	}
-	// Usage-Spielraum: 900 von 1000 belegt → +200 passt nicht; Quota rauf → passt.
+	// usage headroom: 900 of 1000 used → +200 doesn't fit; raise quota → fits.
 	sha := driveSha(0xF6)
 	if _, err := l.RegisterBlobRef(a.ID, sha, 900, "drive"); err != nil {
 		t.Fatal(err)

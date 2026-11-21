@@ -1,21 +1,21 @@
-// OIDC-IdP (Etappe "IdP", CONCEPT §21/§29): „Sign in with lightningmail".
+// OIDC IdP (Etappe "IdP", CONCEPT §21/§29): "Sign in with lightningmail".
 //
-// Authorization-Code-Flow + PKCE (S256 Pflicht, public clients — kein Secret,
-// kein DCR, kein refresh_token: shortcuts v0.1, Upgrade-Pfad: RFC 7591 +
-// offline_access, wenn echte Dienste andocken).
+// Authorization code flow + PKCE (S256 mandatory, public clients — no secret,
+// no DCR, no refresh_token: shortcuts v0.1, upgrade path: RFC 7591 +
+// offline_access once real services connect).
 //
-// Zwei getrennte Krypto-Welten (§21, bewusst):
-//   - IdP-Signaturschluessel: ES256/P-256 (Industrie-Standard, in jeder
-//     OIDC-Bibliothek), generiert + gespeichert in data_dir/idp_es256.pem.
-//   - Foederations-Beweis: BIP340-Signatur des MAILBOX-Keys (secp256k1) ueber
-//     eine Server-Challenge, entsteht im Browser (E2E: Relay sieht den
-//     privaten Mailbox-Key nie). Landet als bmail-Claim im ID-Token; Dienste
-//     verifizieren Signatur + Pubkey-Bindung via Directory (§4.2 Ebene 3).
+// Two separate crypto worlds (§21, deliberately):
+//   - IdP signing key: ES256/P-256 (industry standard, in every
+//     OIDC library), generated + stored in data_dir/idp_es256.pem.
+//   - Federation proof: BIP340 signature of the MAILBOX key (secp256k1) over
+//     a server challenge, created in the browser (E2E: the relay never sees
+//     the private mailbox key). Lands as bmail claim in the ID token; services
+//     verify signature + pubkey binding via the directory (§4.2 level 3).
 //
-// Login laeuft ueber die PWA im OIDC-Modus (?oidc=&sid=): bestehende
-// Login-Mechanik (Passkey-PRF/Datei/Auto-Login) → Bearer-Token →
-// /oidc/auth/login liefert Challenge → Browser signiert → /oidc/auth/sign →
-// Redirect mit code. CORS fuer die PWA-Origin(s) = webauthn.origins.
+// Login runs through the PWA in OIDC mode (?oidc=&sid=): existing
+// login mechanics (passkey PRF/file/auto-login) → bearer token →
+// /oidc/auth/login returns challenge → browser signs → /oidc/auth/sign →
+// redirect with code. CORS for the PWA origin(s) = webauthn.origins.
 package relaysrv
 
 import (
@@ -50,8 +50,8 @@ const (
 	oidcTokenTTL   = time.Hour
 )
 
-// --- Session-/Code-/Token-Stores (In-Memory, single-process — wie waSessions;
-// shortcut: bei Multi-Instanz-Relay externalisieren) ---
+// --- Session/code/token stores (in-memory, single process — like waSessions;
+// shortcut: externalize for multi-instance relays) ---
 
 type oidcSession struct {
 	clientID      string
@@ -60,13 +60,13 @@ type oidcSession struct {
 	state         string
 	nonce         string
 	codeChallenge string
-	account       string // nach /oidc/auth/login
-	challenge     []byte // nach /oidc/auth/login
-	sig           string // nach /oidc/auth/sign
+	account       string // after /oidc/auth/login
+	challenge     []byte // after /oidc/auth/login
+	sig           string // after /oidc/auth/sign
 	expires       time.Time
 	done          bool
-	// Mikro-Paywall (OIDC Micropayment): RP verlangt pay_sats fuer pay_item,
-	// Zahlung geht an pay_to (nur bei lokalem Konto), abgebucht bei sign.
+	// Micro-paywall (OIDC micropayment): RP demands pay_sats for pay_item,
+	// payment goes to pay_to (local accounts only), debited at sign.
 	paySats int64
 	payTo   string
 	payItem string
@@ -107,7 +107,7 @@ func newOIDCState(dataDir string) *oidcState {
 	}
 }
 
-// ensureKey laedt oder erzeugt den IdP-ES256-Schluessel (lazy, einmal).
+// ensureKey loads or generates the IdP ES256 key (lazy, once).
 func (o *oidcState) ensureKey() error {
 	if o.key != nil {
 		return nil
@@ -159,7 +159,7 @@ func randHex(n int) string {
 
 func b64u(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
 
-// --- JWT (ES256, handgebaut: Header.Payload.r||s — JWS-konform 32+32 Byte) ---
+// --- JWT (ES256, hand-rolled: Header.Payload.r||s — JWS-conformant 32+32 bytes) ---
 
 func (o *oidcState) signJWT(claims map[string]any) (string, error) {
 	if err := o.ensureKey(); err != nil {
@@ -193,7 +193,7 @@ func pkceOK(verifier, challenge string) bool {
 	return base64.RawURLEncoding.EncodeToString(h[:]) == challenge
 }
 
-// --- Konfig-Helfer ---
+// --- config helpers ---
 
 func (s *Server) oidcIssuer() string { return strings.TrimSuffix(s.cfg.Oidc.Issuer, "/") }
 
@@ -203,10 +203,10 @@ func (s *Server) oidcClient(id, redirectURI string) *config.OidcClient {
 			return &s.cfg.Oidc.Clients[i]
 		}
 	}
-	// Stateless Public Client (Web-Föderation ohne Vorab-Registrierung):
-	// Wenn client_id eine https-URL (oder http auf localhost/127.0.0.1) ist
-	// und redirect_uri exakt dieselbe Origin (Scheme + Host) besitzt, wird
-	// der Dienst dynamisch zugelassen; im Consent-Screen erscheint der Hostname.
+	// Stateless public client (web federation without pre-registration):
+	// when client_id is an https URL (or http on localhost/127.0.0.1)
+	// and redirect_uri has exactly the same origin (scheme + host), the
+	// service is admitted dynamically; the consent screen shows the hostname.
 	cu, err1 := url.Parse(id)
 	ru, err2 := url.Parse(redirectURI)
 	if err1 != nil || err2 != nil || cu.Host == "" || ru.Host == "" {
@@ -236,8 +236,8 @@ func (s *Server) oidcDomain() string {
 	return "localhost"
 }
 
-// oidcCORS: PWA-Origin(s) aus webauthn.origins; OPTIONS wird beantwortet.
-// Rueckgabe true = Request war erledigt (Preflight).
+// oidcCORS: PWA origin(s) from webauthn.origins; OPTIONS is answered.
+// Returning true = the request was handled (preflight).
 func (s *Server) oidcCORS(w http.ResponseWriter, r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	for _, o := range s.cfg.WebAuthn.Origins {
@@ -262,7 +262,7 @@ func oidcJSON(w http.ResponseWriter, status int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-// --- Router (unter /oidc/) ---
+// --- router (under /oidc/) ---
 
 func (s *Server) handleOIDCRouter(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.Oidc.Issuer == "" {
@@ -388,7 +388,7 @@ func (s *Server) oidcAuth(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	st := s.oidc
 	st.mu.Lock()
-	for k, v := range st.sess { // opportunistische TTL-Pflege
+	for k, v := range st.sess { // opportunistic TTL maintenance
 		if v.expires.Before(now) {
 			delete(st.sess, k)
 		}
@@ -418,7 +418,7 @@ func (s *Server) oidcSessionGet(sid string) *oidcSession {
 	return sess
 }
 
-// --- POST /oidc/auth/login (Bearer aus normalem Relay-Login) ---
+// --- POST /oidc/auth/login (bearer from the normal relay login) ---
 
 func (s *Server) oidcAuthLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -440,8 +440,8 @@ func (s *Server) oidcAuthLogin(w http.ResponseWriter, r *http.Request) {
 		oidcJSON(w, 401, map[string]any{"error": "unauthorized — bitte beim richtigen Relay anmelden"})
 		return
 	}
-	// Challenge: frische 32 Zufallsbytes. Client signiert BIP340 ueber
-	// sha256(challenge) — exakt das Verify(pub, challenge, sig)-Muster.
+	// Challenge: fresh 32 random bytes. Client signs BIP340 over
+	// sha256(challenge) — exactly the Verify(pub, challenge, sig) pattern.
 	challenge := make([]byte, 32)
 	rand.Read(challenge)
 	st := s.oidc
@@ -464,7 +464,7 @@ func (s *Server) oidcAuthLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- POST /oidc/auth/sign (BIP340 des Mailbox-Keys) ---
+// --- POST /oidc/auth/sign (BIP340 of the mailbox key) ---
 
 func (s *Server) oidcAuthSign(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -516,7 +516,7 @@ func (s *Server) oidcAuthSign(w http.ResponseWriter, r *http.Request) {
 		oidcJSON(w, 403, map[string]any{"error": "Mailbox-Key-Signatur ungueltig"})
 		return
 	}
-	// Mikro-Paywall: erst nach gueltiger Signatur kassieren (Consent gedeckt).
+	// Micro-paywall: charge only after a valid signature (consent covered).
 	if sess.paySats > 0 {
 		payMsat := sess.paySats * 1000
 		if err := s.ledger.ApplyDeltaMeta(sess.account, -payMsat, ledger.KindPostageOut, "oidc-pay:"+sess.payItem, "btc", s.ratePtr()); err != nil {
@@ -563,7 +563,7 @@ func (s *Server) oidcToken(w http.ResponseWriter, r *http.Request) {
 	st.mu.Lock()
 	ce, ok := st.codes[codeStr]
 	if ok {
-		delete(st.codes, codeStr) // single-use, auch bei Fehler
+		delete(st.codes, codeStr) // single-use, even on error
 	}
 	st.mu.Unlock()
 	if !ok || ce.expires.Before(time.Now()) || ce.used {

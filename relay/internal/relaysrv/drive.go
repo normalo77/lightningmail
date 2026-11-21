@@ -1,7 +1,7 @@
-// Etappe J1 — Drive: persoenlicher Dauerspeicher. Uploads laufen ueber
-// POST /v1/blob?kind=drive (handleBlobUpload, relaysrv.go); hier liegen
-// Release (DELETE /v1/blob), Usage und Tier-Kauf. Geldfluss wie byteporto:
-// erst kassieren, dann liefern; Infrastruktur-Fehler refunden (kind='fee').
+// Etappe J1 — Drive: personal persistent storage. Uploads go through
+// POST /v1/blob?kind=drive (handleBlobUpload, relaysrv.go); here live
+// release (DELETE /v1/blob), usage and tier purchase. Money flow like byteporto:
+// charge first, then deliver; refund infrastructure errors (kind='fee').
 package relaysrv
 
 import (
@@ -16,9 +16,9 @@ import (
 	"github.com/lightningmail/relay/internal/ledger"
 )
 
-// handleDriveRelease — DELETE /v1/blob {"sha":"<hex64>"}: loescht die eigene
-// drive-Ref. Die Datei faellt erst, wenn fuer den sha ueberhaupt keine Refs
-// mehr existieren (andere Konten halten eigene Zeilen → remaining>0).
+// handleDriveRelease — DELETE /v1/blob {"sha":"<hex64>"}: deletes the own
+// drive ref. The file only falls when no refs at all remain for the sha
+// (other accounts hold their own rows → remaining>0).
 func (s *Server) handleDriveRelease(w http.ResponseWriter, r *http.Request) {
 	account := r.Header.Get("X-Bmail-Account")
 	var req struct {
@@ -64,7 +64,7 @@ func (s *Server) handleDriveRelease(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"released": true, "remaining_refs": remaining})
 }
 
-// handleDriveUsage — GET /v1/drive/usage: Quota, Belegung und Tier-Angebot.
+// handleDriveUsage — GET /v1/drive/usage: quota, usage and tier offer.
 func (s *Server) handleDriveUsage(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, `{"error":"method not allowed"}`, 405)
@@ -93,9 +93,9 @@ func (s *Server) handleDriveUsage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleDriveBuy — POST /v1/drive/buy {"tier":<index>}: Tierpreis in sats
-// als KindFee buchen (ref 'drive-tier:<gb>GB'), dann Quota erhoehen. Bricht
-// die Quota-Erweiterung ab, Geld per Gegenbuchung zurueck ('refund:…').
+// handleDriveBuy — POST /v1/drive/buy {"tier":<index>}: book the tier price
+// in sats as KindFee (ref 'drive-tier:<gb>GB'), then raise the quota. If the
+// quota extension fails, money returns via a counter-booking ('refund:…').
 func (s *Server) handleDriveBuy(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, `{"error":"method not allowed"}`, 405)

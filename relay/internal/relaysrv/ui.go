@@ -1,8 +1,8 @@
-// registerUI (Etappe O, Selbstbau): mit gesetztem ui_dir serviert relayd die
-// gebaute PWA unter /app/ — Selbstbauer oeffnen https://<domain>/app/ und
-// haben API und UI same-origin auf dem eigenen Relay (kein CORS, kein
-// Zweit-Webserver). Leer = UI wird nicht serviert (Hosting-Fall, dort
-// uebernimmt das Site-Frontend).
+// registerUI (Etappe O, self-hosting): with ui_dir set, relayd serves the
+// built PWA under /app/ — self-hosters open https://<domain>/app/ and
+// get API and UI same-origin on their own relay (no CORS, no
+// second web server). Empty = UI not served (hosting case, there
+// the site frontend takes over).
 package relaysrv
 
 import (

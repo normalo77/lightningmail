@@ -1,8 +1,8 @@
-// Etappe 6b: Empfangsbestaetigungen ✓/✓✓ (CONCEPT §23).
-// Stempel-Punkt ist der Inbox-Abruf des Empfaengers (Client-Abruf, nicht
-// Relay-Ingest — das LN-Settle allein ist erst die ✓-Stufe). Mirror an die
-// Peers batchweise via X-Relay-Secret (Muster aus spec 6.4 Blob-Mirror);
-// Zuordnung zum Absender-Konto ueber sha256(sender_pub) = recipientHash.
+// Etappe 6b: delivery receipts ✓/✓✓ (CONCEPT §23).
+// The stamp point is the recipient's inbox fetch (client fetch, not
+// relay ingest — the LN settle alone is only the ✓ level). Mirror to the
+// peers in batches via X-Relay-Secret (pattern from spec 6.4 blob mirror);
+// mapping to the sender account via sha256(sender_pub) = recipientHash.
 package relaysrv
 
 import (
@@ -17,9 +17,9 @@ import (
 	"github.com/lightningmail/relay/internal/ledger"
 )
 
-// stampInboxFetch stempelt alle zurueckgegebenen Nachrichten als empfangen.
-// shortcut: Envelope-Decode pro Abruf auch fuer schon gestempelte Mails —
-// Tag-Parsing ist billig; bei Inbox-Polling-Last ggf. Seen-Spalte vorschieben.
+// stampInboxFetch stamps all returned messages as received.
+// shortcut: envelope decode per fetch even for already stamped mails —
+// tag parsing is cheap; if inbox polling load grows, add a seen column.
 func (s *Server) stampInboxFetch(accountID int64, msgs []ledger.Message) {
 	if len(msgs) == 0 {
 		return
@@ -48,12 +48,12 @@ func (s *Server) stampInboxFetch(accountID int64, msgs []ledger.Message) {
 	for _, f := range fresh {
 		outs = append(outs, ledger.ReceiptOut{ReceiptStamp: f, AccountID: accountID})
 	}
-	go s.mirrorReceipts(outs) // async, blockiert den Inbox-Abruf nicht
+	go s.mirrorReceipts(outs) // async, does not block the inbox fetch
 }
 
-// mirrorReceipts verteilt frische Stempel: lokal (gleicher Relay = Sender und
-// Empfaenger hier) direkt, sonst POST an alle Peers. Fehlversuche laesst der
-// 60s-Retry-Ticker nachholen (mirrored bleibt 0).
+// mirrorReceipts distributes fresh stamps: locally (same relay = sender and
+// recipient here) directly, else POST to all peers. Failures are retried by
+// the 60s retry ticker (mirrored stays 0).
 func (s *Server) mirrorReceipts(items []ledger.ReceiptOut) {
 	if len(items) == 0 {
 		return
@@ -102,7 +102,7 @@ func (s *Server) mirrorReceipts(items []ledger.ReceiptOut) {
 	}
 }
 
-// POST /v1/relay/receipt — Peer-Relay meldet abgeholte Nachrichten (spec 6.4-Muster).
+// POST /v1/relay/receipt — peer relay reports fetched messages (spec 6.4 pattern).
 func (s *Server) relayReceipt(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, `{"error":"method not allowed"}`, 405)
@@ -143,7 +143,7 @@ func (s *Server) relayReceipt(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]int{"stored": stored})
 }
 
-// GET /v1/receipts — ✓✓-Liste des eigenen Kontos (fuer den Gesendet-Ordner).
+// GET /v1/receipts — ✓✓ list of the own account (for the sent folder).
 func (s *Server) handleReceipts(w http.ResponseWriter, r *http.Request) {
 	acct, err := s.ledger.GetAccount(r.Header.Get("X-Bmail-Account"))
 	if err != nil {

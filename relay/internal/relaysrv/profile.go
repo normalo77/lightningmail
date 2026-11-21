@@ -1,6 +1,6 @@
-// Key- und Porto-Lookup (GET /v1/profile/{addr}, spec §7) mit 429-Budget
-// fuer anonyme Aufrufe. Kein oeffentliches Adressbuch, keine Profilkarten —
-// das Ziel-Relay liefert nur Pubkey und Portopreis fuer den Mailversand.
+// Key and postage lookup (GET /v1/profile/{addr}, spec §7) with a 429 budget
+// for anonymous calls. No public address book, no profile cards —
+// the target relay only returns pubkey and postage price for sending mail.
 package relaysrv
 
 import (
@@ -13,15 +13,15 @@ import (
 	"time"
 )
 
-// --- 429-Budget fuer anonyme Profile-Lookups (Existenz-Oracle bremsen) ---
+// --- 429 budget for anonymous profile lookups (slow down the existence oracle) ---
 
 type lbEntry struct {
 	tokens float64
 	last   time.Time
 }
 
-// shortcut: In-Memory + CF-Connecting-IP ist im LAN spoofbar — fuer ein
-// 429-Budget ok; harte Auth kommt mit mTLS/Onion (Etappe 5).
+// shortcut: in-memory + CF-Connecting-IP is spoofable on a LAN — fine for
+// a 429 budget; hard auth comes with mTLS/onion (Etappe 5).
 type pubLimit struct {
 	mu  sync.Mutex
 	b   map[string]*lbEntry
@@ -38,7 +38,7 @@ func (pl *pubLimit) allow(key string) bool {
 	}
 	pl.mu.Lock()
 	defer pl.mu.Unlock()
-	if len(pl.b) > 10000 { // Sweep gegen IP-Muell
+	if len(pl.b) > 10000 { // sweep against IP junk
 		cut := time.Now().Add(-time.Hour)
 		for k, e := range pl.b {
 			if e.last.Before(cut) {
@@ -65,7 +65,7 @@ func (pl *pubLimit) allow(key string) bool {
 }
 
 func clientIP(r *http.Request) string {
-	// Hinter dem Cloudflare-Tunnel ist RemoteAddr immer 127.0.0.1.
+	// Behind the Cloudflare tunnel RemoteAddr is always 127.0.0.1.
 	if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
 		return ip
 	}
@@ -87,7 +87,7 @@ func (s *Server) optAccount(r *http.Request) string {
 	return acct
 }
 
-// curOK — §26: Endpoints nehmen ?cur=; aktuell nur btc, keine Mischpfade.
+// curOK — §26: endpoints take ?cur=; currently only btc, no mixed paths.
 func curOK(w http.ResponseWriter, r *http.Request) bool {
 	if cur := r.URL.Query().Get("cur"); cur != "" && cur != "btc" {
 		http.Error(w, `{"error":"unsupported currency (btc only)"}`, 400)
@@ -106,7 +106,7 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	addr := strings.TrimPrefix(r.URL.Path, "/v1/profile/")
 	domain := ""
 	if i := strings.Index(addr, "@"); i >= 0 {
-		domain = strings.ToLower(addr[i+1:]) // §4.2: Domain → Relay-Discovery
+		domain = strings.ToLower(addr[i+1:]) // §4.2: domain → relay discovery
 		addr = addr[:i]
 	}
 	if addr == "" || strings.Contains(addr, "/") {
@@ -114,13 +114,13 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	acct, err := s.ledger.GetAccount(addr)
-	// Explizit fremde Domain (Peer aus Config) → auch bei lokalem Treffer fernabfragen.
+	// explicitly foreign domain (peer from config) → query remotely even on a local hit.
 	explicitRemote := domain != "" && !strings.EqualFold(domain, s.cfg.Name) && s.lookupPeer(domain) != nil
 	if err != nil || explicitRemote {
-		// Wenn lokal nicht gefunden (oder fremde Domain adressiert) und kein
-		// Peer-Loop (X-Relay-Hop): Ziel-Relay per DNS/Peer-Discovery abfragen
-		// (Föderations-Lookup §4.2), damit ein Nutzer auf Relay A auch Konten
-		// auf Relay B anschreiben kann. Fallback: alle Peers der Reihe nach.
+		// When not found locally (or a foreign domain is addressed) and no
+		// peer loop (X-Relay-Hop): query the target relay via DNS/peer discovery
+		// (federation lookup §4.2), so a user on relay A can also write to
+		// accounts on relay B. Fallback: all peers in order.
 		if r.Header.Get("X-Relay-Hop") == "" {
 			cl := &http.Client{Timeout: 5 * time.Second}
 			fetch := func(relayURL, relayName string) bool {

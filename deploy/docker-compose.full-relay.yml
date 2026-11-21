@@ -1,6 +1,6 @@
-# Full-Relay (CONCEPT §27, Etappe O): relayd + LND + eigener bitcoind
-# (Vollknoten ~700 GB Disk, maximale Unabhaengigkeit).
-# Setup: ./install-relay.sh --mode full --domain example.org   (schreibt auch .env)
+# Full relay (CONCEPT §27, Etappe O): relayd + LND + own bitcoind
+# (full node ~700 GB disk, maximum independence).
+# Setup: ./install-relay.sh --mode full --domain example.org   (also writes .env)
 # Start: docker compose -f docker-compose.full-relay.yml up -d
 name: bmail-full-relay
 
@@ -11,11 +11,11 @@ services:
     command:
       - --server=1
       - --txindex=1
-      - --blockfilterindex=1      # BIP157/158-Filter fuer LND
+      - --blockfilterindex=1      # BIP157/158 filters for LND
       - --peerblockfilters=1
       - --zmqpubrawblock=tcp://0.0.0.0:28332
       - --zmqpubrawtx=tcp://0.0.0.0:28333
-      # RPC nur im isolierten Compose-Netz; Credentials aus .env (install-relay.sh)
+      # RPC only in the isolated compose network; credentials from .env (install-relay.sh)
       - --rpcuser=${BITCOIN_RPC_USER:-bmail}
       - --rpcpassword=${BITCO…ASS}
       - --rpcbind=0.0.0.0
@@ -25,7 +25,7 @@ services:
 
   lnd:
     image: lightninglabs/lnd:v0.21.8-beta
-    hostname: lnd            # TLS-Cert-SAN muss zum lncli-Host "lnd" passen
+    hostname: lnd            # the TLS cert SAN must match the lncli host "lnd"
     restart: unless-stopped
     depends_on:
       - bitcoind
@@ -42,7 +42,7 @@ services:
       - --rpclisten=0.0.0.0:10009
       - --listen=0.0.0.0:9735
       - --tlsextraip=0.0.0.0
-      - --accept-keysend     # bmail-Porto kommt als Keysend-TLV (CONCEPT §12/§13)
+      - --accept-keysend     # bmail postage arrives as keysend TLV (CONCEPT §12/§13)
     volumes:
       - lnd-data:/root/.lnd
     ports:
@@ -62,7 +62,7 @@ services:
       - ./relay.yaml:/data/relay.yaml:ro
       - ./ui:/var/lib/bmail/ui:ro
     ports:
-      - "8443:8443"          # ACHTUNG: relayd spricht HTTP — TLS-Terminierung davor!
+      - "8443:8443"          # WARNING: relayd speaks HTTP — terminate TLS in front of it!
 
 volumes:
   bitcoin-data:

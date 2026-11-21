@@ -1,11 +1,11 @@
-// Etappe 7: Byte-Porto-Mathematik (§22) — wertdefiniert, aufgerundet, int64-sicher.
+// Etappe 7: byte-postage math (§22) — value-defined, rounded up, int64-safe.
 package relaysrv
 
 import "testing"
 
 func TestBytePortoMsat(t *testing.T) {
-	// Referenz: 1 ct = 0,01 EUR; Kurs 50.000 EUR/BTC = 5e7 mEUR/BTC
-	// → 1 ct kostet 0,01/50000 BTC = 2e-7 BTC = 20 sat = 20.000 msat.
+	// reference: 1 ct = 0.01 EUR; rate 50,000 EUR/BTC = 5e7 mEUR/BTC
+	// → 1 ct costs 0.01/50000 BTC = 2e-7 BTC = 20 sat = 20,000 msat.
 	cases := []struct {
 		size, bp, rate, want int64
 		what                 string
@@ -23,7 +23,7 @@ func TestBytePortoMsat(t *testing.T) {
 			t.Errorf("%s: BytePortoMsat(%d,%d,%d) = %d, want %d", c.what, c.size, c.bp, c.rate, got, c.want)
 		}
 	}
-	// Overflow-Wache: 100 MiB zu 100 ct/MiB (= 10 EUR) muss int64 bleiben
+	// overflow guard: 100 MiB at 100 ct/MiB (= 10 EUR) must stay int64
 	if got := BytePortoMsat(100*1024*1024, 100, 50_000_000); got != 20_000_000 { // 10 EUR = 2e4 sats
 		t.Errorf("100MiB@10ct: %d, want 20000000 msat", got)
 	}

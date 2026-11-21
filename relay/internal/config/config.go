@@ -27,22 +27,22 @@ type LND struct {
 	RPCHost      string `yaml:"rpc_host"`
 	TLSCertPath  string `yaml:"tls_cert_path"`
 	MacaroonPath string `yaml:"macaroon_path"`
-	// Network (Etappe O): regtest|testnet|signet|mainnet; leer = Auto-Detect
-	// aus dem Macaroon-Pfad (…/chain/bitcoin/<net>/…).
+	// Network (Etappe O): regtest|testnet|signet|mainnet; empty = auto-detect
+	// from the macaroon path (…/chain/bitcoin/<net>/…).
 	Network string `yaml:"network"`
 }
 
 type Postage struct {
 	ForeignSats int64 `yaml:"foreign_sats"`
 	ContactSats int64 `yaml:"contact_sats"`
-	// Willkommensporto fuer Erstkontakte (Envelope-Tag 0x0A signup);
-	// 0 = Default 3x foreign_sats (wird in ParseConfig gesetzt).
+	// Welcome postage for first contacts (envelope tag 0x0A signup);
+	// 0 = default 3x foreign_sats (set in ParseConfig).
 	WelcomeSats  int64 `yaml:"welcome_sats"`
 	MinSats      int64 `yaml:"min_sats"`
 	BlobMaxBytes int64 `yaml:"blob_max_bytes"`
-	// Etappe 7 (§22): Byte-Porto — Storage-Preis in Milli-EUR pro MiB beim
-	// Upload, wertdefiniert (§26) → msat per Tageskurs. 0 = aus (Default,
-	// Uploads gratis wie vor Etappe 7); einmal pro (Konto, Blob).
+	// Etappe 7 (§22): byte postage — storage price in milli-EUR per MiB at
+	// upload, value-defined (§26) → msat via daily rate. 0 = off (default,
+	// uploads free as before Etappe 7); charged once per (account, blob).
 	BytePortoMEurPerMB int64 `yaml:"byte_porto_meur_per_mb"`
 }
 
@@ -53,24 +53,24 @@ type Peer struct {
 	Token      string `yaml:"token"`
 }
 
-// Retention steuert die POP3-artige Aufbewahrung (CONCEPT 16):
-// GraceDays nach dem letzten Erstdownload ALLER Referenzen, MaxDays absolut.
-// -1 deaktiviert den jeweiligen Zweig.
+// Retention controls the POP3-style retention (CONCEPT 16):
+// GraceDays after the last first-download of ALL references, MaxDays absolute.
+// -1 disables the respective branch.
 type Retention struct {
 	GraceDays int `yaml:"grace_days"`
 	MaxDays   int `yaml:"max_days"`
 }
 
-// WebAuthn (Etappe 6, CONCEPT §21): Passkey-Login. RPID = Host der UI
-// (Domain oder IP), Origins = exakte UI-Origin(s) inkl. Schema+Port.
+// WebAuthn (Etappe 6, CONCEPT §21): passkey login. RPID = host of the UI
+// (domain or IP), Origins = exact UI origin(s) incl. scheme+port.
 type WebAuthn struct {
 	RPID    string   `yaml:"rp_id"`
 	RPName  string   `yaml:"rp_name"`
 	Origins []string `yaml:"origins"`
 }
 
-// Drive (Etappe J1): persoenlicher Dauerspeicher. QuotaMB = Start-Quota
-// neuer Konten, Tiers = kaufbare Pakete (GB gegen Sats per Byte-Porto-Kasse).
+// Drive (Etappe J1): personal persistent storage. QuotaMB = initial quota
+// for new accounts, Tiers = purchasable packages (GB for sats via the byte-postage pot).
 type DriveTier struct {
 	GB   int64 `yaml:"gb"`
 	Sats int64 `yaml:"sats"`
@@ -82,12 +82,12 @@ type Drive struct {
 	Tiers   []DriveTier `yaml:"tiers"`
 }
 
-const DefaultDriveQuotaMB = 5120 // 5 GiB Start-Quota pro Konto
+const DefaultDriveQuotaMB = 5120 // 5 GiB initial quota per account
 
-// Rates (§25/§26/§22): Tageskurs-Feed fuer Steuerstempel und Byte-Porto,
-// sowie 429-Budget fuer anonyme Key-Lookups. Kurs: manual_eur_per_btc > 0
-// gewinnt (Regtest, rate_src="manual"), sonst rate_url (24h-Cache); beides
-// leer = ungeratet.
+// Rates (§25/§26/§22): daily-rate feed for tax stamps and byte postage,
+// plus the 429 budget for anonymous key lookups. Rate: manual_eur_per_btc > 0
+// wins (regtest, rate_src="manual"), else rate_url (24h cache); both
+// empty = unrated.
 type Rates struct {
 	ManualEurPerBtc float64 `yaml:"manual_eur_per_btc"`
 	RateURL         string  `yaml:"rate_url"`
@@ -95,14 +95,14 @@ type Rates struct {
 }
 
 const (
-	DefaultPublicRPM = 30 // 429-Budget anonyme Profile/Key-Lookups pro IP
+	DefaultPublicRPM = 30 // 429 budget for anonymous profile/key lookups per IP
 )
 
-// Oidc (IdP, CONCEPT §21/§29): „Sign in with lightningmail".
-// Issuer leer = IdP aus (Endpoints 503). Clients statisch (public clients,
-// PKCE S256 Pflicht — kein Secret, kein DCR; shortcuts v0.1). Login laeuft
-// ueber die PWA (login_page) im OIDC-Modus; Foederations-Beweis = BIP340-Sig
-// des Mailbox-Keys als bmail-Claim im ID-Token.
+// Oidc (IdP, CONCEPT §21/§29): "Sign in with lightningmail".
+// Issuer empty = IdP off (endpoints 503). Clients are static (public clients,
+// PKCE S256 mandatory — no secret, no DCR; shortcuts v0.1). Login runs
+// through the PWA (login_page) in OIDC mode; federation proof = BIP340 sig
+// of the mailbox key as bmail claim in the ID token.
 type OidcClient struct {
 	ID           string   `yaml:"id"`
 	Name         string   `yaml:"name"`
@@ -111,8 +111,8 @@ type OidcClient struct {
 
 type Oidc struct {
 	Issuer        string       `yaml:"issuer"`
-	LoginPage     string       `yaml:"login_page"`     // absolute PWA-URL
-	AddressDomain string       `yaml:"address_domain"` // Default: Host des Issuers
+	LoginPage     string       `yaml:"login_page"`     // absolute PWA URL
+	AddressDomain string       `yaml:"address_domain"` // default: host of the issuer
 	Clients       []OidcClient `yaml:"clients"`
 }
 
@@ -129,11 +129,11 @@ type Config struct {
 	Drive       Drive     `yaml:"drive"`
 	Rates       Rates     `yaml:"rates"`
 	Oidc        Oidc      `yaml:"oidc"`
-	// UIDir (Etappe O, Selbstbau): Verzeichnis mit den gebauten PWA-Assets
-	// (client/app/dist). Setzt relayd die Web-Oberflaeche unter /app/ —
-	// Selbstbauer oeffnen dann https://<domain>/app/ und haben API + UI
-	// same-origin, ganz ohne CORS. Leer = UI wird nicht serviert (Hosting-
-	// Fall: dort uebernimmt das Site-Frontend das).
+	// UIDir (Etappe O, self-hosting): directory with the built PWA assets
+	// (client/app/dist). relayd then serves the web UI under /app/ —
+	// self-hosters open https://<domain>/app/ and get API + UI
+	// same-origin, with no CORS at all. Empty = UI is not served (hosting
+	// case: there the site frontend takes over).
 	UIDir string `yaml:"ui_dir"`
 }
 
@@ -157,7 +157,7 @@ func ParseConfig(data []byte) (*Config, error) {
 		c.Postage.BlobMaxBytes = DefaultBlobMaxBytes // the one explicit default
 	}
 	if c.Drive.QuotaMB == 0 {
-		c.Drive.QuotaMB = DefaultDriveQuotaMB // muss vor Validate stehen (quota_mb > 0)
+		c.Drive.QuotaMB = DefaultDriveQuotaMB // must run before Validate (quota_mb > 0)
 	}
 	if c.LND.Network == "" {
 		switch {

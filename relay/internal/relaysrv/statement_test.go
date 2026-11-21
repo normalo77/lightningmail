@@ -1,4 +1,4 @@
-// G2-Handler: /v1/statement (CSV/JSON, Kette) + /v1/relay/statement (Secret).
+// G2 handlers: /v1/statement (CSV/JSON, chain) + /v1/relay/statement (secret).
 package relaysrv
 
 import (
@@ -79,7 +79,7 @@ func TestStatementCSVAndChain(t *testing.T) {
 	if !strings.HasPrefix(recs[0][0], "# bmail-statement") {
 		t.Fatalf("Kopfkommentar fehlt: %v", recs[0])
 	}
-	// Kopfzeile + 2 Datenzeilen
+	// header row + 2 data rows
 	hdr := recs[2]
 	if hdr[0] != "id" || hdr[len(hdr)-1] != "hash" || hdr[len(hdr)-2] != "prev_hash" {
 		t.Fatalf("Header: %v", hdr)
@@ -87,7 +87,7 @@ func TestStatementCSVAndChain(t *testing.T) {
 	if len(recs) != 5 {
 		t.Fatalf("Zeilen: %d (%v)", len(recs), recs)
 	}
-	// Kette pruefen: Genesis → Zeile1 → Zeile2
+	// check the chain: genesis → row1 → row2
 	gen := ledger.GenesisHash("s1")
 	if recs[3][len(hdr)-2] != gen {
 		t.Fatal("erste Zeile haengt nicht am Genesis")
@@ -95,7 +95,7 @@ func TestStatementCSVAndChain(t *testing.T) {
 	if recs[3][len(hdr)-1] != recs[4][len(hdr)-2] {
 		t.Fatal("Kette zwischen Zeile 1 und 2 gerissen")
 	}
-	// Ungeratete Zeile: eur_micro leer; gestempelte: 20000 msat fee → −20000 delta, eur_micro negativ
+	// unrated row: eur_micro empty; stamped: 20000 msat fee → −20000 delta, eur_micro negative
 	if recs[3][6] != "" {
 		t.Fatalf("ungeratete Zeile mit eur_micro: %v", recs[3])
 	}
@@ -129,13 +129,13 @@ func TestStatementJSON(t *testing.T) {
 
 func TestOperatorStatementSecret(t *testing.T) {
 	srv := stmtServer(t)
-	// ohne Secret → 403
+	// without secret → 403
 	w := httptest.NewRecorder()
 	srv.handleOperatorStatement(w, httptest.NewRequest("GET", "/v1/relay/statement", nil))
 	if w.Code != 403 {
 		t.Fatalf("ohne secret: %d", w.Code)
 	}
-	// mit Secret → 200 + byte_porto-Zeile (Vorzeichen gedreht: +20000)
+	// with secret → 200 + byte_porto row (sign flipped: +20000)
 	r := httptest.NewRequest("GET", "/v1/relay/statement?fmt=csv", nil)
 	r.Header.Set("X-Relay-Secret", "stmt-secret")
 	w = httptest.NewRecorder()

@@ -9,7 +9,7 @@ const proxy = {
 
 // Etappe 6: WebAuthn braucht einen Secure Context → HTTPS, sobald Zertifikate
 // in client/app/tls/ liegen (openssl/mkcert). Ohne Zertifikate: HTTP wie bisher.
-// shortcut: self-signed für LAN-Dev; echte Domain + Let's Encrypt mit Produktiv-Relay.
+// shortcut: self-signed for LAN dev; real domain + Let's Encrypt on a production relay.
 const tlsDir = path.resolve(process.cwd(), 'tls');
 const tls = fs.existsSync(path.join(tlsDir, 'cert.pem'))
   ? { key: fs.readFileSync(path.join(tlsDir, 'key.pem')), cert: fs.readFileSync(path.join(tlsDir, 'cert.pem')) }

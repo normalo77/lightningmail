@@ -1,5 +1,5 @@
-// Wallet-Handler: /v1/topup, /v1/withdraw (Validierung, ohne LND) +
-// LUD-16 /.well-known/lnurlp/{name} (Metadata, 404, amount-Grenzen).
+// Wallet handlers: /v1/topup, /v1/withdraw (validation, without LND) +
+// LUD-16 /.well-known/lnurlp/{name} (metadata, 404, amount limits).
 package relaysrv
 
 import (
@@ -49,7 +49,7 @@ func walletServer(t *testing.T) *Server {
 	if err := l.StoreToken("tok1", "alice"); err != nil {
 		t.Fatal(err)
 	}
-	return New(cfg, l, nil, postage.New(cfg), rates.NewFeed("", 0)) // ln=nil: LND-Pfade → 503/ERROR
+	return New(cfg, l, nil, postage.New(cfg), rates.NewFeed("", 0)) // ln=nil: LND paths → 503/ERROR
 }
 
 func TestLNURLPMetadata(t *testing.T) {
@@ -89,14 +89,14 @@ func TestLNURLPUnknownUser(t *testing.T) {
 
 func TestLNURLPAmountValidation(t *testing.T) {
 	srv := walletServer(t)
-	for _, amt := range []string{"500", "abc", "99999999999999"} { // <min, kaputt, >max
+	for _, amt := range []string{"500", "abc", "99999999999999"} { // <min, broken, >max
 		w := httptest.NewRecorder()
 		srv.handleLNURLP(w, httptest.NewRequest("GET", "/.well-known/lnurlp/alice?amount="+amt, nil))
 		if w.Code != 400 {
 			t.Fatalf("amount=%s: %d %s", amt, w.Code, w.Body.String())
 		}
 	}
-	// gültiger Betrag, aber kein LND → LUD-konforme ERROR-Antwort
+	// valid amount, but no LND → LUD-conformant ERROR response
 	w := httptest.NewRecorder()
 	srv.handleLNURLP(w, httptest.NewRequest("GET", "/.well-known/lnurlp/alice?amount=5000", nil))
 	var j map[string]any
@@ -122,10 +122,10 @@ func TestTopupValidation(t *testing.T) {
 			t.Fatalf("%s: %d %s", body, w.Code, w.Body.String())
 		}
 	}
-	if w := do(`{"amount_sats":1000}`); w.Code != 503 { // gültig, aber ln=nil
+	if w := do(`{"amount_sats":1000}`); w.Code != 503 { // valid, but ln=nil
 		t.Fatalf("ohne LND: %d %s", w.Code, w.Body.String())
 	}
-	if w := do(`{"amount_sats":10000000}`); w.Code != 503 { // Obergrenze inklusiv
+	if w := do(`{"amount_sats":10000000}`); w.Code != 503 { // upper limit inclusive
 		t.Fatalf("max-Betrag ohne LND: %d", w.Code)
 	}
 }
@@ -151,7 +151,7 @@ func TestWithdrawValidation(t *testing.T) {
 
 func TestWalletRoutesNeedAuth(t *testing.T) {
 	srv := walletServer(t)
-	// auth-Middleware: ohne Token 401, mit Token "alice" durchgereicht
+	// auth middleware: without token 401, with token "alice" passed through
 	for _, path := range []string{"/v1/topup", "/v1/withdraw"} {
 		r := httptest.NewRequest("POST", path, strings.NewReader(`{}`))
 		w := httptest.NewRecorder()

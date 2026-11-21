@@ -1,7 +1,7 @@
-// Etappe 6: WebAuthn/Passkey-Speicher (CONCEPT §21).
-// Credentials + Schluessel-Wraps pro Konto; Zeremonie-Sessions leben
-// fluechtig im relaysrv ( shortcut: single-process relay, kein shared
-// Session-Store noetig — upgrade bei Multi-Instanz-Betrieb).
+// Etappe 6: WebAuthn/passkey storage (CONCEPT §21).
+// Credentials + key wraps per account; ceremony sessions live
+// ephemerally in relaysrv ( shortcut: single-process relay, no shared
+// session store needed — upgrade for multi-instance deployments).
 package ledger
 
 import (
@@ -104,8 +104,8 @@ func (l *Ledger) WAStoreWraps(credID, wrapPRF, wrapPass string) error {
 	return err
 }
 
-// WAUpdateWrapPRF hebt nur den PRF-Anteil (PRF-Selbstheilung); der
-// Passphrase-Wrap bleibt als Fallback erhalten.
+// WAUpdateWrapPRF lifts only the PRF part (PRF self-healing); the
+// passphrase wrap stays as fallback.
 func (l *Ledger) WAUpdateWrapPRF(credID, wrapPRF string) error {
 	if err := l.ensureWA(); err != nil {
 		return err

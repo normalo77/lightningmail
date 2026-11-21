@@ -1,22 +1,22 @@
-// drive.ts — Etappe J2: persönliches Laufwerk (verschlüsselter Speicher am eigenen
-// Relay). DOM-frei wie chunks.ts/send.ts: PWA und Headless-Tests teilen den Pfad.
+// drive.ts — Etappe J2: personal drive (encrypted storage on your own relay).
+// DOM-free like chunks.ts/send.ts: PWA and headless tests share the path.
 //
-// Krypto: KEINE neue Erfindung — der bestehende ECIES-Pfad (encryptPayload, wie
-// State-Slot/Anhang-Payload) mit der EIGENEN Mailbox-Pubkey als Empfänger;
-// Layout eph(33)|sealed wie state.ts seal().
-// Ablage: bestehende Chunk-Pipeline (1-MiB-Scheiben + Manifest-Blob), jeder Blob
-// mit ?kind=drive → Relay-Sweep verschont ihn, DELETE /v1/blob gibt ihn frei.
-// Jede Datei bekommt IMMER ein Manifest (auch <1 MiB) → Download/Löschen laufen
-// einheitlich über msha → Manifest → Chunks, kein Sonderfall.
+// Crypto: NO new invention — the existing ECIES path (encryptPayload, same as
+// state slot/attachment payload) with the OWN mailbox pubkey as recipient;
+// layout eph(33)|sealed like state.ts seal().
+// Storage: existing chunk pipeline (1-MiB slices + manifest blob); every blob
+// with ?kind=drive → the relay sweep spares it, DELETE /v1/blob releases it.
+// Every file ALWAYS gets a manifest (even <1 MiB) → download/delete uniformly
+// go via msha → manifest → chunks, no special case.
 import { encryptPayload, decryptPayload, pubFromPriv, toHex } from './crypto';
 import { CHUNK, splitChunks, manifestBytes, parseManifest, reassemble, type Manifest } from './chunks';
 import type { StateSync, DriveEntry } from './state';
 
-const EPH = 33; // komprimierter Ephemeral-Pubkey vor dem Sealed-Block (wie state.ts)
+const EPH = 33; // compressed ephemeral pubkey before the sealed block (like state.ts)
 
 export type DriveUsage = { enabled: boolean; used_bytes: number; quota_bytes: number; tiers: { gb: number; sats: number }[] };
 
-// randomUUID braucht Secure Context (LAN-http-Falle) — getRandomValues geht immer.
+// randomUUID needs a secure context (LAN http trap) — getRandomValues always works.
 export const newDriveId = (): string => { const b = new Uint8Array(8); globalThis.crypto.getRandomValues(b); return toHex(b); };
 
 const authH = (token: string): Record<string, string> => {
@@ -43,9 +43,9 @@ async function releaseBlob(base: string, token: string, sha: string): Promise<vo
   if (!r.ok) throw new Error(`blob freigeben ${sha.slice(0, 8)}…: ${r.status} ${await r.text()}`);
 }
 
-// Verschlüsseln (eigene Mailbox-Pubkey) → Scheiben + Manifest als kind=drive hochladen
-// → State-Eintrag. size = gespeicherte Bytes (Chiffre+Scheiben+Manifest, kostet
-// Quota), size_plain = Klartextlänge.
+// Encrypt (own mailbox pubkey) → upload slices + manifest as kind=drive
+// → state entry. size = stored bytes (ciphertext slices + manifest, costs
+// quota), size_plain = plaintext length.
 export async function uploadFile(
   base: string, token: string, priv: Uint8Array, sync: StateSync,
   bytes: Uint8Array, name: string, mime: string, parent: string,
@@ -70,7 +70,7 @@ export async function uploadFile(
   return sync.doc.files[e.id];
 }
 
-// State-Eintrag → msha → Manifest → Chunk-GETs → reassemble → entschlüsseln.
+// State entry → msha → manifest → chunk GETs → reassemble → decrypt.
 export async function downloadFile(base: string, token: string, priv: Uint8Array, sync: StateSync, id: string): Promise<Uint8Array> {
   const e = sync.doc.files[id];
   if (!e || e.gone) throw new Error('Datei nicht gefunden');
@@ -80,13 +80,13 @@ export async function downloadFile(base: string, token: string, priv: Uint8Array
   return decryptPayload(priv, enc.slice(0, EPH), enc.slice(EPH), new Uint8Array(0));
 }
 
-// Datei: Manifest + Chunk-Hashes HOLEN, dann DELETE /v1/blob für msha + alle
-// Chunks, erst danach der Tombstone — schlägt die Freigabe fehl, bleibt der
-// Eintrag sichtbar und das Löschen ist wiederholbar (kein Daten-Waisenstand).
-// Ordner: nur wenn keine lebenden Kinder (Prüfung hier, nicht im Merge).
-// shortcut: gleiche sha, die auch als Anhang in Sent steckt, wird durch die
-// Promotion-Regel zur drive-ref und hier freigegeben; own-Sent-Attachment-Download
-// kann danach 403 sein — upgraden wenn Complaints, nicht heute.
+// File: FETCH manifest + chunk hashes, then DELETE /v1/blob for msha + all
+// chunks, tombstone only afterwards — if release fails the entry stays visible
+// and the delete is repeatable (no orphaned data).
+// Folder: only when it has no living children (checked here, not in the merge).
+// shortcut: the same sha also sitting in Sent as an attachment gets promoted to
+// a drive-ref and is released here; own-Sent-attachment download may then 403 —
+// upgrade if complaints, not today.
 export async function deleteFile(base: string, token: string, sync: StateSync, id: string): Promise<void> {
   const e = sync.doc.files[id];
   if (!e || e.gone) throw new Error('Eintrag nicht gefunden');

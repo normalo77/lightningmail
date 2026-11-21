@@ -1,6 +1,6 @@
-// gui.go: Nativer Linux-Client — die PWA steckt als Embed im Binary,
-// ein lokaler Server proxyt /relay-a und /relay-b (relative Pfade ohne CORS),
-// dazu nativer Vault (~/.local/share/lightningmail/vault.json) und notify-send.
+// gui.go: native Linux client — the PWA ships as an embed in the binary,
+// a local server proxies /relay-a and /relay-b (relative paths, no CORS),
+// plus a native vault (~/.local/share/lightningmail/vault.json) and notify-send.
 package main
 
 import (
@@ -49,8 +49,8 @@ func cmdGUI(args []string) {
 	nativeToken := hex.EncodeToString(tb)
 	const cspHeader = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; img-src 'self' data: blob:; font-src 'self' data:; frame-ancestors 'none'"
 
-	// Relay-Reverse-Proxy: Ziel = $BMAIL_RELAY oder https://lightningmail.app,
-	// Pfad bleibt erhalten (/relay-a/* -> Ziel/relay-a/*).
+	// Relay reverse proxy: target = $BMAIL_RELAY or https://lightningmail.app,
+	// path is preserved (/relay-a/* -> target/relay-a/*).
 	relay := os.Getenv("BMAIL_RELAY")
 	if relay == "" {
 		relay = "https://lightningmail.app"
@@ -61,8 +61,8 @@ func cmdGUI(args []string) {
 		os.Exit(1)
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
-	// Host muss aufs Ziel zeigen (SingleHostReverseProxy behält sonst den
-	// lokalen Host → Cloudflare 403); Go-Default-UA wird ebenfalls geblockt.
+	// Host must point at the target (else SingleHostReverseProxy keeps the
+	// local host → Cloudflare 403); Go's default UA is blocked too.
 	baseDirector := proxy.Director
 	proxy.Director = func(r *http.Request) {
 		baseDirector(r)
@@ -72,7 +72,7 @@ func cmdGUI(args []string) {
 	mux.Handle("/relay-a/", proxy)
 	mux.Handle("/relay-b/", proxy)
 
-	// Nativer Vault: Schluessel-JSON auf der Platte, 0600 (CSRF-geschuetzt via X-LM-Native-Token).
+	// Native vault: key JSON on disk, 0600 (CSRF-protected via X-LM-Native-Token).
 	mux.HandleFunc("/__native/vault", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-LM-Native-Token") != nativeToken {
 			http.Error(w, `{"error":"forbidden (missing native token)"}`, http.StatusForbidden)
@@ -107,7 +107,7 @@ func cmdGUI(args []string) {
 		}
 	})
 
-	// Desktop-Benachrichtigung (best effort — CSRF-geschuetzt + "--" gegen Flag-Injection).
+	// Desktop notification (best effort — CSRF-protected + "--" against flag injection).
 	mux.HandleFunc("/__native/notify", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-LM-Native-Token") != nativeToken {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
@@ -122,7 +122,7 @@ func cmdGUI(args []string) {
 		fmt.Fprint(w, `{"ok":true}`)
 	})
 
-	// Eingebettete PWA (100% code-pinned im Binary, mit CSP-Header).
+	// Embedded PWA (100% code-pinned in the binary, with CSP header).
 	sub, err := fs.Sub(uiFS, "ui")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "embed ui: %v\n", err)
@@ -138,7 +138,7 @@ func cmdGUI(args []string) {
 
 	ln, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(port))
 	if err != nil {
-		// Port belegt → zufälliger freier Port
+		// port busy → pick a random free port
 		if ln, err = net.Listen("tcp", "127.0.0.1:0"); err != nil {
 			fmt.Fprintf(os.Stderr, "listen: %v\n", err)
 			os.Exit(1)
@@ -155,8 +155,8 @@ func cmdGUI(args []string) {
 	}
 }
 
-// openAppWindow startet ein natives App-Fenster (Chrome/Chromium --app),
-// sonst normalen Browser. Best effort: ohne Desktop läuft der Server trotzdem.
+// openAppWindow starts a native app window (Chrome/Chromium --app),
+// else a normal browser. Best effort: the server runs even without a desktop.
 func openAppWindow(addr string) {
 	candidates := [][]string{
 		{"chromium", "--app=" + addr},

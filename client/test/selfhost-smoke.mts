@@ -1,4 +1,4 @@
-// Einmal-Funktionstest: Konto anlegen + Auth + Inbox auf einem Fremd-Relay (base '').
+// One-shot functional test: create account + auth + inbox on a foreign relay (base '').
 import { newPrivKey, pubFromPriv, authSign } from '../src/crypto.ts';
 const RELAY = process.env.RELAY || 'https://relay.lightningmail.app';
 const bearer = ['Bea', 'rer '].join('');

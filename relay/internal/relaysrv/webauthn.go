@@ -1,9 +1,9 @@
-// Etappe 6: WebAuthn/Passkey-Login (CONCEPT §21).
-// Registrierung erfolgt authentifiziert (nur wer eingeloggt ist, bindet
-// Passkeys an sein Konto); Login ist unauthentifiziert und gibt am Ende
-// ein normales Persistent-Token plus die Schluessel-Wraps zurueck.
-// PRF-Auswertung passiert NUR im Client — der Relay sieht/speichert nur
-// opake Wraps (kein Klartext, kein Trust-Zuwachs gegenueber LMKEY1).
+// Etappe 6: WebAuthn/passkey login (CONCEPT §21).
+// Registration happens authenticated (only a logged-in user binds
+// passkeys to their account); login is unauthenticated and returns
+// a normal persistent token plus the key wraps.
+// PRF evaluation happens ONLY in the client — the relay sees/stores only
+// opaque wraps (no plaintext, no trust gain over LMKEY1).
 package relaysrv
 
 import (
@@ -29,8 +29,8 @@ var errWANotConfigured = errors.New("webauthn: not configured (relay.yaml webaut
 
 const waSessionTTL = 5 * time.Minute
 
-// waPRFSalt ist der deterministische PRF-Salt pro Konto (identisch zur
-// client-seitigen Formel in keywrap.ts, damit Wrap/Unwrap zusammenpassen).
+// waPRFSalt is the deterministic PRF salt per account (identical to the
+// client-side formula in keywrap.ts so wrap/unwrap match).
 func waPRFSalt(acct string) protocol.PRFValues {
 	h := sha256.Sum256([]byte("lm-prf-v1:" + acct))
 	return protocol.PRFValues{First: h[:]}
@@ -41,7 +41,7 @@ type waSessionEntry struct {
 	expires time.Time
 }
 
-// waUser adaptiert ein bmail-Konto auf das go-webauthn User-Interface.
+// waUser adapts a bmail account to the go-webauthn User interface.
 type waUser struct {
 	acct  string
 	creds []webauthn.Credential
@@ -72,7 +72,7 @@ func (s *Server) waInstance() (*webauthn.WebAuthn, error) {
 	return wa, nil
 }
 
-// loadWAUser holt die registrierten Credentials eines Kontos aus der DB.
+// loadWAUser fetches an account's registered credentials from the DB.
 func (s *Server) loadWAUser(acct string) (*waUser, error) {
 	rows, err := s.ledger.WACredentialsFor(acct)
 	if err != nil {
@@ -102,7 +102,7 @@ func (s *Server) waPutSession(sess *webauthn.SessionData) string {
 	s.waMu.Lock()
 	defer s.waMu.Unlock()
 	now := time.Now()
-	for k, v := range s.waSessions { // opportunistische TTL-Pflege
+	for k, v := range s.waSessions { // opportunistic TTL maintenance
 		if now.After(v.expires) {
 			delete(s.waSessions, k)
 		}
@@ -125,12 +125,12 @@ func (s *Server) waTakeSession(sid string) (webauthn.SessionData, bool) {
 	return e.sess, true
 }
 
-// bodyWithCredential liefert einen Request-Klon, dessen Body genau das
-// WebAuthn-Credential-JSON ist (go-webauthn parst direkt aus *http.Request).
-// Android-Browser (Brave/Chrome/GMS) liefern ungefragte clientExtensionResults
-// wie "credProps" mit, woran go-webauthn v0.18.2 strikt scheitert; da das Relay
-// clientExtensionResults selbst gar nicht braucht (PRF wird clientseitig vor
-// dem POST ausgewertet), leeren wir clientExtensionResults vor dem Parsen.
+// bodyWithCredential returns a request clone whose body is exactly the
+// WebAuthn credential JSON (go-webauthn parses directly from *http.Request).
+// Android browsers (Brave/Chrome/GMS) send unsolicited clientExtensionResults
+// like "credProps", on which go-webauthn v0.18.2 strictly fails; since the relay
+// doesn't need clientExtensionResults at all (PRF is evaluated client-side
+// before the POST), we empty clientExtensionResults before parsing.
 func bodyWithCredential(r *http.Request, credJSON json.RawMessage) *http.Request {
 	var m map[string]any
 	if err := json.Unmarshal(credJSON, &m); err == nil {
@@ -152,7 +152,7 @@ func waError(w http.ResponseWriter, status int, msg string) {
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
-// --- POST /v1/webauthn/register/begin (authentifiziert) ---
+// --- POST /v1/webauthn/register/begin (authenticated) ---
 
 func (s *Server) handleWARegisterBegin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -164,7 +164,7 @@ func (s *Server) handleWARegisterBegin(w http.ResponseWriter, r *http.Request) {
 		waError(w, 503, "WebAuthn ist auf diesem Relay nicht konfiguriert")
 		return
 	}
-	acct := r.Header.Get("X-Bmail-Account") // aus dem Bearer-Token (auth-Middleware)
+	acct := r.Header.Get("X-Bmail-Account") // from the bearer token (auth middleware)
 	if _, err := s.ledger.GetAccount(acct); err != nil {
 		waError(w, 404, "Konto nicht gefunden")
 		return
@@ -184,7 +184,7 @@ func (s *Server) handleWARegisterBegin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"sid": sid, "options": opts})
 }
 
-// --- POST /v1/webauthn/register/finish (authentifiziert) ---
+// --- POST /v1/webauthn/register/finish (authenticated) ---
 
 func (s *Server) handleWARegisterFinish(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -244,7 +244,7 @@ func (s *Server) handleWARegisterFinish(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(map[string]any{"ok": true, "cred_id": credID})
 }
 
-// --- POST /v1/webauthn/login/begin (unauthentifiziert) ---
+// --- POST /v1/webauthn/login/begin (unauthenticated) ---
 
 func (s *Server) handleWALoginBegin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -263,8 +263,8 @@ func (s *Server) handleWALoginBegin(w http.ResponseWriter, r *http.Request) {
 		waError(w, 400, "bad request")
 		return
 	}
-	// Existenz-Oracle vermeiden: gleiche Antwort fuer unbekanntes Konto
-	// und Konto ohne Passkeys.
+	// avoid an existence oracle: same response for an unknown account
+	// and an account without passkeys.
 	empty := func() {
 		waError(w, 404, " Fuer dieses Konto ist kein Passkey registriert (oder es existiert nicht).")
 	}
@@ -291,7 +291,7 @@ func (s *Server) handleWALoginBegin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"sid": sid, "options": opts})
 }
 
-// --- POST /v1/webauthn/login/finish (unauthentifiziert) ---
+// --- POST /v1/webauthn/login/finish (unauthenticated) ---
 
 func (s *Server) handleWALoginFinish(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -331,7 +331,7 @@ func (s *Server) handleWALoginFinish(w http.ResponseWriter, r *http.Request) {
 	if cred.Authenticator.SignCount > 0 {
 		_ = s.ledger.WAUpdateSignCount(credID, cred.Authenticator.SignCount)
 	}
-	// Persistent-Token wie bei /v1/auth (Etappe 4a).
+	// persistent token as in /v1/auth (Etappe 4a).
 	tok := make([]byte, 32)
 	rand.Read(tok)
 	tokenStr := hex.EncodeToString(tok)
@@ -357,7 +357,7 @@ func (s *Server) handleWALoginFinish(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- GET /v1/webauthn/credentials (authentifiziert) ---
+// --- GET /v1/webauthn/credentials (authenticated) ---
 
 func (s *Server) handleWAList(w http.ResponseWriter, r *http.Request) {
 	acct := r.Header.Get("X-Bmail-Account")
@@ -378,7 +378,7 @@ func (s *Server) handleWAList(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"credentials": list})
 }
 
-// --- POST /v1/webauthn/credentials/delete (authentifiziert) ---
+// --- POST /v1/webauthn/credentials/delete (authenticated) ---
 
 func (s *Server) handleWADelete(w http.ResponseWriter, r *http.Request) {
 	acct := r.Header.Get("X-Bmail-Account")
@@ -405,10 +405,10 @@ func (s *Server) handleWADelete(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
-// --- POST /v1/webauthn/wrap-upgrade (authentifiziert) — §21 PRF-Selbstheilung ---
-// Liefert eine Assertion das PRF-Geheimnis, waehrend die Credential nur einen
-// Passphrase-Wrap hat, wird der Wrap nach dem letzten Passphrase-Login auf
-// LMKEY1$PRF$ gehoben — kuenftige Logins brauchen nur noch den Fingerabdruck.
+// --- POST /v1/webauthn/wrap-upgrade (authenticated) — §21 PRF self-healing ---
+// If an assertion delivers the PRF secret while the credential only has a
+// passphrase wrap, the wrap is lifted to LMKEY1$PRF$ after the last
+// passphrase login — future logins only need the fingerprint.
 func (s *Server) handleWAWrapUpgrade(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		waError(w, 405, "method not allowed")

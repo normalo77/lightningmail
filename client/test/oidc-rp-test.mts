@@ -1,8 +1,8 @@
-// oidc-rp-test.mts — IdP-Abnahme: simuliert einen Standard-OIDC-Dienst (RP)
-// gegen das laufende Relay — Discovery, Authorization-Code + PKCE (S256),
-// ES256-JWT-Verify via WebCrypto gegen JWKS, bmail-BIP340-Claim, UserInfo,
-// Code-Replay. Login-Schritt der PWA wird per Bearer-Token nachgestellt.
-// Ablauf: npx tsx test/oidc-rp-test.mts   (RELAY= ueberschreibbar)
+// oidc-rp-test.mts — IdP acceptance: simulates a standard OIDC service (RP)
+// against the running relay — discovery, authorization code + PKCE (S256),
+// ES256 JWT verify via WebCrypto against JWKS, bmail BIP340 claim, UserInfo,
+// code replay. The PWA login step is replicated via bearer token.
+// Run: npx tsx test/oidc-rp-test.mts   (RELAY= overridable)
 import { newPrivKey, pubFromPriv, authSign, toHex, fromHex, schnorr, sha256, verifySchnorr } from "../src/crypto";
 
 const base = process.env.RELAY || "http://127.0.0.1:8443";
@@ -11,7 +11,7 @@ const ok = (c: boolean, m: string) => { console.log((c ? "PASS " : "FAIL ") + m)
 const b64u = (b: ArrayBuffer | Uint8Array) =>
   btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-// --- Konto anlegen + Bearer-Token (steht fuer den PWA-Login-Schritt) ---
+// --- Create account + bearer token (stands in for the PWA login step) ---
 const priv = newPrivKey();
 const name = "oidc" + Date.now().toString(36);
 let r = await fetch(base + "/v1/account", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -25,13 +25,13 @@ if (!token) throw new Error("auth fehlgeschlagen");
 // --- 1. Discovery ---
 const disc = await (await fetch(base + "/.well-known/openid-configuration")).json() as any;
 ok(!!disc.issuer && disc.token_endpoint?.endsWith("/oidc/token"), `Discovery: issuer=${disc.issuer}`);
-const ep = (abs: string) => base + abs.replace(disc.issuer, ""); // lokal gegen 127.0.0.1 statt Tunnel
+const ep = (abs: string) => base + abs.replace(disc.issuer, ""); // locally against 127.0.0.1 instead of the tunnel
 
 // --- 2. RP: PKCE + Authorization Request ---
 const verifier = b64u(crypto.getRandomValues(new Uint8Array(48)));
 const challenge = b64u(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
 const state = b64u(crypto.getRandomValues(new Uint8Array(9)));
-const redirectUri = disc.issuer + "/oidc/demo-callback.html"; // registrierte Demo-Callback
+const redirectUri = disc.issuer + "/oidc/demo-callback.html"; // registered demo callback
 const authUrl = ep(disc.authorization_endpoint) + "?" + new URLSearchParams({
   response_type: "code", client_id: "demo",
   redirect_uri: redirectUri,
@@ -43,7 +43,7 @@ const loc = r.headers.get("location") || "";
 ok(r.status === 302 && loc.includes("sid="), `Auth-Request -> 302 Login (${r.status})`);
 const sid = new URL(loc).searchParams.get("sid")!;
 
-// --- 3. PWA-Login-Schritt: Bearer gegen Challenge ---
+// --- 3. PWA login step: bearer against challenge ---
 r = await fetch(ep(disc.issuer) + "/oidc/auth/login", { method: "POST",
   headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
   body: JSON.stringify({ sid }) });
@@ -53,7 +53,7 @@ const addrDomain = disc.issuer.replace(/^https?:\/\/[^.]+\./, ""); // relay-X.<d
 ok(lj.address === `${name}@lightningmail.app` || lj.address === `${name}@${addrDomain}`,
   `Adresse im Consent: ${lj.address}`);
 
-// --- 4. BIP340-Signatur der Challenge mit dem Mailbox-Key ---
+// --- 4. BIP340 signature of the challenge with the mailbox key ---
 const chBytes = Uint8Array.from(atob(lj.challenge_b64), (c) => c.charCodeAt(0));
 const sig = toHex(schnorr.sign(new Uint8Array(sha256(chBytes)), priv));
 r = await fetch(ep(disc.issuer) + "/oidc/auth/sign", { method: "POST",
@@ -65,7 +65,7 @@ const ru = new URL(sj.redirect);
 const code = ru.searchParams.get("code")!;
 ok(ru.searchParams.get("state") === state, "state im Redirect stimmt (CSRF)");
 
-// --- 5. Token-Exchange + ES256-Verify gegen JWKS ---
+// --- 5. Token exchange + ES256 verify against JWKS ---
 r = await fetch(ep(disc.token_endpoint), { method: "POST",
   headers: { "Content-Type": "application/x-www-form-urlencoded" },
   body: new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: ru.origin + ru.pathname,
@@ -90,7 +90,7 @@ const sigOk = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key
   new TextEncoder().encode(h64 + "." + p64));
 ok(sigOk, "ID-Token-Signatur gültig (ES256 via WebCrypto/JWKS)");
 
-// --- 6. bmail-Föderations-Claim: BIP340 über der Challenge, Pubkey = Kontokkey ---
+// --- 6. bmail federation claim: BIP340 over the challenge, pubkey = account key ---
 const bm = claims.bmail;
 ok(!!bm && bm.pubkey === toHex(pubFromPriv(priv)) && bm.alg === "bip340-sha256", "bmail-Claim: Pubkey = Mailbox-Key");
 ok(verifySchnorr(fromHex(bm.pubkey), chBytes, fromHex(bm.sig)), "bmail-Signatur über Challenge gültig (BIP340)");

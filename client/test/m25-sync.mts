@@ -1,11 +1,11 @@
-// m25-sync.mts — Headless-Beweis: zwei Geraete, ein Konto, ein State-Slot.
+// m25-sync.mts — headless proof: two devices, one account, one state slot.
 import { newPrivKey, pubFromPriv, authSign, toHex } from "../src/crypto";
 import { StateSync } from "../src/state";
 
 const base = process.env.RELAY || "http://127.0.0.1:8443";
-// Selbst-provisioniertes Einweg-Konto: der e2e-home/bernd-Key passt seit dem
-// Browser-Signup (17.11.) nicht mehr zum Prod-bernd — Tests duerfen nicht von
-// echten Konten abhaengen.
+// Self-provisioned throwaway account: since the browser signup (17.11.) the
+// e2e-home/bernd key no longer matches prod-bernd — tests must not depend on
+// real accounts.
 const priv = newPrivKey();
 const acct = "m25" + Date.now().toString(36);
 const cr = await fetch(base + "/v1/account", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -47,7 +47,7 @@ A.delDraft("d1"); await A.push();
 await C.pull();
 ok(C.liveDrafts().length === 0, "Tombstone: geloeschter Entwurf bleibt weg");
 
-// Gesendet-Ordner (Stern-Sync): Geraet A "sendet" -> Relay -> Geraet B sieht den Eintrag
+// Sent folder (star sync): device A "sends" -> relay -> device B sees the entry
 A.addSent({ msg_id: "sent-1", ts: 1700000001, to: "gisela", subject: "Hallo", body: "Text der gesendeten Mail", bytes: 123 });
 await A.push();
 await B.pull();

@@ -1,11 +1,11 @@
-// Etappe 6b: Empfangsbestaetigungen (CONCEPT §23, WhatsApp-Semantik).
+// Etappe 6b: delivery receipts (CONCEPT §23, WhatsApp semantics).
 //
-//	✓  = LN-Settle am Empfaenger-Relay (weiss der Absender-Client schon lokal)
-//	✓✓ = Client-Abruf: Empfaenger-Relay stempelt beim Inbox-Abruf und
-//	     spiegelt den Receipt an die Peers; das Absender-Relay ordnet ihn
-//	     via sha256(sender_pub) = recipientHash dem Absender-Konto zu.
+//	✓  = LN settle at the receiving relay (the sending client knows locally)
+//	✓✓ = client fetch: the receiving relay stamps on inbox fetch and
+//	     mirrors the receipt to the peers; the sending relay maps it
+//	     to the sender account via sha256(sender_pub) = recipientHash.
 //
-// Kein Gelesen-Status (bewusst weniger als WhatsApp). Immer an (v0.1).
+// No read status (deliberately less than WhatsApp). Always on (v0.1).
 package ledger
 
 import (
@@ -13,20 +13,20 @@ import (
 	"encoding/hex"
 )
 
-// ReceiptStamp = beim Inbox-Abruf gestempelter neuer Empfang (Empfaenger-Seite).
+// ReceiptStamp = new receipt stamped at inbox fetch (receiving side).
 type ReceiptStamp struct {
 	MsgID     [32]byte
-	SenderPub []byte // 33B compressed, Klartext-Tag 0x04 des Envelopes
+	SenderPub []byte // 33B compressed, plaintext tag 0x04 of the envelope
 	Ts        int64
 }
 
-// ReceiptOut = gestempelter Receipt inkl. Empfaenger-Konto (fuer Mirror).
+// ReceiptOut = stamped receipt incl. receiving account (for mirroring).
 type ReceiptOut struct {
 	ReceiptStamp
 	AccountID int64
 }
 
-// IncomingReceipt = von einem Peer gemeldeter Receipt (Absender-Seite).
+// IncomingReceipt = receipt reported by a peer (sending side).
 type IncomingReceipt struct {
 	MsgIDHex     string `json:"msg_id"`
 	SenderPubHex string `json:"sender_pub"`
@@ -54,8 +54,8 @@ func (l *Ledger) ensureReceipts() error {
 	return err
 }
 
-// StampReceipts insert-or-ignores Abruf-Stempel; zurueck kommen nur die NEU
-// gestempelten (fuer den Mirror). Doppelter Abruf bleibt folgenlos.
+// StampReceipts insert-or-ignores fetch stamps; returns only the NEWLY
+// stamped ones (for the mirror). Duplicate fetches have no effect.
 func (l *Ledger) StampReceipts(accountID int64, items []ReceiptStamp) ([]ReceiptStamp, error) {
 	if err := l.ensureReceipts(); err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func (l *Ledger) StampReceipts(accountID int64, items []ReceiptStamp) ([]Receipt
 	return fresh, nil
 }
 
-// PendingReceipts liefert ungespiegelte Stempel (Retry-Ticker).
+// PendingReceipts returns unmirrored stamps (retry ticker).
 func (l *Ledger) PendingReceipts(limit int) ([]ReceiptOut, error) {
 	if err := l.ensureReceipts(); err != nil {
 		return nil, err
@@ -110,16 +110,16 @@ func (l *Ledger) MarkReceiptsMirrored(items []ReceiptOut) error {
 	return nil
 }
 
-// StoreIncomingReceipt ordnet einen Peer-Receipt dem lokalen Absender-Konto zu
-// (recipientHash = sha256(sender_pub), wie beim Postfach-Routing).
-// accountFound=false, wenn der "Absender" hier kein Konto hat (fremder Peer).
+// StoreIncomingReceipt maps a peer receipt to the local sender account
+// (recipientHash = sha256(sender_pub), as in mailbox routing).
+// accountFound=false when the "sender" has no account here (foreign peer).
 func (l *Ledger) StoreIncomingReceipt(msgID [32]byte, senderPub []byte, ts int64) (bool, error) {
 	if err := l.ensureReceipts(); err != nil {
 		return false, err
 	}
 	acct, err := l.LookupByRecipientHash(sha256.Sum256(senderPub))
 	if err != nil {
-		return false, nil // unbekannter Sender hier = legitimer Fremd-Peer-Fall
+		return false, nil // unknown sender here = legitimate foreign-peer case
 	}
 	_, err = l.db.Exec(
 		`INSERT OR IGNORE INTO receipts_in (msg_id, account_id, ts) VALUES (?,?,?)`,
@@ -127,7 +127,7 @@ func (l *Ledger) StoreIncomingReceipt(msgID [32]byte, senderPub []byte, ts int64
 	return err == nil, err
 }
 
-// ListIncomingReceipts fuer GET /v1/receipts (eigenes Konto).
+// ListIncomingReceipts for GET /v1/receipts (own account).
 func (l *Ledger) ListIncomingReceipts(accountID int64, limit int) ([]map[string]any, error) {
 	if err := l.ensureReceipts(); err != nil {
 		return nil, err

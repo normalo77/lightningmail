@@ -12,8 +12,8 @@ import (
 	"github.com/lightningmail/relay/internal/ledger"
 )
 
-// §21 PRF-Selbstheilung: POST /v1/webauthn/wrap-upgrade (auth) hebt den Wrap
-// einer eigenen Credential auf LMKEY1$PRF$, ohne den Passphrase-Fallback zu zerstoeren.
+// §21 PRF self-healing: POST /v1/webauthn/wrap-upgrade (auth) lifts the wrap
+// of an own credential to LMKEY1$PRF$ without destroying the passphrase fallback.
 func TestWAWrapUpgrade(t *testing.T) {
 	srv, priv := newOIDCTestServer(t)
 
@@ -39,7 +39,7 @@ func TestWAWrapUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// unauthentifiziert -> 401
+	// unauthenticated -> 401
 	bad, _ := json.Marshal(map[string]string{"cred_id": "TESTCRED1", "wrap_prf": "LMKEY1$PRF$n$c"})
 	rec := httptest.NewRecorder()
 	srv.auth(srv.handleWAWrapUpgrade)(rec, httptest.NewRequest(http.MethodPost, "/v1/webauthn/wrap-upgrade", bytes.NewReader(bad)))

@@ -38,27 +38,27 @@ type Server struct {
 	ln      *lnclient.Client
 	postage *postage.Service
 
-	// Etappe B: Directory — Kurs-Feed (§25/§26) + 429-Budget anonyme Lesen.
+	// Etappe B: directory — rate feed (§25/§26) + 429 budget for anonymous reads.
 	rateFeed *rates.Feed
 	pubLim   *pubLimit
 
-	// IdP (§21/§29): OIDC-Sessions/Codes/Tokens + ES256-Schluessel.
+	// IdP (§21/§29): OIDC sessions/codes/tokens + ES256 key.
 	oidc *oidcState
 
-	// Etappe 6: fluechtige WebAuthn-Zeremonie-Sessions (shortcut:
-	// In-Memory, single-process; bei Multi-Instanz-Relay externalisieren).
+	// Etappe 6: ephemeral WebAuthn ceremony sessions (shortcut:
+	// in-memory, single process; externalize for multi-instance relays).
 	waMu       sync.Mutex
 	waSessions map[string]waSessionEntry
 
-	// Transport-Signierschluessel (TLV 34349337) + DNS-Discovery-Cache (§4.2)
+	// transport signing key (TLV 34349337) + DNS discovery cache (§4.2)
 	tkeyMu sync.Mutex
 	tkey   *btcec.PrivateKey
 	dnsMu  sync.Mutex
 	dns    map[string]dnsEntry
 }
 
-// New: feed wird vom Caller gebaut und gestartet (relayd teilt ihn mit dem
-// LN-Ingest — Steuerstempel §25 gilt fuer ALLE Zufloesse, nicht nur Karten).
+// New: the feed is built and started by the caller (relayd shares it with
+// the LN ingest — tax stamp §25 applies to ALL inflows, not just cards).
 func New(cfg *config.Config, l *ledger.Ledger, ln *lnclient.Client, p *postage.Service, feed *rates.Feed) *Server {
 	return &Server{cfg: cfg, ledger: l, ln: ln, postage: p, waSessions: map[string]waSessionEntry{},
 		rateFeed: feed,
@@ -67,8 +67,8 @@ func New(cfg *config.Config, l *ledger.Ledger, ln *lnclient.Client, p *postage.S
 		dns:      map[string]dnsEntry{}}
 }
 
-// relayTransportKey: Transport-Signierschluessel (spec §2, TLV 34349337) —
-// wird beim ersten Senden geladen oder automatisch erzeugt und persistiert.
+// relayTransportKey: transport signing key (spec §2, TLV 34349337) —
+// loaded on first send or automatically generated and persisted.
 func (s *Server) relayTransportKey() (*btcec.PrivateKey, error) {
 	s.tkeyMu.Lock()
 	defer s.tkeyMu.Unlock()
@@ -99,29 +99,29 @@ func (s *Server) relayTransportKey() (*btcec.PrivateKey, error) {
 	return priv, nil
 }
 
-// routes versammelt die komplette HTTP-API (+ optionale Web-UI aus ui_dir) —
-// abgetrennt fuer In-Process-Tests per httptest.
+// routes assembles the complete HTTP API (+ optional web UI from ui_dir) —
+// split out for in-process tests via httptest.
 func (s *Server) routes() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/auth", s.handleAuth)
 	mux.HandleFunc("/v1/balance", s.auth(s.handleBalance))
 	mux.HandleFunc("/v1/send", s.auth(s.handleSend))
 	mux.HandleFunc("/v1/inbox", s.auth(s.handleInbox))
-	mux.HandleFunc("/v1/profile/", s.handleProfile) // Key- + Porto-Lookup
+	mux.HandleFunc("/v1/profile/", s.handleProfile) // key + postage lookup
 	mux.HandleFunc("/v1/blob", s.auth(s.handleBlobUpload))
 	mux.HandleFunc("/v1/blob/", s.auth(s.handleBlobGet))
-	// Etappe J1: Drive — Usage-Auskunft + Tier-Kauf (Release = DELETE /v1/blob)
+	// Etappe J1: Drive — usage info + tier purchase (release = DELETE /v1/blob)
 	mux.HandleFunc("/v1/drive/usage", s.auth(s.handleDriveUsage))
 	mux.HandleFunc("/v1/drive/buy", s.auth(s.handleDriveBuy))
 	mux.HandleFunc("/v1/state", s.auth(s.handleState))
 	mux.HandleFunc("/v1/relay/blob/", s.relayBlob)
 	mux.HandleFunc("/v1/receipts", s.auth(s.handleReceipts))
 	mux.HandleFunc("/v1/relay/receipt", s.relayReceipt)
-	// Etappe G2 (§25): Statements mit Hash-Kette — Konto + Betreiber
+	// Etappe G2 (§25): hash-chained statements — account + operator
 	mux.HandleFunc("/v1/statement", s.auth(s.handleStatement))
 	mux.HandleFunc("/v1/relay/statement", s.handleOperatorStatement)
 	mux.HandleFunc("/v1/account", s.handleAccount)
-	// Wallet: Lightning-Aufladung/Auszahlung + LUD-16 (siehe wallet.go)
+	// Wallet: Lightning top-up/withdrawal + LUD-16 (see wallet.go)
 	mux.HandleFunc("/v1/topup", s.auth(s.handleTopup))
 	mux.HandleFunc("/v1/withdraw", s.auth(s.handleWithdraw))
 	mux.HandleFunc("/.well-known/lnurlp/", s.handleLNURLP)
@@ -137,8 +137,8 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/.well-known/openid-configuration", s.handleOIDCDiscovery)
 	mux.HandleFunc("/oidc/", s.handleOIDCRouter)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		// currencies: §26 — Etappe B besiedelt nur btc; ab Etappe K aus der Config.
-		// byte_porto + rate: UI rechnet damit die Byte-Porto-Schätzung im Compose.
+		// currencies: §26 — Etappe B populates only btc; from Etappe K from the config.
+		// byte_porto + rate: the UI uses these for the byte-postage estimate in compose.
 		w.Header().Set("Content-Type", "application/json")
 		resp := map[string]any{"ok": true, "currencies": []string{"btc"},
 			"byte_porto_meur_per_mb": s.cfg.Postage.BytePortoMEurPerMB,
@@ -151,7 +151,7 @@ func (s *Server) routes() *http.ServeMux {
 		json.NewEncoder(w).Encode(resp)
 	})
 
-	// Etappe O (Selbstbau): Web-UI aus ui_dir (siehe ui.go)
+	// Etappe O (self-hosting): web UI from ui_dir (see ui.go)
 	s.registerUI(mux)
 
 	return mux
@@ -162,7 +162,7 @@ func (s *Server) ListenAndServe() error {
 	s.ledger.CleanExpiredTokens()
 	mux := s.routes()
 
-	// Etappe 6b: Retry-Ticker fuer Receipts, deren Peer-Mirror fehlschlug
+	// Etappe 6b: retry ticker for receipts whose peer mirror failed
 	go func() {
 		for range time.Tick(60 * time.Second) {
 			items, err := s.ledger.PendingReceipts(200)
@@ -269,7 +269,7 @@ func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 
 // --- GET /v1/balance ---
 func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
-	if !curOK(w, r) { // §26: Etappe B kennt nur btc
+	if !curOK(w, r) { // §26: Etappe B knows only btc
 		return
 	}
 	account := r.Header.Get("X-Bmail-Account")
@@ -282,7 +282,7 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- POST /v1/send ---
-const maxTipSats = 5000 // §30.4: harte Obergrenze fuer Satoshis-Beilage im Brief
+const maxTipSats = 5000 // §30.4: hard upper limit for the satoshi enclosure in the letter
 
 func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -317,11 +317,11 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 
 	postageAmt := s.postage.ForeignSats()
 	if env.Signup {
-		postageAmt = s.postage.WelcomeSats() // Erstkontakt zahlt Willkommensporto (§28)
+		postageAmt = s.postage.WelcomeSats() // first contact pays welcome postage (§28)
 	}
 
-	// §30.4 Satoshis-Beilage: Porto-Vorschlag im selben Keysend mitbezahlen
-	// (Rückporto/Trinkgeld). Harter Deckel, damit der Brief kein Zahlungsverkehr wird.
+	// §30.4 satoshi enclosure: pay the postage suggestion in the same keysend
+	// (return postage/tip). Hard cap so the letter doesn't become a payment rail.
 	tipAmt := int64(0)
 	if tsv := strings.TrimSpace(r.URL.Query().Get("tip_sats")); tsv != "" {
 		n, err := strconv.ParseInt(tsv, 10, 64)
@@ -361,11 +361,11 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if i := strings.Index(targetHint, "@"); i >= 0 {
 		targetRelay = targetHint[i+1:]
 	}
-	// Lokale Direktzustellung NUR, wenn (a) gar keine Peers konfiguriert sind
-	// (Single-Relay-Betrieb) oder (b) ?to=name@<eigener-relayname> explizit
-	// das eigene Relay adressiert. Sonst immer ueber Peer-Keysend routen,
-	// damit Cross-Relay-Tests (alice@alpha -> bob@beta, auch wenn bob als
-	// Legacy-Stub auf beiden Relays steht) weiter ueber LND + Blob-Mirror laufen.
+	// Local direct delivery ONLY when (a) no peers are configured at all
+	// (single-relay operation) or (b) ?to=name@<own-relay-name> explicitly
+	// addresses the own relay. Otherwise always route via peer keysend,
+	// so cross-relay tests (alice@alpha -> bob@beta, even if bob exists as
+	// a legacy stub on both relays) keep running over LND + blob mirror.
 	if localAcct, err := s.ledger.LookupByRecipientHash(env.RecipientHash); err == nil && strings.EqualFold(targetRelay, s.cfg.Name) {
 		_, inserted, err2 := s.ledger.PutMessage(env.MsgID, localAcct.ID, envBin, sendMsat)
 		if err2 != nil {
@@ -391,8 +391,8 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		log.Printf("send: %s -> local %s, %d sats (+%d tip)", account, localAcct.Name, postageAmt, tipAmt)
 		return
 	}
-	// Ziel-Ermittlung: ?to=name@domain → erst Peer/DNS-Discovery (§4.2),
-	// sonst Peer-Loop (Substring-Match) und Default-Peer.
+	// target resolution: ?to=name@domain → peer/DNS discovery first (§4.2),
+	// else peer loop (substring match) and default peer.
 	if targetRelay != "" {
 		if _, nodePub, err := s.resolveDomainRelay(r.Context(), targetRelay); err == nil {
 			destNode, destName = nodePub, targetRelay
@@ -423,8 +423,8 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	ts[6] = byte(now >> 8)
 	ts[7] = byte(now)
 
-	// TLV 34349337 (spec §2): BIP340-Sig des Relay-Transport-Keys ueber
-	// sha256(Envelope-Binary) — vorher 64 Nullbytes (Platzhalter).
+	// TLV 34349337 (spec §2): BIP340 sig of the relay transport key over
+	// sha256(envelope binary) — previously 64 zero bytes (placeholder).
 	transportPriv, err := s.relayTransportKey()
 	if err != nil {
 		s.ledger.ApplyDeltaMeta(account, sendMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
@@ -487,13 +487,13 @@ func (s *Server) handleInbox(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 500)
 		return
 	}
-	// Etappe 6b: Client-Abruf = ✓✓ (Receipt-Stempel, async-Mirror an Peers)
+	// Etappe 6b: client fetch = ✓✓ (receipt stamp, async mirror to peers)
 	s.stampInboxFetch(acct.ID, msgs)
 	type inboxMsg struct {
 		Seq          int64  `json:"seq"`
 		MsgID        string `json:"msg_id_b64"`
 		ReceivedAt   int64  `json:"received_at"`
-		ReceivedSats int64  `json:"received_sats"` // §30.4: real per Keysend eingegangen (Porto+Beilage), faelschungssicher
+		ReceivedSats int64  `json:"received_sats"` // §30.4: actually received via keysend (postage+enclosure), tamper-proof
 		EnvelopeB64  string `json:"envelope_b64"`
 	}
 	out := make([]inboxMsg, 0, len(msgs))
@@ -517,12 +517,12 @@ func (s *Server) handleInbox(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- POST /v1/account (bootstrap/registration) ---
-// Etappe 6c: Namen hart validieren — Konto-Namen landen in URLs, Adressen und UI.
+// Etappe 6c: validate names strictly — account names end up in URLs, addresses and UI.
 var acctNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{1,31}$`)
 
-// Reservierte Namen: gehoeren auf der Betreiberdomain der SMTP-/Service-Welt
-// (Impressum, Email-Routing) — sonst kollidiert z.B. admin@ mit zwei Postfaechern.
-// Vereinigung beider Welten kommt erst mit dem Bridge/smtp-fallback (CONCEPT §4.2/§14).
+// Reserved names: belong to the SMTP/service world on the operator domain
+// (legal notice, email routing) — else e.g. admin@ collides across two mailboxes.
+// Unifying both worlds only comes with the bridge/smtp fallback (CONCEPT §4.2/§14).
 var reservedNames = map[string]bool{
 	"admin": true, "postmaster": true, "hostmaster": true, "webmaster": true,
 	"abuse": true, "root": true, "info": true, "support": true, "hello": true,
@@ -561,7 +561,7 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 409)
 		return
 	}
-	// Regtest-Phase: jedes neu angelegte Konto erhält 10.000 Test-Satoshis (10.000.000 msat).
+	// Regtest phase: every newly created account receives 10,000 test sats (10,000,000 msat).
 	if s.cfg.LND.Network == "" || s.cfg.LND.Network == "regtest" {
 		_ = s.ledger.ApplyDeltaMeta(acct.Name, 10_000_000, ledger.KindTopup, "regtest-faucet", "btc", s.ratePtr())
 	}
@@ -572,11 +572,11 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- GET /v1/profile/{addr}: siehe directory.go (Etappe B) ---
+// --- GET /v1/profile/{addr}: see directory.go (Etappe B) ---
 
 // --- POST /v1/blob (attachment upload, spec §6.3, Etappe 4a: quota + ACL) ---
-// Etappe J1: ?kind=drive kennzeichnet persoenliche Drive-Dateien (bleiben vom
-// Retention-Sweep verschont); DELETE auf derselben Route = Drive-Release.
+// Etappe J1: ?kind=drive marks personal drive files (spared by the
+// retention sweep); DELETE on the same route = drive release.
 func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "DELETE" {
 		s.handleDriveRelease(w, r)
@@ -629,8 +629,8 @@ func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Etappe 7: Byte-Porto (§22) — erst kassieren, dann speichern; Abbruch
-	// refundet. Nur einmal pro (Konto, Blob): HasBlobAccess = schon bezahlt.
+	// Etappe 7: byte postage (§22) — charge first, then store; failure
+	// refunds. Only once per (account, blob): HasBlobAccess = already paid.
 	var feeMsat int64
 	if bp := s.cfg.Postage.BytePortoMEurPerMB; bp > 0 {
 		exists, err := s.ledger.HasBlobAccess(acct.ID, h)
@@ -676,7 +676,7 @@ func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !fresh && feeMsat > 0 {
-		// Dedup-Race (Parallel-Upload): zweites Kassieren zurückgeben
+		// dedup race (parallel upload): return the second charge
 		s.refundBytePorto(account, feeMsat, hexSha)
 		feeMsat = 0
 	}
@@ -688,7 +688,7 @@ func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ratePtr: Steuerstempel fuer Wert-Buchungen (§25 G1), nil = ungeratet.
+// ratePtr: tax stamp for value bookings (§25 G1), nil = unrated.
 func (s *Server) ratePtr() *ledger.RateStamp {
 	if s.rateFeed == nil {
 		return nil
@@ -699,8 +699,8 @@ func (s *Server) ratePtr() *ledger.RateStamp {
 	return nil
 }
 
-// refundBytePorto: Infrastructure-Fehler NACH der Kassierung → Geld zurück
-// (txlog kind='fee', ref='refund:blob:…' — sichtbar im Statement).
+// refundBytePorto: infrastructure error AFTER charging → money back
+// (txlog kind='fee', ref='refund:blob:…' — visible in the statement).
 func (s *Server) refundBytePorto(account string, msat int64, shaHex string) {
 	if msat <= 0 {
 		return
@@ -712,7 +712,7 @@ func (s *Server) refundBytePorto(account string, msat int64, shaHex string) {
 
 // --- GET /v1/blob/{sha256} (Etappe 4a: ACL check) ---
 
-// handleState GET/PUT /v1/state — verschluesselter State-Slot pro Konto (M2.5).
+// handleState GET/PUT /v1/state — encrypted state slot per account (M2.5).
 func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	account := r.Header.Get("X-Bmail-Account")
 	acct, err := s.ledger.GetAccount(account)
@@ -788,7 +788,7 @@ func (s *Server) handleBlobGet(w http.ResponseWriter, r *http.Request) {
 	var sha32 [32]byte
 	copy(sha32[:], shaBytes)
 
-	defer s.ledger.MarkBlobDownloaded(acct.ID, sha32) // shortcut: ACL-pass = Abholversuch
+	defer s.ledger.MarkBlobDownloaded(acct.ID, sha32) // shortcut: ACL pass = pickup attempt
 
 	ok, err := s.ledger.HasBlobAccess(acct.ID, sha32)
 	if err != nil {
@@ -812,7 +812,7 @@ func (s *Server) handleBlobGet(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-// GET /v1/relay/blob/{sha} — relay-zu-relay Blob-Spiegel (spec 6.4, M2a).
+// GET /v1/relay/blob/{sha} — relay-to-relay blob mirror (spec 6.4, M2a).
 func (s *Server) relayBlob(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.RelaySecret == "" || r.Header.Get("X-Relay-Secret") != s.cfg.RelaySecret {
 		http.Error(w, `{"error":"relay auth"}`, 401)

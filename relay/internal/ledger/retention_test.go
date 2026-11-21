@@ -23,12 +23,12 @@ func TestRetentionSweep(t *testing.T) {
 	now := int64(1_000_000_000)
 	day := int64(86400)
 
-	shaA := mk(0xA1, a.ID, now-20*day, now-10*day) // beide geladen, letzter vor 10d -> wipe (grace 7)
+	shaA := mk(0xA1, a.ID, now-20*day, now-10*day) // both downloaded, latest 10d ago -> wipe (grace 7)
 	mk(0xA1, b.ID, now-20*day, now-12*day)
-	shaB := mk(0xB2, a.ID, now-5*day, 0) // einer hat nie geladen, noch frisch -> behalten
+	shaB := mk(0xB2, a.ID, now-5*day, 0) // one never downloaded, still fresh -> keep
 	shaC := mk(0xC3, a.ID, now-9*day, now-3*day)
-	mk(0xC3, b.ID, now-9*day, now-2*day)   // alle geladen, aber erst vor 2d -> behalten
-	shaD := mk(0xD4, a.ID, now-100*day, 0) // ungeladen, aber ueber maxAge 90d -> wipe
+	mk(0xC3, b.ID, now-9*day, now-2*day)   // all downloaded, but only 2d ago -> keep
+	shaD := mk(0xD4, a.ID, now-100*day, 0) // not downloaded, but beyond maxAge 90d -> wipe
 
 	victims, err := l.RetentionSweep(now, 7*day, 90*day)
 	if err != nil {

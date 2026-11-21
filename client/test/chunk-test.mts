@@ -1,7 +1,7 @@
-// chunk-test.mts — Etappe 7 (§22): 1-MiB-Scheiben + Manifest, E2E-Roundtrip
-// gegen laufende Relays, Byte-Porto-Abbuchung, Dedup, 402 ohne Guthaben.
-// Ablauf: npx tsx test/chunk-test.mts
-//   RELAY_A=/RELAY_B= ueberschreibbar; Guthaben via python3-sqlite (BMAIL_DB*).
+// chunk-test.mts — Etappe 7 (§22): 1-MiB slices + manifest, E2E roundtrip
+// against running relays, byte-postage deduction, dedup, 402 without balance.
+// Run: npx tsx test/chunk-test.mts
+//   RELAY_A=/RELAY_B= overridable; balance via python3-sqlite (BMAIL_DB*).
 import { newPrivKey, pubFromPriv, authSign, toHex, fromHex, decodeEnvelope, decryptPayload, fromB64, TAG, blobCount, blobRef } from "../src/crypto";
 import { composeAndSend } from "../src/send";
 import { CHUNK, needsChunking, splitChunks, manifestBytes, parseManifest, reassemble, MAX_REFS } from "../src/chunks";
@@ -14,10 +14,10 @@ const ok = (c: boolean, m: string) => { console.log((c ? "PASS " : "FAIL ") + m)
 const skip = (m: string) => console.log("SKIP " + m);
 const auth = (t: string) => ({ Authorization: `Bearer ${t}` } as any);
 
-// --- Unit: Chunking/Mathts ohne Server ---
+// --- Unit: chunking/maths without a server ---
 const big = new Uint8Array(Math.floor(CHUNK * 2.5));
-// Nicht-periodisch fuellen! (Erster Versuch i*7+13 hatte Periode 256 → zwei
-// identische Scheiben → Content-Dedup kassierte nur einmal, Test rot.)
+// Don't fill periodically! (First attempt i*7+13 had period 256 → two
+// identical slices → content dedup charged only once, test red.)
 for (let i = 0; i < big.length; i++) big[i] = (Math.imul(i, 2654435761) >>> 20) & 0xff;
 ok(!needsChunking(CHUNK), "exakt 1 MiB bleibt Einzeldatei (e2e-kompatibel)");
 ok(needsChunking(CHUNK + 1), ">1 MiB wird gechunkt");
@@ -33,7 +33,7 @@ const back = await reassemble(async (sha) => parts[man2.chunks.indexOf(sha)], ma
 ok(back.length === big.length && back.every((b, i) => b === big[i]), "reassemble stellt Bytes exakt wieder her");
 ok(MAX_REFS === 255, "Ref-Cap dokumentiert (255)");
 
-// --- Konten ---
+// --- Accounts ---
 async function mkAccount(base: string, tag: string) {
   const priv = newPrivKey();
   const name = `${tag}${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`.slice(0, 32);
@@ -55,8 +55,8 @@ const topUp = (db: string, name: string, msat: number): boolean => {
 
 const sender = await mkAccount(baseA, "chk");
 const recip = await mkAccount(baseB, "chk");
-// Stub-Welt (skill): handleSend lookt den Empfaenger LOKAL und keysendet starr
-// an Peers[0] → Empfaenger muss mit gleichem Key auf BEIDEN Relays stehen.
+// Stub world (skill): handleSend looks the recipient up LOCALLY and rigidly
+// keysend to Peers[0] → the recipient must exist on BOTH relays with the same key.
 {
   const rr = await fetch(baseA + "/v1/account", { method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: recip.name, pubkey: toHex(pubFromPriv(recip.priv)) }) });
@@ -65,13 +65,13 @@ const recip = await mkAccount(baseB, "chk");
 console.log(`sender=${sender.name}@A recip=${recip.name}@B`);
 const canMoney = topUp(dbA, sender.name, 20_000_000); // 20k sats
 
-// Byte-Porto-Config vom Relay lesen
+// Read the byte-postage config from the relay
 const health = await (await fetch(baseA + "/health")).json() as any;
 ok(Array.isArray(health.currencies) && health.currencies.includes("btc"), "/health nennt currencies");
 const bp: number = health.byte_porto_meur_per_mb ?? 0;
 console.log(`byte_porto_meur_per_mb=${bp} rate=${health.rate_meur_per_btc ?? "-"} `);
 
-// --- 402 ohne Guthaben (nur wenn Byte-Porto aktiv) ---
+// --- 402 without balance (only when byte postage is active) ---
 if (bp > 0 && !canMoney) skip("Guthaben-Checks (kein sqlite-Zugriff)");
 if (bp > 0 && canMoney) {
   const poor = await mkAccount(baseA, "chkp");
@@ -79,7 +79,7 @@ if (bp > 0 && canMoney) {
   ok(r.status === 402, `Blob-Upload ohne Guthaben -> 402 (${r.status})`);
 }
 
-// --- Send mit 2.5-MiB-Anhang A→B ---
+// --- Send with a 2.5-MiB attachment A→B ---
 const balBefore = canMoney ? ((await (await fetch(baseA + "/v1/balance", { headers: auth(sender.token) })).json()) as any).balance_msat : 0;
 const out = await composeAndSend(baseA, sender.token, sender.priv, {
   to: recip.name, subject: "dicker anhang", body: "2,5 MiB in Scheiben",
@@ -88,11 +88,11 @@ const out = await composeAndSend(baseA, sender.token, sender.priv, {
 });
 ok(!!out.msg_id, `Send mit 2,5-MiB-Anhang ok (${out.msg_id?.slice(0, 10)}…)`);
 
-// Byte-Porto-Abbuchung pruefen (Scheiben + Manifest, pro Blob ceil; das
-// Send-Porto an Fremd-Relay kommt obendrauf → aus Lookup abziehen)
+// Check the byte-postage deduction (slices + manifest, ceil per blob; the
+// send postage to the foreign relay comes on top → subtract it from the lookup)
 if (bp > 0 && canMoney && health.rate_meur_per_btc > 0) {
   const feeOf = (n: number) => {
-    const x1000 = (BigInt(n) * BigInt(bp) * 1000n + 1048575n) / 1048576n; // ceil, rein in BigInt
+    const x1000 = (BigInt(n) * BigInt(bp) * 1000n + 1048575n) / 1048576n; // ceil, all in BigInt
     return Number((x1000 * 100000000n + BigInt(health.rate_meur_per_btc) - 1n) / BigInt(health.rate_meur_per_btc));
   };
   const look = await (await fetch(`${baseA}/v1/profile/${sender.name}`)).json() as any;
@@ -100,15 +100,15 @@ if (bp > 0 && canMoney && health.rate_meur_per_btc > 0) {
   const chunkFee = feeOf(CHUNK) * 2 + feeOf(big.length - 2 * CHUNK);
   const balAfter = ((await (await fetch(baseA + "/v1/balance", { headers: auth(sender.token) })).json()) as any).balance_msat;
   const deducted = balBefore - balAfter - postageMsat;
-  // Manifest ist klein (~230 B) → max. ~2 msat Extra; Toleranz +100
+  // The manifest is small (~230 B) → max. ~2 msat extra; tolerance +100
   ok(deducted >= chunkFee && deducted <= chunkFee + 100, `Byte-Porto abgebucht: ${deducted} msat (Scheiben ~${chunkFee} + Manifest, Porto ${postageMsat} abgezogen)`);
 } else if (bp > 0) skip("Byte-Porto-Buchungsprüfung (kein sqlite)");
 else console.log("INFO byte_porto=0 — Uploads gratis (Config aus)");
 
-// --- Empfang auf B: Envelope decodieren, chunked Anhang zusammensetzen ---
+// --- Receive on B: decode envelope, reassemble the chunked attachment ---
 {
   let inbox: any = null;
-  for (let i = 0; i < 20; i++) { // Keysend-Settle + Mirror brauchen ~1-2s
+  for (let i = 0; i < 20; i++) { // keysend settle + mirror take ~1-2s
     const r = await fetch(baseB + "/v1/inbox", { headers: auth(recip.token) });
     const j = await r.json() as any;
     if ((j.messages || []).length) { inbox = j.messages[0]; break; }
@@ -134,7 +134,7 @@ else console.log("INFO byte_porto=0 — Uploads gratis (Config aus)");
   }
 }
 
-// --- Dedup: dieselbe Scheibe nochmal hochladen kostet nichts ---
+// --- Dedup: uploading the same slice again costs nothing ---
 if (bp > 0 && canMoney) {
   const bal1 = ((await (await fetch(baseA + "/v1/balance", { headers: auth(sender.token) })).json()) as any).balance_msat;
   const r = await fetch(baseA + "/v1/blob", { method: "POST", headers: auth(sender.token), body: big.slice(0, CHUNK) as any });

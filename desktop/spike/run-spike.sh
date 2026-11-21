@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# M0-Spike: baut das Binary CGO-frei und faengt Screenshot + Log unter Xvfb.
-# Aufruf: bash spike/run-spike.sh   (aus dem Verzeichnis desktop/)
+# M0 spike: builds the binary without CGO and captures screenshot + log under Xvfb.
+# Run: bash spike/run-spike.sh   (from the desktop/ directory)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -13,7 +13,7 @@ echo "BUILD_OK"
 mkdir -p spike/evidence spike/bin
 rm -f spike/evidence/screenshot.png spike/evidence/spike.log
 
-# Xvfb + inneres Skript: Binary starten, 7s rendern lassen, screenshot, kill.
-# dbus-run-session: der systemd-Userbus auf CT114 haengt g_application_register auf.
+# Xvfb + inner script: start the binary, let it render for 7s, screenshot, kill.
+# dbus-run-session: the systemd user bus on CT114 hangs g_application_register.
 dbus-run-session -- xvfb-run -a -s "-screen 0 1280x800x24" bash spike/xvfb-inner.sh | tee spike/evidence/spike.log
 echo "== exit inner: $? =="

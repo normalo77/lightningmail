@@ -1,12 +1,12 @@
-// Etappe G2 (§25): Statement-Export.
+// Etappe G2 (§25): statement export.
 //
-//	GET /v1/statement?from&to&fmt=csv|json   (auth, eigenes Konto)
-//	GET /v1/relay/statement?from&to&fmt=…    (X-Relay-Secret, Betreiber)
+//	GET /v1/statement?from&to&fmt=csv|json   (auth, own account)
+//	GET /v1/relay/statement?from&to&fmt=…    (X-Relay-Secret, operator)
 //
-// Reines CSV (Bernd 15.11.: keine DATEV-Chiffren). Zeilen hash-verkettet,
-// Monatsanfang = Anker (siehe ledger/statement.go). EUR-Spalten aus dem
-// Zufluss-Stempel; ungeratete Zeilen (Regtest ohne Kurs) bleiben leer —
-// der Export kennzeichnet das pro Zeile (rate_src leer).
+// Plain CSV (Bernd 15.11.: no DATEV codes). Rows hash-chained,
+// month start = anchor (see ledger/statement.go). EUR columns from the
+// inflow stamp; unrated rows (regtest without a rate) stay empty —
+// the export marks that per row (rate_src empty).
 package relaysrv
 
 import (
@@ -38,7 +38,7 @@ func iso(ts int64) string {
 	return time.Unix(ts, 0).UTC().Format(time.RFC3339)
 }
 
-// --- Kontostatement (eigene Zeilen) ---
+// --- account statement (own rows) ---
 
 func (s *Server) handleStatement(w http.ResponseWriter, r *http.Request) {
 	if !curOK(w, r) {
@@ -94,7 +94,7 @@ func (s *Server) handleStatement(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- Betreiberstatement (X-Relay-Secret, Muster aus relayBlob/relayReceipt) ---
+// --- operator statement (X-Relay-Secret, pattern from relayBlob/relayReceipt) ---
 
 func (s *Server) handleOperatorStatement(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.RelaySecret == "" || r.Header.Get("X-Relay-Secret") != s.cfg.RelaySecret {

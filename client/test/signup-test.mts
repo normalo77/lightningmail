@@ -1,11 +1,11 @@
-// Etappe 6c: Konto-Erzeugung (Schluessel im Browser) + POST /v1/account + Auth gegen laufendes Relay.
-// Ablauf: npx tsx test/signup-test.mts   (RELAY=... ueberschreibbar, Default alpha auf 127.0.0.1:8443)
+// Etappe 6c: account creation (key in the browser) + POST /v1/account + auth against a running relay.
+// Run: npx tsx test/signup-test.mts   (RELAY=... overridable, default alpha at 127.0.0.1:8443)
 import { newPrivKey, sec1PEM, parseSec1PEM, pubFromPriv, authSign, toHex } from "../src/crypto";
 
 const base = process.env.RELAY || "http://127.0.0.1:8443";
 const ok = (c: boolean, m: string) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) process.exitCode = 1; };
 
-// --- krypto: PEM roundtrip + Eindeutigkeit ---
+// --- crypto: PEM roundtrip + uniqueness ---
 const k = newPrivKey();
 const pem = sec1PEM(k);
 ok(toHex(parseSec1PEM(pem)) === toHex(k), "sec1PEM/parseSec1PEM roundtrip");
@@ -14,7 +14,7 @@ ok(pub.length === 33 && (pub[0] === 2 || pub[0] === 3), "pubFromPriv liefert kom
 const keys = new Set(Array.from({ length: 8 }, () => toHex(newPrivKey())));
 ok(keys.size === 8, "8 generierte Keys sind eindeutig");
 
-// --- gegen Relay: anlegen, doppelt, nameschecks, login ---
+// --- against the relay: create, duplicate, name checks, login ---
 const name = "t" + Date.now().toString(36);
 const post = (path: string, body: any) => fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 let r = await post("/v1/account", { name, pubkey: toHex(pub) });

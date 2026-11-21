@@ -1,4 +1,4 @@
-// TS-Client-Interop: liest giselas Inbox via Relay-API, decrypted envelope, holt Blob.
+// TS client interop: reads gisela's inbox via the relay API, decrypts the envelope, fetches the blob.
 import { readFileSync } from 'node:fs';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { parseSec1PEM, pubFromPriv, authSign, toHex, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef, fromB64 } from '../src/crypto';

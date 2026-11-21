@@ -24,7 +24,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		cmdGUI(nil) // ohne Argumente: nativer Linux-Client (GUI)
+		cmdGUI(nil) // no arguments: native Linux client (GUI)
 		return
 	}
 
@@ -207,7 +207,7 @@ func cmdSend(home string, args []string) {
 			attachRefs = append(attachRefs, args[i+1])
 			i++
 		} else if args[i] == "--signup" {
-			signup = true // Tag 0x0A: Erstkontakt → Porto-Vorschuss (welcome_sats)
+			signup = true // tag 0x0A: first contact → postage advance (welcome_sats)
 		} else {
 			posArgs = append(posArgs, args[i])
 		}
@@ -325,7 +325,7 @@ func cmdSend(home string, args []string) {
 		os.Exit(1)
 	}
 
-	// ?to= liefert dem Relay den Ziel-Hinweis (name@relay) fürs Routing
+	// ?to= gives the relay the routing hint (name@relay)
 	req, _ := http.NewRequest("POST", s.relay+"/v1/send?to="+url.QueryEscape(to), bytes.NewReader(envBin))
 	req.Header.Set("Authorization", s.authHdr())
 	req.Header.Set("Content-Type", "application/octet-stream")
@@ -412,9 +412,9 @@ func cmdBalance(home string, args []string) {
 	fmt.Println()
 }
 
-// --- Wallet-Kommandos (v1.0): topup, withdraw, statement ---
+// --- wallet commands (v1.0): topup, withdraw, statement ---
 
-// doAuth: HTTP-Request mit Bearer-Token; body != nil → JSON-POST.
+// doAuth: HTTP request with bearer token; body != nil → JSON POST.
 func (s *session) doAuth(method, path string, body []byte) (*http.Response, error) {
 	var rd io.Reader
 	if body != nil {

@@ -7,7 +7,7 @@ import (
 	"github.com/lightningmail/relay/internal/config"
 )
 
-// gültiger komprimierter secp256k1-Pubkey (Generator-Punkt)
+// valid compressed secp256k1 pubkey (generator point)
 const testNodeKey = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
 
 func TestParseBmailTXT(t *testing.T) {
@@ -47,7 +47,7 @@ func TestParseBmailTXT(t *testing.T) {
 	}
 }
 
-// Konfigurierte Peers gewinnen vor DNS (kein Lookup, sofort Peer-URL).
+// configured peers win over DNS (no lookup, peer URL immediately).
 func TestResolveDomainRelayPeerMatch(t *testing.T) {
 	s := &Server{cfg: &config.Config{Peers: []config.Peer{
 		{Name: "peerb", URL: "http://relay-b.local:8082", NodePubkey: testNodeKey},

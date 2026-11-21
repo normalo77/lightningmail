@@ -1,4 +1,4 @@
-// alice-bob-provision.mts — idempotent: Schluessels aus app/public/keys, Re-Registrierung bei Bedarf.
+// alice-bob-provision.mts — idempotent: keys from app/public/keys, re-registration when needed.
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { newPrivKey, sec1PEM, parseSec1PEM, pubFromPriv, toHex, authSign } from "../src/crypto";
 
@@ -20,7 +20,7 @@ for (const t of targets) {
         body: JSON.stringify({ address: t.name, pubkey_hex: pub, sig: toHex(authSign(k, t.name)) }) })).json()) as any).token;
       const pr = await fetch(base + "/v1/admin/rekey", { method: "POST", headers: { "Content-Type": "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) },
         body: JSON.stringify({ name: t.name, pubkey: pub }) });
-      console.log(t.name, dom, "-> 409, rekey:", pr.status); // Rekey existiert nicht -> 404/405 ist okay, dann unten Retry-Plan
+      console.log(t.name, dom, "-> 409, rekey:", pr.status); // rekey doesn't exist -> 404/405 is fine, retry plan below
       if (!pr.ok) { console.log(t.name, dom, "REKEY_FEHLT"); continue; }
       r = await fetch(base + "/v1/account", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: t.name, pubkey: pub }) });

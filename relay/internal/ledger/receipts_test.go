@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// Etappe 6b: Stempel-Dedup, Pending/Mirror-Markierung, Zuordnung per
-// recipientHash und Fremd-Sender-Abweisung.
+// Etappe 6b: stamp dedup, pending/mirror marking, mapping via
+// recipientHash and foreign-sender rejection.
 func TestReceiptsStampAndIncoming(t *testing.T) {
 	l := openTestLedger(t)
 
@@ -49,7 +49,7 @@ func TestReceiptsStampAndIncoming(t *testing.T) {
 		t.Fatalf("nach Mirror-Markierung keine Pendings erwartet, got %d", len(pend))
 	}
 
-	// Incoming: sha256(sender_pub) muss giselas Konto treffen
+	// incoming: sha256(sender_pub) must hit gisela's account
 	ok, err := l.StoreIncomingReceipt(msgID, senderPub, 100)
 	if err != nil || !ok {
 		t.Fatalf("store incoming: ok=%v err=%v", ok, err)
@@ -64,12 +64,12 @@ func TestReceiptsStampAndIncoming(t *testing.T) {
 	if list[0]["ts"].(int64) != 100 {
 		t.Fatalf("ts mismatch: %v", list[0]["ts"])
 	}
-	// Duplikat (zweiter Peer meldet dasselbe) → bleibt 1 Eintrag
+	// duplicate (second peer reports the same) → stays 1 entry
 	l.StoreIncomingReceipt(msgID, senderPub, 200)
 	if list, _ := l.ListIncomingReceipts(sender.ID, 10); len(list) != 1 {
 		t.Fatalf("Duplikat erzeugte zweiten Eintrag: %d", len(list))
 	}
-	// Unbekannter Sender → ok=false, kein Fehler (fremder Peer)
+	// unknown sender → ok=false, no error (foreign peer)
 	unknown := make([]byte, 33)
 	unknown[0] = 0x02
 	unknown[5] = 0x99
@@ -77,7 +77,7 @@ func TestReceiptsStampAndIncoming(t *testing.T) {
 	if err != nil || ok {
 		t.Fatalf("unbekannter Sender: ok=%v err=%v", ok, err)
 	}
-	// Empfaenger sieht keine eigenen Incoming-Receipts
+	// receiver sees none of its own incoming receipts
 	if list, _ := l.ListIncomingReceipts(recip.ID, 10); len(list) != 0 {
 		t.Fatalf("Empfaenger-Konto duerfte keine Receipts sehen: %d", len(list))
 	}

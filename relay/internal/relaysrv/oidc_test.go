@@ -1,6 +1,6 @@
-// IdP/OIDC-Flow komplett in-process: Discovery → Auth-Request → Login (Bearer)
-// → BIP340-Challenge-Signatur → Code → Token (PKCE, ES256-Verify) → UserInfo,
-// plus Negativpfade (Replay, fremde Signatur, falscher Verifier, kaputte Parameter).
+// IdP/OIDC flow fully in-process: discovery → auth request → login (bearer)
+// → BIP340 challenge signature → code → token (PKCE, ES256 verify) → userinfo,
+// plus negative paths (replay, foreign signature, wrong verifier, broken parameters).
 package relaysrv
 
 import (
@@ -214,7 +214,7 @@ func TestOIDCFullFlow(t *testing.T) {
 		t.Fatalf("token-Antwort: %v", tok)
 	}
 
-	// ID-Token: ES256-Signatur gegen den IdP-Key pruefen
+	// ID token: verify the ES256 signature against the IdP key
 	parts := strings.Split(idTok, ".")
 	if len(parts) != 3 {
 		t.Fatal("id_token kein JWT")
@@ -243,20 +243,20 @@ func TestOIDCFullFlow(t *testing.T) {
 	if bm["pubkey"] != hex.EncodeToString(pub[:]) || bm["alg"] != "bip340-sha256" {
 		t.Fatalf("bmail-Claim: %v", bm)
 	}
-	// bmail-Signatur muss ueber der Server-Challenge gueltig sein
+	// bmail signature must be valid over the server challenge
 	bmSig, _ := hex.DecodeString(bm["sig"].(string))
 	pubkey, _ := crypto.ParsePubKey(pub[:])
 	if err := crypto.Verify(pubkey, challenge, bmSig); err != nil {
 		t.Fatalf("bmail-Sig ungueltig: %v", err)
 	}
 
-	// Code-Replay muss scheitern (single-use)
+	// code replay must fail (single-use)
 	w = srv.do(t, "POST", "/oidc/token", nil, form, "")
 	if w.Code != 400 {
 		t.Fatalf("code-replay: %d", w.Code)
 	}
 
-	// UserInfo mit Access-Token
+	// userinfo with access token
 	r := httptest.NewRequest("GET", "/oidc/userinfo", nil)
 	r.Header.Set("Authorization", "Bearer "+access)
 	w = httptest.NewRecorder()
@@ -269,7 +269,7 @@ func TestOIDCFullFlow(t *testing.T) {
 	if ui["sub"] != "alice@idp.test" || ui["email_verified"] != true {
 		t.Fatalf("userinfo-claims: %v", ui)
 	}
-	// UserInfo ohne/mit kaputtem Token
+	// userinfo without/with a broken token
 	r = httptest.NewRequest("GET", "/oidc/userinfo", nil)
 	w = httptest.NewRecorder()
 	srv.handleOIDCRouter(w, r)
@@ -281,7 +281,7 @@ func TestOIDCFullFlow(t *testing.T) {
 func TestOIDCNegativePaths(t *testing.T) {
 	srv, priv := newOIDCTestServer(t)
 
-	// Falscher Verifier → invalid_grant
+	// wrong verifier → invalid_grant
 	_, code, _ := startFlow(t, srv, priv, testVerifier, "")
 	form := url.Values{"grant_type": {"authorization_code"}, "code": {code},
 		"redirect_uri": {"https://idp.test/oidc/demo-callback.html"}, "client_id": {"demo"},
@@ -291,9 +291,9 @@ func TestOIDCNegativePaths(t *testing.T) {
 		t.Fatalf("falscher verifier: %d", w.Code)
 	}
 
-	// Fremder Schluessel signiert die Challenge → 403
+	// foreign key signs the challenge → 403
 	other, _ := crypto.GenerateKeyPair()
-	// via echtem Flow: Login holen, mit falschem Key signieren
+	// via a real flow: fetch login, sign with the wrong key
 	w = srv.do(t, "GET", "/oidc/auth?"+authQuery(testVerifier).Encode(), nil, nil, "")
 	loc := w.Result().Header.Get("Location")
 	lu, _ := url.Parse(loc)
@@ -308,19 +308,19 @@ func TestOIDCNegativePaths(t *testing.T) {
 		t.Fatalf("fremde Signatur: %d", w.Code)
 	}
 
-	// Login mit ungueltigem Token → 401
+	// login with invalid token → 401
 	w = srv.do(t, "POST", "/oidc/auth/login", map[string]string{"sid": sid}, nil, "ungueltig")
 	if w.Code != 401 {
 		t.Fatalf("login falscher token: %d", w.Code)
 	}
 
-	// Unbekannte sid → 400
+	// unknown sid → 400
 	w = srv.do(t, "POST", "/oidc/auth/login", map[string]string{"sid": "gibtsnicht"}, nil, "tok123")
 	if w.Code != 400 {
 		t.Fatalf("unbekannte sid: %d", w.Code)
 	}
 
-	// Auth-Request: unbekannter client, falsche redirect_uri, fehlende PKCE
+	// auth request: unknown client, wrong redirect_uri, missing PKCE
 	for i, mut := range []func(q url.Values){
 		func(q url.Values) { q.Set("client_id", "unbekannt") },
 		func(q url.Values) { q.Set("redirect_uri", "https://evil.example/cb") },
@@ -337,7 +337,7 @@ func TestOIDCNegativePaths(t *testing.T) {
 		}
 	}
 
-	// Deny-Pfad: access_denied statt code
+	// deny path: access_denied instead of code
 	w = srv.do(t, "GET", "/oidc/auth?"+authQuery(testVerifier).Encode(), nil, nil, "")
 	lu2, _ := url.Parse(w.Result().Header.Get("Location"))
 	sid2 := lu2.Query().Get("sid")
@@ -379,8 +379,8 @@ func TestPkceAndPad(t *testing.T) {
 	}
 }
 
-// TestOIDCPaywall: pay_sats=5&pay_item=art-1&pay_to=bob → alice −5.000 msat,
-// bob +5.000 msat, paid_sats/paid_item im id_token-bmail-Claim und in /oidc/userinfo.
+// TestOIDCPaywall: pay_sats=5&pay_item=art-1&pay_to=bob → alice −5,000 msat,
+// bob +5,000 msat, paid_sats/paid_item in the id_token bmail claim and in /oidc/userinfo.
 func TestOIDCPaywall(t *testing.T) {
 	srv, priv := newOIDCTestServer(t)
 	bobPriv, _ := crypto.GenerateKeyPair()
@@ -404,7 +404,7 @@ func TestOIDCPaywall(t *testing.T) {
 	lu, _ := url.Parse(w.Result().Header.Get("Location"))
 	sid := lu.Query().Get("sid")
 
-	// Login-Antwort muss die Paywall-Parameter spiegeln
+	// login response must mirror the paywall parameters
 	w = srv.do(t, "POST", "/oidc/auth/login", map[string]string{"sid": sid}, nil, "tok123")
 	if w.Code != 200 {
 		t.Fatalf("login: %d %s", w.Code, w.Body.String())
@@ -425,7 +425,7 @@ func TestOIDCPaywall(t *testing.T) {
 	ru, _ := url.Parse(sj["redirect"])
 	code := ru.Query().Get("code")
 
-	// Geldbewegung: alice −5.000 msat, bob +5.000 msat
+	// money movement: alice −5,000 msat, bob +5,000 msat
 	aliceAfter, _ := srv.ledger.Balance("alice")
 	bobAfter, _ := srv.ledger.Balance("bob")
 	if aliceBefore-aliceAfter != 5_000 {
@@ -435,7 +435,7 @@ func TestOIDCPaywall(t *testing.T) {
 		t.Fatalf("bob balance = %d msat, want 5000", bobAfter)
 	}
 
-	// Token: bmail-Claim mit paid_sats/paid_item
+	// token: bmail claim with paid_sats/paid_item
 	form := url.Values{"grant_type": {"authorization_code"}, "code": {code},
 		"redirect_uri": {"https://idp.test/oidc/demo-callback.html"}, "client_id": {"demo"},
 		"code_verifier": {testVerifier}}
@@ -454,7 +454,7 @@ func TestOIDCPaywall(t *testing.T) {
 		t.Fatalf("id_token bmail-Claim: %v", bm)
 	}
 
-	// UserInfo: dieselben paid_*-Felder
+	// userinfo: the same paid_* fields
 	w = srv.do(t, "GET", "/oidc/userinfo", nil, nil, tok["access_token"].(string))
 	if w.Code != 200 {
 		t.Fatalf("userinfo: %d", w.Code)
@@ -466,7 +466,7 @@ func TestOIDCPaywall(t *testing.T) {
 		t.Fatalf("userinfo bmail: %v", uib)
 	}
 
-	// pay_sats > Obergrenze → 400
+	// pay_sats > upper limit → 400
 	q.Set("pay_sats", "1000001")
 	w = srv.do(t, "GET", "/oidc/auth?"+q.Encode(), nil, nil, "")
 	if w.Code != 400 {
@@ -487,7 +487,7 @@ func TestOIDCStatelessOriginClient(t *testing.T) {
 		"code_challenge":        {base64.RawURLEncoding.EncodeToString(h[:])},
 		"code_challenge_method": {"S256"},
 	}
-	// 1. Gleiche HTTPS-Origin ohne Vorab-Registrierung → 302
+	// 1. same HTTPS origin without pre-registration → 302
 	w := srv.do(t, "GET", "/oidc/auth?"+q.Encode(), nil, nil, "")
 	if w.Code != http.StatusFound {
 		t.Fatalf("stateless client: %d %s", w.Code, w.Body.String())
@@ -519,14 +519,14 @@ func TestOIDCStatelessOriginClient(t *testing.T) {
 		t.Fatalf("stateless token: %d %s", w.Code, w.Body.String())
 	}
 
-	// 2. Abweichende redirect_uri-Origin → 400
+	// 2. differing redirect_uri origin → 400
 	q.Set("redirect_uri", "https://evil.example.org/cb")
 	w = srv.do(t, "GET", "/oidc/auth?"+q.Encode(), nil, nil, "")
 	if w.Code != 400 {
 		t.Fatalf("cross-origin redirect_uri akzeptiert: %d", w.Code)
 	}
 
-	// 3. Plain HTTP auf fremdem Host → 400
+	// 3. plain HTTP on a foreign host → 400
 	q.Set("client_id", "http://shop.example.org")
 	q.Set("redirect_uri", "http://shop.example.org/cb")
 	w = srv.do(t, "GET", "/oidc/auth?"+q.Encode(), nil, nil, "")

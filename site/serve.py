@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# bmail-site: Landing Page (apex) + PWA unter /app/ + Relay-Proxy unter /relay-a|/relay-b.
-# Inkl. cookielosem, DSGVO-konformem 100%-anonymem Besucherzaehler (/stats & /stats.json).
+# bmail-site: landing page (apex) + PWA at /app/ + relay proxy at /relay-a|/relay-b.
+# Includes a cookieless GDPR-friendly 100%-anonymous visitor counter (/stats & /stats.json).
 import base64, datetime, hashlib, hmac, http.client, json, mimetypes, os, posixpath, secrets, sqlite3, sys, threading, time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, unquote
@@ -24,10 +24,10 @@ TRACKED_PATHS = {
     "/lightningmail-thunderbird.xpi": "/lightningmail-thunderbird.xpi",
 }
 
-# Relay-Ports fuer X-Forum-Token-Verifikation (OIDC-UserInfo)
+# Relay ports for X-Forum-Token verification (OIDC-UserInfo)
 FORUM_RELAYS = {"alpha": 8443, "beta": 9443}
 
-# 4 Demo-Blabla-Artikel fuer die 5-Sat-Mikro-Paywall
+# 4 demo blabla articles for the 5-sat micro paywall
 ARTICLES = [
     {"id": "art-1", "price_sats": 5,
      "title": "Blabla-Artikel #1: Das Geheimnis der 5-Satoshi-Schranke",
@@ -234,7 +234,7 @@ def record_hit(handler, canonical_path):
         except Exception:
             pass
         return
-    # Cookielos & DSGVO-sauber: Einweg-SHA256-Hashes ohne Klartext-IP-Speicherung
+    # Cookieless & GDPR-clean: one-way SHA256 hashes, no plaintext IPs stored
     vhash = hashlib.sha256(f"{day}|bmail-anon|{ip}|{ua}".encode("utf-8")).hexdigest()[:20]
     iphash = hashlib.sha256(f"bmail-unique-ip-v1|{ip}".encode("utf-8")).hexdigest()[:24]
     try:
@@ -319,7 +319,7 @@ a{{color:#122338;font-weight:600}}
         self.end_headers()
         self.wfile.write(html)
 
-    # --- Forum + 5-Sat-Paywall (OIDC-Mikrozahlung) ---
+    # --- forum + 5-sat paywall (OIDC micropayment) ---
 
     @staticmethod
     def _forum_secret():

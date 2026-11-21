@@ -1,6 +1,6 @@
-// statement-test.mts — Etappe G2 (§25): /v1/statement (JSON+CSV) mit
-// Hash-Ketten-Nachrechnung im Client, /v1/relay/statement (Betreiber, Secret).
-// Ablauf: npx tsx test/statement-test.mts  (RELAY=, BMAIL_DB=, RELAY_SECRET= ueberschreibbar)
+// statement-test.mts — Etappe G2 (§25): /v1/statement (JSON+CSV) with
+// client-side hash-chain recomputation, /v1/relay/statement (operator, secret).
+// Run: npx tsx test/statement-test.mts  (RELAY=, BMAIL_DB=, RELAY_SECRET= overridable)
 import { newPrivKey, pubFromPriv, authSign, toHex } from "../src/crypto";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { execFileSync } from "node:child_process";
@@ -36,7 +36,7 @@ const topUp = (name: string, msat: number): boolean => {
   } catch { return false; }
 };
 
-// --- Buchung erzeugen: Blob-Upload mit Byte-Porto (fee mit Stempel) ---
+// --- Create a booking: blob upload with byte postage (fee with stamp) ---
 const user = await mkAccount("stb");
 const canMoney = topUp(user.name, 5_000_000);
 let charged = false;
@@ -51,11 +51,11 @@ if (canMoney) {
   ok(r.status === 200, `Blob-Upload als Testbuchung (${r.status}, charged=${bj.charged_msat})`);
 } else skip("Blob-Upload mit Byte-Porto (kein sqlite-Zugriff)");
 
-// --- 401 ohne Token ---
+// --- 401 without token ---
 r = await fetch(base + "/v1/statement");
 ok(r.status === 401, `statement ohne Token -> 401 (${r.status})`);
 
-// --- JSON + Hash-Kette exakt nachrechnen ---
+// --- Recompute JSON + hash chain exactly ---
 r = await fetch(base + "/v1/statement?fmt=json", { headers: auth(user.token) });
 const j = await r.json() as any;
 ok(r.status === 200 && j.konto === user.name && Array.isArray(j.zeilen), "statement JSON-Grundform");
@@ -73,7 +73,7 @@ if (charged) {
   ok(!!feeRow && feeRow.eur_micro < 0 && feeRow.kurs_quelle !== undefined, `fee-Zeile mit EUR-Stempel (${feeRow?.eur_micro} µEUR, quelle=${feeRow?.kurs_quelle})`);
 }
 
-// --- from-Filter: Ausgabe leer, Kopf bleibt derselbe ---
+// --- from filter: output empty, head stays the same ---
 const r2 = await fetch(base + `/v1/statement?fmt=json&from=${Math.floor(Date.now() / 1000) + 3600}`, { headers: auth(user.token) });
 const j2 = await r2.json() as any;
 ok(j2.zeilen.length === 0 && j2.kopf === j.kopf, "from in der Zukunft: 0 Zeilen, Kopf identisch (Kette laeuft durch)");
@@ -86,7 +86,7 @@ ok(r.status === 200 && lines[0].startsWith("# bmail-statement,v1,konto="), "CSV-
 ok(csvTxt.includes("prev_hash,hash") && csvTxt.includes("LND-Onchain"), "CSV: Ketten-Spalten + LND-Hinweis");
 ok(lines.length === 3 + j.zeilen.length, `CSV-Zeilenzahl = Kopf(2)+Header(1)+${j.zeilen.length} Daten`);
 
-// --- Betreiber-Statement ---
+// --- Operator statement ---
 r = await fetch(base + "/v1/relay/statement");
 ok(r.status === 403, `operator ohne Secret -> 403 (${r.status})`);
 r = await fetch(base + "/v1/relay/statement?fmt=json", { headers: { "X-Relay-Secret": relaySecret } as any });

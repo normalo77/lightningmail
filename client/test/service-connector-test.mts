@@ -1,9 +1,9 @@
-// service-connector-test.mts — Etappe I (§28/§29): Headless Service-Connector E2E.
-// Signup-Brief user->service zahlt Willkommensporto, Connector pollt (signup=true),
-// Antwortbrief des Dienstes zahlt Standardporto → Nettogewinn beim Dienst.
-// Topologie wie alice-bob-mailcheck: user@alpha, service@beta — lnd erlaubt keine
-// Self-Payments, Versand innerhalb desselben Relays ist nicht vorgesehen.
-// Ablauf: npx tsx test/service-connector-test.mts   (RELAY=, RELAY_B=, BMAIL_DB= ueberschreibbar)
+// service-connector-test.mts — Etappe I (§28/§29): headless service connector E2E.
+// Signup letter user->service pays welcome postage, the connector polls (signup=true),
+// the service's reply letter pays standard postage → net profit at the service.
+// Topology like alice-bob-mailcheck: user@alpha, service@beta — lnd allows no
+// self-payments, sending within the same relay is not intended.
+// Run: npx tsx test/service-connector-test.mts   (RELAY=, RELAY_B=, BMAIL_DB= overridable)
 import { newPrivKey, pubFromPriv, authSign, toHex } from "../src/crypto";
 import { composeAndSend } from "../src/send";
 import { ServiceConnector } from "../src/connector";
@@ -38,7 +38,7 @@ const topUp = (name: string, msat: number): boolean => {
 };
 const balance = async (relay: string, t: string): Promise<number> =>
   ((await (await fetch(relay + "/v1/balance", { headers: auth(t) })).json()) as any).balance_msat;
-// Keysend-Gutschrift beim Empfaenger landet async (Invoice-Watcher) → pollen
+// The keysend credit lands async at the recipient (invoice watcher) → poll
 async function waitBalance(relay: string, t: string, want: number, tries = 30): Promise<number> {
   let b = -1;
   for (let i = 0; i < tries; i++) {
@@ -50,27 +50,27 @@ async function waitBalance(relay: string, t: string, want: number, tries = 30): 
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// --- Konten + Geld ---
+// --- Accounts + money ---
 const user = await mkAccount("scu", base);
 const service = await mkAccount("scs", baseB);
 const userStart = await balance(base, user.token);
 const serviceStart = await balance(baseB, service.token);
 ok(userStart >= 5_000_000, `user Startguthaben bereit: ${userStart} msat`);
 
-// --- Porto-Parameter: sender-seitig (alpha charged Signup, beta die Antwort) ---
+// --- Postage parameters: sender side (alpha charges signup, beta the reply) ---
 const profA = (await (await fetch(`${base}/v1/profile/${user.name}`)).json()) as any;
 const profB = (await (await fetch(`${baseB}/v1/profile/${service.name}`)).json()) as any;
-const welcomeMsat = (profA.welcome_sats ?? profA.foreign_sats * 3) * 1000; // alpha: Signup-Porto
-const foreignMsat = profB.foreign_sats * 1000;                            // beta: Antwort-Porto
+const welcomeMsat = (profA.welcome_sats ?? profA.foreign_sats * 3) * 1000; // alpha: signup postage
+const foreignMsat = profB.foreign_sats * 1000;                            // beta: reply postage
 ok(profB.welcome_sats > profB.foreign_sats && welcomeMsat > foreignMsat,
   `Profile nennen welcome_sats (signup ${welcomeMsat} msat > antwort ${foreignMsat} msat)`);
 
-// --- Connector-Login (Dienst sitzt auf beta) ---
+// --- Connector login (the service sits on beta) ---
 const connector = new ServiceConnector({ relayUrl: baseB, account: service.name, privKey: service.priv });
 const cToken = await connector.login();
 ok(!!cToken && cToken === connector.token, "ServiceConnector.login() liefert Bearer-Token");
 
-// --- Signup-Brief: user@alpha -> service@beta ---
+// --- Signup letter: user@alpha -> service@beta ---
 const sent = await composeAndSend(base, user.token, user.priv,
   { to: service.name, subject: "Signup", body: "Please register me", signup: true });
 ok(!!sent.msg_id, `Signup-Brief gesendet (msg_id ${String(sent.msg_id).slice(0, 10)}…)`);
@@ -80,7 +80,7 @@ ok(userAfter === userStart - welcomeMsat, `user zahlt Porto-Vorschuss: ${userSta
 const serviceAfter = await waitBalance(baseB, connector.token, serviceStart + welcomeMsat);
 ok(serviceAfter === serviceStart + welcomeMsat, `service erhaelt Porto-Vorschuss: ${serviceStart} -> ${serviceAfter} msat (+${welcomeMsat})`);
 
-// --- pollOnce: Signup-Mail sichtbar, Dedupe ueber lastSeq ---
+// --- pollOnce: signup mail visible, dedupe via lastSeq ---
 await sleep(500);
 let mails = await connector.pollOnce();
 ok(mails.length === 1, `pollOnce liefert genau 1 neue Mail (${mails.length})`);
@@ -92,7 +92,7 @@ ok(connector.lastSeq === m.seq && connector.lastSeq > 0, `lastSeq auf ${connecto
 mails = await connector.pollOnce();
 ok(mails.length === 0, "zweites pollOnce ohne neue Mail -> leer (keine Duplikate)");
 
-// --- Antwortbrief: service -> user (Standardporto) ---
+// --- Reply letter: service -> user (standard postage) ---
 const reply = await connector.sendMail(user.name, "Welcome!", "Account active");
 ok(!!reply.msg_id, `Antwort via connector.sendMail gesendet (${String(reply.msg_id).slice(0, 10)}…)`);
 const net = welcomeMsat - foreignMsat;

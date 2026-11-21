@@ -1,4 +1,4 @@
-// alice-bob-mailcheck.mts — die klassische Korrespondenz: alice@alpha -> bob@beta.
+// alice-bob-mailcheck.mts — the classic correspondence: alice@alpha -> bob@beta.
 import { readFileSync } from "node:fs";
 import { parseSec1PEM, pubFromPriv, authSign, toHex } from "../src/crypto";
 import { composeAndSend } from "../src/send";

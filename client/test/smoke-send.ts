@@ -1,5 +1,5 @@
-// smoke-send.ts — headless Beweis des App-Sendepfads: Login, Kompose, Blob, /v1/send.
-// Aufruf: npx tsx app/../test/smoke-send.ts  (cwd client/)
+// smoke-send.ts — headless proof of the app send path: login, compose, blob, /v1/send.
+// Run: npx tsx app/../test/smoke-send.ts  (cwd client/)
 import { readFileSync } from 'node:fs';
 import { parseSec1PEM, pubFromPriv, authSign, toHex } from '../src/crypto';
 import { composeAndSend } from '../src/send';

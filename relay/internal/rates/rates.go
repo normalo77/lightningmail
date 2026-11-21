@@ -1,9 +1,9 @@
-// Package rates: Tageskurs EUR/BTC fuer wertdefinierte Preise (§25 Steuer-Log,
-// §26 Multi-Waehrung). Ein Abruf pro Tag (24h-Cache, stuendlich geprueft);
-// manual_eur_per_btc aus der Config gewinnt immer (Regtest/Testmarkierung
-// rate_src="manual" — CONCEPT §25: Regtest-Muell bleibt als Testdaten erkennbar).
-// Ohne Kurs (beides leer / Feed down und kein Snapshot) ist ok=false →
-// Relay bucht ungeratet bzw. kann wertdefinierte Preise nicht umrechnen.
+// Package rates: daily EUR/BTC rate for value-defined prices (§25 tax log,
+// §26 multi-currency). One fetch per day (24h cache, checked hourly);
+// manual_eur_per_btc from the config always wins (regtest/test marking
+// rate_src="manual" — CONCEPT §25: regtest junk stays recognizable as test data).
+// Without a rate (both empty / feed down and no snapshot) ok=false →
+// the relay books unrated or cannot convert value-defined prices.
 package rates
 
 import (
@@ -30,8 +30,8 @@ func NewFeed(rateURL string, manualEurPerBtc float64) *Feed {
 	return &Feed{url: rateURL, manual: manualEurPerBtc}
 }
 
-// Start einmal laden, dann stuendlich pruefen; Feed-Snapshots erst ab 24h
-// Alter neu ziehen (Tageskurs). Laeuft als Goroutine im relayd.
+// Load once at start, then check hourly; re-fetch feed snapshots only
+// after 24h of age (daily rate). Runs as a goroutine in relayd.
 func (f *Feed) Start() {
 	f.refresh()
 	for range time.Tick(time.Hour) {
@@ -44,7 +44,7 @@ func (f *Feed) Start() {
 	}
 }
 
-// Current liefert den Snapshot; ok=false → ungeratet.
+// Current returns the snapshot; ok=false → unrated.
 func (f *Feed) Current() (ledger.RateStamp, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -64,7 +64,7 @@ func (f *Feed) refresh() {
 	if f.url == "" {
 		return
 	}
-	// Format Binance/BSi: {"price":"90123.45000000"} — Rest ignorieren.
+	// Binance/BSi format: {"price":"90123.45000000"} — ignore the rest.
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(f.url)
 	if err != nil {

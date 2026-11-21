@@ -1,7 +1,7 @@
-// connector-daemon-test.mts — Selbstcheck des Service-Connector-Daemons (Etappe O):
-// Fake-Relay (auth/profile/send) hochfahren, Daemon per tsx spawnen, lokale
-// JSON-API pruefen: GET /health, GET /inbox, POST /send.
-// Ablauf: npx tsx test/connector-daemon-test.mts   (aus client/)
+// connector-daemon-test.mts — self-check of the service connector daemon (Etappe O):
+// bring up a fake relay (auth/profile/send), spawn the daemon via tsx, check the
+// local JSON API: GET /health, GET /inbox, POST /send.
+// Run: npx tsx test/connector-daemon-test.mts   (from client/)
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { webcrypto } from 'node:crypto';
 import { newPrivKey, pubFromPriv, sec1PEM, toHex } from '../src/crypto';
 
-// Node 18 ohne --experimental-global-webcrypto: src/crypto.ts braucht globalThis.crypto
+// Node 18 without --experimental-global-webcrypto: src/crypto.ts needs globalThis.crypto
 if (!globalThis.crypto) (globalThis as any).crypto = webcrypto;
 
 const ok = (c: boolean, m: string) => {
@@ -20,7 +20,7 @@ const ok = (c: boolean, m: string) => {
 const clientRoot = new URL('..', import.meta.url).pathname;
 const recipientPub = toHex(pubFromPriv(newPrivKey()));
 
-// --- Fake-Relay: nur was der Daemon-Pfad wirklich aufruft ---
+// --- Fake relay: only what the daemon path actually calls ---
 let authCalls = 0, sendCalls = 0;
 const relay = createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://x');
@@ -41,7 +41,7 @@ const relay = createServer((req, res) => {
 await new Promise<void>((r) => relay.listen(0, '127.0.0.1', r));
 const relayPort = (relay.address() as any).port;
 
-// --- Daemon spawnen ---
+// --- Spawn the daemon ---
 const dir = mkdtempSync(join(tmpdir(), 'bmail-daemon-'));
 const keyFile = join(dir, 'svc.pem');
 writeFileSync(keyFile, sec1PEM(newPrivKey()));
@@ -69,7 +69,7 @@ async function waitForHealth(tries = 60): Promise<any> {
     try {
       const r = await fetch(base + '/health');
       if (r.ok) return await r.json();
-    } catch { /* Daemon startet noch (tsx-Compile) */ }
+    } catch { /* daemon is still starting (tsx compile) */ }
     await sleep(500);
   }
   throw new Error('daemon /health nicht erreichbar; Output:\n' + daemonOut);
@@ -99,7 +99,7 @@ try {
   const nf = await fetch(base + '/nope');
   ok(nf.status === 404, 'unbekannte Route -> 404');
 
-  await sleep(800); // Hintergrund-Poll muss ohne Crash laufen (BMAIL_POLL_MS=300)
+  await sleep(800); // background poll must run without crashing (BMAIL_POLL_MS=300)
   ok((await (await fetch(base + '/health')).json() as any)?.ok === true, 'Hintergrund-Poll-Loop laeuft stabil');
 } catch (e) {
   ok(false, String(e));

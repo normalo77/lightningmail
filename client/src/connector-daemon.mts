@@ -1,16 +1,16 @@
 #!/usr/bin/env npx tsx
-// connector-daemon.mts — Service-Connector als Sidecar-Daemon (CONCEPT §29,
-// Etappe O): Headless-Mailbox fuer Dienste. Pollt die Inbox im Hintergrund
-// (Webhook-Push pro Mail steckt bereits im ServiceConnector) und serviert eine
-// lokale JSON-API auf 127.0.0.1: GET /health, GET /inbox, POST /send.
+// connector-daemon.mts — service connector as sidecar daemon (CONCEPT §29,
+// Etappe O): headless mailbox for services. Polls the inbox in the background
+// (per-mail webhook push already lives in ServiceConnector) and serves a local
+// JSON API on 127.0.0.1: GET /health, GET /inbox, POST /send.
 //
 // Start: BMAIL_RELAY=https://relay.example.org BMAIL_ACCOUNT=service \
 //        BMAIL_KEY_FILE=service.pem npx tsx src/connector-daemon.mts
-// Env:   BMAIL_RELAY, BMAIL_ACCOUNT (Pflicht);
-//        BMAIL_KEY_FILE = SEC1-PEM oder LMKEY1-Wrap (+ BMAIL_KEY_PASSPHRASE)
-//        oder BMAIL_MNEMONIC (24 BIP39-Woerter);
-//        BMAIL_WEBHOOK_URL (optional), BMAIL_PORT (Default 4040),
-//        BMAIL_POLL_MS (Default 5000).
+// Env:   BMAIL_RELAY, BMAIL_ACCOUNT (required);
+//        BMAIL_KEY_FILE = SEC1-PEM or LMKEY1 wrap (+ BMAIL_KEY_PASSPHRASE)
+//        or BMAIL_MNEMONIC (24 BIP39 words);
+//        BMAIL_WEBHOOK_URL (optional), BMAIL_PORT (default 4040),
+//        BMAIL_POLL_MS (default 5000).
 import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { webcrypto } from 'node:crypto';
@@ -19,7 +19,7 @@ import { parseSec1PEM } from './crypto';
 import { isWrapped, unwrapKey } from './keywrap';
 import { checkMnemonic, keyFromMnemonic } from './bip39';
 
-// Node 18 ohne --experimental-global-webcrypto: src/crypto.ts braucht globalThis.crypto
+// Node 18 without --experimental-global-webcrypto: src/crypto.ts needs globalThis.crypto
 if (!globalThis.crypto) (globalThis as any).crypto = webcrypto;
 
 function loadPrivKey(): Uint8Array {
@@ -50,7 +50,7 @@ const connector = new ServiceConnector({
   webhookUrl: process.env.BMAIL_WEBHOOK_URL || undefined,
 });
 
-// Start-Login; bei Relay-Ausfall nicht sterben — pollOnce() loggt selbst neu ein.
+// Initial login; don't die on a relay outage — pollOnce() re-authenticates itself.
 try {
   await connector.login();
   console.log(`login ok: ${account} @ ${relayUrl}`);
@@ -60,7 +60,7 @@ try {
 
 let polling = false;
 setInterval(async () => {
-  if (polling) return; // kein Ueberlappen langsamer Polls
+  if (polling) return; // never overlap slow polls
   polling = true;
   try {
     const mail = await connector.pollOnce();

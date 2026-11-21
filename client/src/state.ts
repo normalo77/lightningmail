@@ -1,27 +1,27 @@
-// state.ts — M2.5: verschluesselter State-Slot pro Konto, Geraete mergen per OR.
-// DOM-frei (Headless-Test + PWA teilen sich den Pfad). Schluessel = eigenes
-// Mailbox-Paar (Selbst-ECIES); der Relay sieht nur version + undurchsichtigen Blob.
+// state.ts — M2.5: encrypted state slot per account, devices merge via OR.
+// DOM-free (headless test + PWA share the path). Key = the own mailbox pair
+// (self-ECIES); the relay only sees version + opaque blob.
 import { encryptPayload, decryptPayload, toHex, fromHex, pubFromPriv } from "./crypto";
 
 export type Draft = { id: string; ts: number; to: string; subject: string; body: string; gone?: 1 };
-// Gesendet-Ordner im State-Doc (Stern-Sync). body max. 2000 Zeichen — der
-// 256-kB-Slot muss schlank bleiben; 150 neueste Einträge.
+// Sent folder inside the state doc (star sync). body max. 2000 chars — the
+// 256-kB slot must stay lean; 150 newest entries.
 export type SentItem = { msg_id: string; ts: number; to: string; subject: string; body?: string; bytes: number };
-// Etappe A: privates Adressbuch. Feldnamen ~ vCard 4.0 (N/FN/ORG/TITLE/...).
-// shortcut: State-Slot cappt 256 kB (Relay) -> ~500 Kontakte; bei Überlauf
-// Einzelfeld-Subtiles noetig, nicht vor der Beta.
+// Etappe A: private address book. Field names ~ vCard 4.0 (N/FN/ORG/TITLE/...).
+// shortcut: the state slot caps at 256 kB (relay) -> ~500 contacts; on overflow
+// per-field subtiles are needed, not before beta.
 export type Contact = {
   id: string; ts: number; gone?: 1;
   name: string; given: string; org: string; title: string; url: string;
   cell: string; phone: string; fax: string; email: string; addr: string;
   lnaddr: string; pubkey: string; pgp: string; note: string;
-  btc: string; crypto: string; // BTC-Empfangsadresse, Rest frei ("LTC: ltc1...; XMR: 8...")
+  btc: string; crypto: string; // BTC receiving address, rest free-form ("LTC: ltc1...; XMR: 8...")
 };
-// Etappe J: Drive-Eintrag (Datei/Ordner) im State-Doc. parent = 'root' oder id
-// eines kind:'d'-Eintrags. size = verschluesselte/gespeicherte Bytes (zaehlt fuer
-// die Quota), size_plain = Klartext-Laenge, msha = Manifest-Blob (kind:'f').
-// shortcut: State-Slot cappt 256 kB -> einige hundert Eintraege locker; Paging
-// noetig erst bei Tausenden, nicht vor der Beta.
+// Etappe J: drive entry (file/folder) in the state doc. parent = 'root' or the
+// id of a kind:'d' entry. size = encrypted/stored bytes (counts toward the
+// quota), size_plain = plaintext length, msha = manifest blob (kind:'f').
+// shortcut: the state slot caps at 256 kB -> a few hundred entries easily;
+// paging only needed at thousands, not before beta.
 export type DriveEntry = {
   id: string; ts: number; gone?: 1;
   name: string; parent: string; kind: 'f' | 'd';
@@ -42,8 +42,8 @@ const cat = (a: Uint8Array, b: Uint8Array): Uint8Array => {
   const o = new Uint8Array(a.length + b.length); o.set(a, 0); o.set(b, a.length); return o;
 };
 
-// Merge: Flags OR (gelesen bleibt gelesen, spam bleibt spam — ent-sperren ist
-// eine neue Zustandsaenderung mit eigenem Push); drafts LWW pro id, Tombstones bleiben.
+// Merge: flags OR (read stays read, spam stays spam — un-marking is a new
+// state change with its own push); drafts LWW per id, tombstones persist.
 export function mergeDocs(a: StateDoc, b: StateDoc): StateDoc {
   const out: StateDoc = {
     read: { ...a.read, ...b.read },
@@ -55,29 +55,29 @@ export function mergeDocs(a: StateDoc, b: StateDoc): StateDoc {
     files: {},
   };
   const byId: Record<string, Draft> = {};
-  // LWW pro id; gleiche ts (Selbe-Sekunde-Zwei-Geraete) entscheidet der
-  // Tombstein. Spaeteres Re-Anlegen stempelt max(now,prev)+1 und gewinnt damit
-  // streng ueber jedem aelteren Grab. (gone-Vorrang UEBERALL war der 15.11.-Bug)
+  // LWW per id; on equal ts (same-second two-devices) the tombstone decides.
+  // Later re-creation stamps max(now,prev)+1 and thus wins strictly over any
+  // older grave. (gone-priority EVERYWHERE was the 15.11. bug)
   const wins = (d: { ts: number; gone?: 1 }, cur?: { ts: number; gone?: 1 }) =>
     !cur || d.ts > cur.ts || (d.ts === cur.ts && !!d.gone && !cur.gone);
   for (const d of [...(a.drafts || []), ...(b.drafts || [])]) {
     if (wins(d, byId[d.id])) byId[d.id] = d;
   }
   out.drafts = Object.values(byId).sort((x, y) => x.ts - y.ts).slice(-30);
-  // sent: ein Eintrag pro msg_id; längerer body gewinnt (Migration/Upgrade),
-  // sonst neuerer ts. Neueste 150, absteigend.
+  // sent: one entry per msg_id; longer body wins (migration/upgrade),
+  // otherwise newer ts. Newest 150, descending.
   const bySent: Record<string, SentItem> = {};
   for (const s of [...(a.sent || []), ...(b.sent || [])]) {
     const cur = bySent[s.msg_id];
     if (!cur || (s.body || "").length > (cur.body || "").length || s.ts > cur.ts) bySent[s.msg_id] = s;
   }
   out.sent = Object.values(bySent).sort((x, y) => y.ts - x.ts).slice(0, 150);
-  // contacts: Gleiches Muster wie drafts, nur als Map.
+  // contacts: same pattern as drafts, just as a map.
   for (const k of new Set([...Object.keys(a.contacts || {}), ...Object.keys(b.contacts || {})])) {
     const x = a.contacts?.[k], y = b.contacts?.[k];
     out.contacts[k] = !x ? y! : !y ? x : (y.ts > x.ts || (y.ts === x.ts && !!y.gone && !x.gone) ? y : x);
   }
-  // files (Etappe J): 1:1 das contacts-Muster (id-LWW, Gleichstand -> gone gewinnt).
+  // files (Etappe J): 1:1 the contacts pattern (id-LWW, tie -> gone wins).
   for (const k of new Set([...Object.keys(a.files || {}), ...Object.keys(b.files || {})])) {
     const x = a.files?.[k], y = b.files?.[k];
     out.files[k] = !x ? y! : !y ? x : (y.ts > x.ts || (y.ts === x.ts && !!y.gone && !x.gone) ? y : x);
@@ -134,7 +134,7 @@ export class StateSync {
     if (!r.ok) throw new Error("state GET " + r.status);
     const j = await r.json() as any;
     if (j.state_b64) {
-      // Server liefert hex im JSON (state_b64-Feldname historisch) — Inhalt ist hex
+      // Server delivers hex inside JSON (state_b64 field name is historical) — content is hex
       const remote = this.open(String(j.state_b64));
       if (remote) this.doc = mergeDocs(this.doc, remote);
     }
@@ -146,7 +146,7 @@ export class StateSync {
     const body = JSON.stringify({ expect_version: this.version, state_b64: this.seal(this.doc) });
     let r = await fetch(this.base + "/v1/state", { method: "PUT", headers: this.headers(), body });
     if (r.status === 409) {
-      // Kasuistik: reinziehen, mergen, nochmal mit frischer Version
+      // Conflict case: pull, merge, retry with the fresh version
       try { await this.pull(); } catch {}
       r = await fetch(this.base + "/v1/state", { method: "PUT", headers: this.headers(),
         body: JSON.stringify({ expect_version: this.version, state_b64: this.seal(this.doc) }) });
@@ -184,15 +184,15 @@ export class StateSync {
   }
   liveSent(): SentItem[] { return [...(this.doc.sent || [])].sort((a, b) => b.ts - a.ts); }
   saveContact(c: { id: string } & Partial<Contact>) {
-    const { gone: _alt, ...prev } = this.doc.contacts[c.id] || ({} as Contact); // lebendiger Save erweckt
+    const { gone: _alt, ...prev } = this.doc.contacts[c.id] || ({} as Contact); // a live save resurrects
     const ts = Math.max(Math.floor(Date.now() / 1000), prev.ts || 0) + 1;
     this.doc.contacts[c.id] = { ...prev, ...c, ts } as Contact;
     this.cacheWrite(); this.schedule();
   }
   delContact(id: string) { this.saveContact({ id, gone: 1 }); }
   liveContacts(): Contact[] { return Object.values(this.doc.contacts).filter(c => !c.gone); }
-  // Etappe J: Drive-Dateien/-Ordner, exakt das saveContact-Muster (lebendiger
-  // Save erweckt, Grab bleibt beim Merge Sieger bei Gleichstand).
+  // Etappe J: drive files/folders, exactly the saveContact pattern (a live
+  // save resurrects; on ties the grave stays the merge winner).
   saveFile(f: { id: string } & Partial<DriveEntry>) {
     const { gone: _alt, ...prev } = this.doc.files[f.id] || ({} as DriveEntry);
     const ts = Math.max(Math.floor(Date.now() / 1000), prev.ts || 0) + 1;

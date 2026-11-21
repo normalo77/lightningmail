@@ -3,7 +3,7 @@
 // Money is stored as integer msat; writes use optimistic locking on the
 // account.version column (spec §8.2), never balance-UPDATE-without-check.
 // v3 (Etappe 4a): persistent auth tokens, blob ACL, storage quota.
-// v4 (Etappe B): txlog currency + Steuer-Stempel (§25/§26), Kinds card_out/card_in.
+// v4 (Etappe B): txlog currency + tax stamp (§25/§26), kinds card_out/card_in.
 package ledger
 
 import (
@@ -45,8 +45,8 @@ var (
 
 const maxRetries = 32
 
-// DefaultQuotaBytes: Standard-Quota neuer Konten (100 MiB, Etappe 4a).
-// relayd uebergibt seit Etappe J1 stattdessen cfg.Drive.QuotaMB.
+// DefaultQuotaBytes: default quota for new accounts (100 MiB, Etappe 4a).
+// since Etappe J1 relayd passes cfg.Drive.QuotaMB instead.
 const DefaultQuotaBytes int64 = 104857600
 
 type Ledger struct{ db *sql.DB }
@@ -68,8 +68,8 @@ type Tx struct {
 	Kind      Kind
 	Ref       string
 	CreatedAt int64
-	// Etappe B (§25/§26): Waehrung + Steuer-Stempel. RateSrc=="" = ungeratet
-	// (z. B. Regtest ohne Kurs — CONCEPT §25: kein nachtraegliches Raten).
+	// Etappe B (§25/§26): currency + tax stamp. RateSrc=="" = unrated
+	// (e.g. regtest without a rate — CONCEPT §25: no after-the-fact rating).
 	Currency    string
 	EurMicro    int64
 	RateTs      int64
@@ -133,10 +133,10 @@ func (l *Ledger) migrate() error {
 	return tx.Commit()
 }
 
-// migrate3to4 (Etappe B, §25/§26): txlog bekommt currency + Steuer-Stempel und
-// das kind-CHECK nimmt card_out/card_in auf. SQLite kann kein CHECK-ALTER →
-// Tabelle neu bauen, Zeilen bleiben erhalten (ids/created_at stabil).
-// DDL muss exakt schema.sql entsprechen (dort fuer frische DBs).
+// migrate3to4 (Etappe B, §25/§26): txlog gets currency + tax stamp and
+// the kind CHECK adds card_out/card_in. SQLite cannot ALTER a CHECK →
+// rebuild the table, keeping the rows (ids/created_at stable).
+// DDL must match schema.sql exactly (used there for fresh DBs).
 func (l *Ledger) migrate3to4() error {
 	tx, err := l.db.Begin()
 	if err != nil {
@@ -196,7 +196,7 @@ func (l *Ledger) CreateAccount(name string, mailboxPubkey []byte, quotaBytes int
 		RecipientHash: h, BalanceMsat: 0, QuotaBytes: quotaBytes, Version: 0}, nil
 }
 
-// AddQuotaBytes erhoeht (delta>0) oder senkt die Storage-Quota eines Kontos.
+// AddQuotaBytes raises (delta>0) or lowers an account's storage quota.
 func (l *Ledger) AddQuotaBytes(name string, delta int64) error {
 	res, err := l.db.Exec(`UPDATE account SET quota_bytes=quota_bytes+?, updated_at=? WHERE name=?`,
 		delta, now(), name)
@@ -251,13 +251,13 @@ func (l *Ledger) Balance(name string) (int64, error) {
 	return a.BalanceMsat, nil
 }
 
-// RateStamp = Steuer-Stempel (§25 G1): Kurs-Snapshot zum Buchungszeitpunkt.
-// Geld in µEUR als Integer statt eur_cent-Float: Porto waere in ganzen Cent 0
-// (Präzisionsverlust); CSV-Export rechnet um. eur_micro = msat*MEurPerBtc/1e8.
+// RateStamp = tax stamp (§25 G1): rate snapshot at booking time.
+// money as integer µEUR instead of a eur_cent float: postage would be 0 in
+// whole cents (precision loss); the CSV export converts. eur_micro = msat*MEurPerBtc/1e8.
 type RateStamp struct {
-	MEurPerBtc int64  // EUR pro BTC × 1000
-	Ts         int64  // Kurs-Abrufzeitpunkt (unix)
-	Src        string // "manual" | Feed-Host
+	MEurPerBtc int64  // EUR per BTC × 1000
+	Ts         int64  // rate fetch time (unix)
+	Src        string // "manual" | feed host
 }
 
 func (r *RateStamp) EurMicro(msat int64) int64 {
@@ -271,8 +271,8 @@ func (l *Ledger) ApplyDelta(name string, deltaMsat int64, kind Kind, ref string)
 	return l.ApplyDeltaMeta(name, deltaMsat, kind, ref, "btc", nil)
 }
 
-// ApplyDeltaMeta bucht mit Waehrung (§26) + optionalem Kursstempel (§25).
-// rate==nil → Spalten NULL ("ungeratet", z. B. Regtest ohne Kurs).
+// ApplyDeltaMeta books with currency (§26) + optional rate stamp (§25).
+// rate==nil → columns NULL ("unrated", e.g. regtest without a rate).
 func (l *Ledger) ApplyDeltaMeta(name string, deltaMsat int64, kind Kind, ref, currency string, rate *RateStamp) error {
 	if !validKind(kind) {
 		return fmt.Errorf("%w: %s", ErrInvalidKind, kind)
@@ -393,9 +393,9 @@ type Message struct {
 	CreatedAt    int64
 }
 
-// PutMessage legt eine zugestellte Nachricht ab. msg_id ist UNIQUE:
-// wiederholte Events derselben Zahlung liefern inserted=false zurueck, damit
-// der Aufrufer Guthaben NICHT doppelt gutschreibt (Geld-Identitaet!).
+// PutMessage stores a delivered message. msg_id is UNIQUE:
+// repeated events for the same payment return inserted=false so the
+// caller does NOT credit the balance twice (money identity!).
 func (l *Ledger) PutMessage(msgID [32]byte, accountID int64, envelope []byte, receivedMsat int64) (int64, bool, error) {
 	var dupSeq sql.NullInt64
 	_ = l.db.QueryRow(`SELECT seq FROM mailbox WHERE msg_id=?`, msgID[:]).Scan(&dupSeq)
@@ -454,9 +454,9 @@ func (l *Ledger) ListMessages(accountID int64, afterSeq int64, limit int) ([]Mes
 
 const tokenLifetime = 24 * 3600 // 24 hours
 
-// --- M2.5 State-Sync: ein verschluesselter Slot pro Konto, versioniert via CAS ---
-// shortcut: CREATE IF NOT EXISTS bei jedem Zugriff — Upgrade-Pfad statt
-// schemaVersion-Bump; aufruesten sobald ein echtes Migrationsschema existiert.
+// --- M2.5 state sync: one encrypted slot per account, versioned via CAS ---
+// shortcut: CREATE IF NOT EXISTS on every access — upgrade path instead of
+// a schemaVersion bump; upgrade once a real migration scheme exists.
 
 func (l *Ledger) ensureState() error {
 	_, err := l.db.Exec(`CREATE TABLE IF NOT EXISTS state (
@@ -468,7 +468,7 @@ func (l *Ledger) ensureState() error {
 	return err
 }
 
-// GetState liefert Version und Blob (version 0, nil blob wenn leer).
+// GetState returns version and blob (version 0, nil blob when empty).
 func (l *Ledger) GetState(accountID int64) (int64, []byte, error) {
 	if err := l.ensureState(); err != nil {
 		return 0, nil, err
@@ -485,8 +485,8 @@ func (l *Ledger) GetState(accountID int64) (int64, []byte, error) {
 	return v, blob, nil
 }
 
-// PutState schreibt den Blob nur bei passender erwarteter Version und
-// liefert (neueVersion, nil) bzw. (aktuelleVersion, ErrConflict).
+// PutState writes the blob only when the expected version matches and
+// returns (newVersion, nil) or (currentVersion, ErrConflict).
 func (l *Ledger) PutState(accountID int64, expectVersion int64, blob []byte) (int64, error) {
 	if err := l.ensureState(); err != nil {
 		return 0, err
@@ -567,10 +567,10 @@ func (l *Ledger) CleanExpiredTokens() error {
 // --- Blob ACL + Quota (Etappe 4a) ---
 
 // RegisterBlobRef records that an account owns/has access to a blob.
-// fresh=false → Zeile existierte schon (Etappe 7: Byte-Porto wird nur einmal
-// pro (Konto, Blob) fällig — Dedup lädt nicht doppelt zur Kasse).
-// kind (Etappe J1): "mail" | "drive". Promotion ist stickig: eine bestehende
-// Zeile wird hoechstens mail→drive hochgestuft, nie zurueck.
+// fresh=false → row already existed (Etappe 7: byte postage is charged only
+// once per (account, blob) — dedup doesn't charge twice).
+// kind (Etappe J1): "mail" | "drive". Promotion is sticky: an existing
+// row is at most upgraded mail→drive, never back.
 func (l *Ledger) RegisterBlobRef(accountID int64, sha256 [32]byte, size int64, kind string) (fresh bool, err error) {
 	if err := l.ensureDrive(); err != nil {
 		return false, err
@@ -653,7 +653,7 @@ func isUnique(err error) bool {
 // --- M3 Retention: blob_refs.downloaded_at + Sweep ---
 
 func (l *Ledger) ensureRetention() error {
-	// ALTER TABLE ignoriert "duplicate column" auf wiederholten Laeufen.
+	// ALTER TABLE ignores "duplicate column" on repeated runs.
 	_, err := l.db.Exec(`ALTER TABLE blob_refs ADD COLUMN downloaded_at INTEGER NOT NULL DEFAULT 0`)
 	if err != nil && !containsCI(err.Error(), "duplicate column") {
 		return err
@@ -665,7 +665,7 @@ func containsCI(hay, needle string) bool {
 	return strings.Contains(strings.ToLower(hay), needle)
 }
 
-// MarkBlobDownloaded setzt den Stempel genau einmal pro Konto+Blob.
+// MarkBlobDownloaded sets the stamp exactly once per account+blob.
 func (l *Ledger) MarkBlobDownloaded(accountID int64, sha [32]byte) error {
 	if err := l.ensureRetention(); err != nil {
 		return err
@@ -675,9 +675,9 @@ func (l *Ledger) MarkBlobDownloaded(accountID int64, sha [32]byte) error {
 	return err
 }
 
-// RetentionSweep liefert die zu loeschenden shas:
-//   - alle Referenzen geladen UND der spaeteste Download aelter als grace, oder
-//   - aelter als maxAge (bezogen auf die aelteste Referenz = Lieferdatum).
+// RetentionSweep returns the shas to delete:
+//   - all references downloaded AND the latest download older than grace, or
+//   - older than maxAge (relative to the oldest reference = delivery date).
 func (l *Ledger) RetentionSweep(nowUnix, graceSec, maxSec int64) ([][]byte, error) {
 	if err := l.ensureRetention(); err != nil {
 		return nil, err
@@ -685,7 +685,7 @@ func (l *Ledger) RetentionSweep(nowUnix, graceSec, maxSec int64) ([][]byte, erro
 	if err := l.ensureDrive(); err != nil {
 		return nil, err
 	}
-	// HAVING (Etappe J1): ein sha mit auch nur einer drive-Ref wird nie getilgt.
+	// HAVING (Etappe J1): a sha with even one drive ref is never purged.
 	rows, err := l.db.Query(`SELECT sha256, MIN(created_at), MAX(downloaded_at), COUNT(*) FROM blob_refs
      GROUP BY sha256 HAVING SUM(CASE WHEN kind='drive' THEN 1 ELSE 0 END)=0`)
 	if err != nil {
@@ -711,7 +711,7 @@ func (l *Ledger) RetentionSweep(nowUnix, graceSec, maxSec int64) ([][]byte, erro
 	return out, rows.Err()
 }
 
-// DeleteBlobRefs entfernt nach File-Löschung die Referenzzeilen (Quota sinkt).
+// DeleteBlobRefs removes the reference rows after file deletion (quota drops).
 func (l *Ledger) DeleteBlobRefs(sha []byte) error {
 	_, err := l.db.Exec(`DELETE FROM blob_refs WHERE sha256=?`, sha)
 	return err
@@ -720,7 +720,7 @@ func (l *Ledger) DeleteBlobRefs(sha []byte) error {
 // --- Etappe J1 (Drive): blob_refs.kind = 'mail' | 'drive' ---
 
 func (l *Ledger) ensureDrive() error {
-	// ALTER TABLE ignoriert "duplicate column" auf wiederholten Laeufen.
+	// ALTER TABLE ignores "duplicate column" on repeated runs.
 	_, err := l.db.Exec(`ALTER TABLE blob_refs ADD COLUMN kind TEXT NOT NULL DEFAULT 'mail'`)
 	if err != nil && !containsCI(err.Error(), "duplicate column") {
 		return err
@@ -728,7 +728,7 @@ func (l *Ledger) ensureDrive() error {
 	return nil
 }
 
-// HasDriveRef: true wenn das Konto diesen sha als Drive-Datei haelt.
+// HasDriveRef: true if the account holds this sha as a drive file.
 func (l *Ledger) HasDriveRef(accountID int64, sha [32]byte) (bool, error) {
 	if err := l.ensureDrive(); err != nil {
 		return false, err
@@ -743,8 +743,8 @@ func (l *Ledger) HasDriveRef(accountID int64, sha [32]byte) (bool, error) {
 	return exists > 0, nil
 }
 
-// RemoveDriveRef loescht die drive-Ref des Kontos (kein Rückweg fuer
-// mail-refs, v0) und liefert die Anzahl aller verbleibenden Refs fuer den sha.
+// RemoveDriveRef deletes the account's drive ref (no way back for
+// mail refs, v0) and returns the number of all remaining refs for the sha.
 func (l *Ledger) RemoveDriveRef(accountID int64, sha [32]byte) (remaining int64, err error) {
 	if err := l.ensureDrive(); err != nil {
 		return 0, err

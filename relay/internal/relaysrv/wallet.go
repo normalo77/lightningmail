@@ -1,7 +1,7 @@
-// Wallet: Lightning-Aufladung/Auszahlung + LUD-16-Lightning-Adresse.
-// POST /v1/topup + POST /v1/withdraw (auth), GET /.well-known/lnurlp/{name} (öffentlich).
-// Gutschrift der Aufladung passiert NICHT hier, sondern im relayd-Ingest
-// (setztled Invoice mit Memo "bmail-topup:ACCOUNT" → ledger.KindTopup).
+// Wallet: Lightning top-up/withdrawal + LUD-16 Lightning address.
+// POST /v1/topup + POST /v1/withdraw (auth), GET /.well-known/lnurlp/{name} (public).
+// Crediting the top-up does NOT happen here but in the relayd ingest
+// (settled invoice with memo "bmail-topup:ACCOUNT" → ledger.KindTopup).
 package relaysrv
 
 import (
@@ -15,7 +15,7 @@ import (
 	"github.com/lightningmail/relay/internal/ledger"
 )
 
-// --- POST /v1/topup: Bolt11-Invoice fürs eigene Konto erzeugen ---
+// --- POST /v1/topup: create a Bolt11 invoice for the own account ---
 func (s *Server) handleTopup(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, `{"error":"method not allowed"}`, 405)
@@ -46,8 +46,8 @@ func (s *Server) handleTopup(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- POST /v1/withdraw: Bolt11-Invoice vom Guthaben bezahlen ---
-// Reihenfolge wie beim Porto: erst abbuchen, dann zahlen; Zahlungsfehler refundet.
+// --- POST /v1/withdraw: pay a Bolt11 invoice from the balance ---
+// Order as with postage: debit first, then pay; payment errors refund.
 func (s *Server) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, `{"error":"method not allowed"}`, 405)
@@ -99,7 +99,7 @@ func (s *Server) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- GET /.well-known/lnurlp/{name}: LUD-06/LUD-16 Lightning Address ---
-// Ohne ?amount: Metadata-Doc; mit ?amount (msat): Bolt11-Invoice (Top-Up des Kontos).
+// Without ?amount: metadata doc; with ?amount (msat): Bolt11 invoice (top-up of the account).
 func (s *Server) handleLNURLP(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/.well-known/lnurlp/")
 	if name == "" || strings.Contains(name, "/") || name != strings.ToLower(name) {

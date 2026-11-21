@@ -1,6 +1,6 @@
-// Dynamische Relay-Discovery (CONCEPT §4.2): _bmail._tcp.<domain> TXT-Record
-// "v=bmail1; relay=https://…; node=<66-hex>" — konfigurierte Peers gewinnen,
-// DNS-Ergebnisse werden 5 Minuten gecacht.
+// Dynamic relay discovery (CONCEPT §4.2): _bmail._tcp.<domain> TXT record
+// "v=bmail1; relay=https://…; node=<66-hex>" — configured peers win,
+// DNS results are cached for 5 minutes.
 package relaysrv
 
 import (
@@ -24,7 +24,7 @@ type dnsEntry struct {
 	at          time.Time
 }
 
-// lookupPeer findet einen konfigurierten Peer per Name oder URL-Hostname.
+// lookupPeer finds a configured peer by name or URL hostname.
 func (s *Server) lookupPeer(domain string) *config.Peer {
 	for i := range s.cfg.Peers {
 		p := &s.cfg.Peers[i]
@@ -38,7 +38,7 @@ func (s *Server) lookupPeer(domain string) *config.Peer {
 	return nil
 }
 
-// resolveDomainRelay: Domain → (relayURL, nodePubkey). Erst Peers, dann DNS.
+// resolveDomainRelay: domain → (relayURL, nodePubkey). Peers first, then DNS.
 func (s *Server) resolveDomainRelay(ctx context.Context, domain string) (string, string, error) {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	if domain == "" {
@@ -80,7 +80,7 @@ func (s *Server) resolveDomainRelay(ctx context.Context, domain string) (string,
 	return "", "", fmt.Errorf("dns: %s: %w", domain, lastErr)
 }
 
-// parseBmailTXT parst "v=bmail1; relay=https://…; node=<33B komprimiert hex>".
+// parseBmailTXT parses "v=bmail1; relay=https://…; node=<33B compressed hex>".
 func parseBmailTXT(txt string) (relay, node string, err error) {
 	kv := map[string]string{}
 	for _, part := range strings.Split(txt, ";") {
@@ -93,8 +93,8 @@ func parseBmailTXT(txt string) (relay, node string, err error) {
 		return "", "", fmt.Errorf("unsupported version %q", kv["v"])
 	}
 	relay, node = kv["relay"], kv["node"]
-	// Öffentliche DNS-Records dürfen ausschließlich https:// auf öffentliche Hosts nutzen
-	// (lokale Dev-Relays stehen in relay.yaml unter peers, niemals im öffentlichen DNS -> SSRF-Schutz).
+	// Public DNS records may only use https:// to public hosts
+	// (local dev relays live in relay.yaml under peers, never in public DNS -> SSRF protection).
 	u, uerr := url.Parse(relay)
 	if uerr != nil || u.Scheme != "https" || u.Hostname() == "" || strings.EqualFold(u.Hostname(), "localhost") {
 		return "", "", fmt.Errorf("bad relay url %q (https on public host required)", relay)
@@ -114,8 +114,8 @@ func parseBmailTXT(txt string) (relay, node string, err error) {
 	return relay, node, nil
 }
 
-// verifyPublicRelayURL prüft nach DNS-Auflösung, dass der Ziel-Hostname auf keine
-// private, Loopback- oder Link-Local-IP auflöst (DNS-Rebinding-/SSRF-Schutz).
+// verifyPublicRelayURL checks after DNS resolution that the target hostname
+// resolves to no private, loopback or link-local IP (DNS-rebinding/SSRF protection).
 func verifyPublicRelayURL(ctx context.Context, relayURL string) error {
 	u, err := url.Parse(relayURL)
 	if err != nil || u.Scheme != "https" || u.Hostname() == "" {

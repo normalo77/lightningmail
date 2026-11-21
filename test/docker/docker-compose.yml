@@ -1,8 +1,8 @@
-# bmail Etappe 1 — regtest-Infrastruktur: 1x bitcoind + 2x LND (alpha=Sende-Relay,
-# beta=Empfaenger-Relay). ALLE Credentials sind regtest-only und oeffentlich —
-# hier liegen keine echten Gelder.
+# bmail Etappe 1 — regtest infrastructure: 1x bitcoind + 2x LND (alpha=sending relay,
+# beta=receiving relay). ALL credentials are regtest-only and public —
+# no real money lives here.
 #
-# Usage: ./test/smoke.sh  (oder: docker compose -p lightningmail-test -f docker-compose.yml up -d)
+# Usage: ./test/smoke.sh  (or: docker compose -p lightningmail-test -f docker-compose.yml up -d)
 name: lightningmail-test
 
 services:
@@ -11,20 +11,20 @@ services:
     environment:
       BITCOIN_NETWORK: regtest
       BITCOIN_DATA: /data
-      BITCOIN_WALLETDIR: /data/wallets   # entrypoint legt "default"-Wallet an -> generatetoaddress funktioniert
+      BITCOIN_WALLETDIR: /data/wallets   # the entrypoint creates the "default" wallet -> generatetoaddress works
     command:
       - bitcoind
       - -server=1
       - -rpcuser=bmail
       - -rpcpassword=bmaildev
       - -rpcbind=0.0.0.0
-      - -rpcallowip=0.0.0.0/0   # nur regtest in isoliertem Compose-Netz; ohne das blockt btcpay-Conf IPv4-Clients
+      - -rpcallowip=0.0.0.0/0   # regtest only, isolated compose network; without this the btcpay conf blocks IPv4 clients
       - -fallbackfee=0.00001
       - -txindex=1
       - -zmqpubrawblock=tcp://0.0.0.0:28332
       - -zmqpubrawtx=tcp://0.0.0.0:28333
     ports:
-      - "127.0.0.1:18443:18443"   # regtest-RPC, nur localhost (Relays laufen spaeter selbst in diesem Netz)
+      - "127.0.0.1:18443:18443"   # regtest RPC, localhost only (relays will later run inside this network themselves)
     volumes:
       - ./data/bitcoin:/data
     healthcheck:
@@ -40,7 +40,7 @@ services:
       bitcoind:
         condition: service_healthy
     command:
-      # lnd 0.21: kein CLI-Flag --network — Netzwerk kommt aus --bitcoin.regtest.
+      # lnd 0.21: no --network CLI flag — network comes from --bitcoin.regtest.
       - --bitcoin.active
       - --bitcoin.regtest
       - --bitcoin.node=bitcoind
@@ -54,13 +54,13 @@ services:
       - --listen=0.0.0.0:9735
       - --noseedbackup
       - --accept-keysend
-      # 4-6-BTC-Kanaele auf regtest brauchen Wumbo.
+      # 4-6 BTC regtest channels need wumbo.
       - --protocol.wumbo-channels
-      - --maxchansize=1000000000   # 10 BTC in Sats — Einheit ist sats
-      # shortcut: lnd 0.21 nimmt protocol.custom-message nur als []uint16 (max 65535,
-      # fuer Bolt11-Invoice-TLVs); die bmail-Keysend-Typen 34349334.. (CONCEPT §12.1/§13)
-      # laufen ueber den Onion-Payload und brauchen nur --accept-keysend.
-      # Upgrade-Pfad: eigene Invoice-Record-Typen <=65535 hier als --protocol.custom-message eintragen.
+      - --maxchansize=1000000000   # 10 BTC in sats — unit is sats
+      # shortcut: lnd 0.21 takes protocol.custom-message only as []uint16 (max 65535,
+      # for Bolt11 invoice TLVs); the bmail keysend types 34349334.. (CONCEPT §12.1/§13)
+      # travel in the onion payload and only need --accept-keysend.
+      # Upgrade path: register own invoice record types <=65535 here as --protocol.custom-message.
       - --debuglevel=info
     ports:
       - "127.0.0.1:10001:10009"   # gRPC

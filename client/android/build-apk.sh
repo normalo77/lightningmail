@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Baut site/lightningmail.apk ohne Gradle: PWA-dist bundlen, dann
 # aapt2 → javac → d8 → zipalign → apksigner (SDK unter /config/android-sdk).
-# SKIP_BUILD=1 nutzt das vorhandene client/app/dist ohne vite-Neubau.
+# SKIP_BUILD=1 reuses the existing client/app/dist without a vite rebuild.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
@@ -10,8 +10,8 @@ SDK=${ANDROID_SDK:-/config/android-sdk}
 BT="$SDK/build-tools/34.0.0"
 PLAT="$SDK/platforms/android-34/android.jar"
 KS="$HERE/keystore.jks"
-# Signier-Credential: kscred.dat wird beim ersten Build zufällig erzeugt.
-# Zusammen mit keystore.jks aufbewahren — ohne beide kein Update installierbar!
+# Signing credential: kscred.dat is generated randomly on first build.
+# Keep together with keystore.jks — without both, no update can be installed!
 KCRED="$HERE/kscred.dat"
 [ -f "$KCRED" ] || openssl rand -hex 16 > "$KCRED"
 chmod 600 "$KCRED"
@@ -29,8 +29,8 @@ echo "== PWA bauen/bundlen"
 rm -rf build
 mkdir -p build/gen build/classes build/dex build/assets
 cp -r "$APP/dist/." build/assets/
-rm -rf build/assets/keys   # Demo-Keys gehören nicht in die APK
-# In der APK gibt es keinen lokalen /relay-* Proxy → absolute URLs
+rm -rf build/assets/keys   # demo keys must never ship inside the APK
+# Inside the APK there is no local /relay-* proxy → absolute URLs
 find build/assets -name '*.html' -exec sed -i \
   -e 's#value="/relay-a"#value="https://lightningmail.app/relay-a"#g' \
   -e 's#value="/relay-b"#value="https://lightningmail.app/relay-b"#g' \

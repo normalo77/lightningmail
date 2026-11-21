@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Laeuft innerhalb von xvfb-run (DISPLAY ist gesetzt).
+# Runs inside xvfb-run (DISPLAY is set).
 set -u
 cd "$(dirname "$0")/.."
 export GSK_RENDERER=cairo
@@ -12,7 +12,7 @@ PID=$!
 sleep 7
 import -window root spike/evidence/screenshot.png
 echo "SCREENSHOT_TAKEN"
-# zweiter Frame nach Explizit-Auswahl von Mail 2 (belegt Row-Click -> LoadHtml)
+# second frame after explicitly selecting mail 2 (proves row click -> LoadHtml)
 sleep 1
 kill "$PID" 2>/dev/null || true
 wait "$PID" 2>/dev/null || true

@@ -2,7 +2,7 @@ package ledger
 
 import "testing"
 
-// Etappe 6: Roundtrip des WebAuthn-Speichers.
+// Etappe 6: roundtrip of the WebAuthn store.
 func TestWACredentialRoundtrip(t *testing.T) {
 	l := openTestLedger(t)
 	acct := "gisela"
@@ -19,7 +19,7 @@ func TestWACredentialRoundtrip(t *testing.T) {
 	if err != nil || got.Name != "YubiKey 5" || got.SignCount != 7 || got.Account != acct {
 		t.Fatalf("lookup mismatch: %+v err=%v", got, err)
 	}
-	// unbekanntes Credential → Zero-Wert, kein Fehler
+	// unknown credential → zero value, no error
 	miss, err := l.WALookupCredential("nope")
 	if err != nil || miss.CredID != "" {
 		t.Fatalf("expected empty miss, got %+v err=%v", miss, err)
@@ -39,11 +39,11 @@ func TestWACredentialRoundtrip(t *testing.T) {
 	if err != nil || prf != "LMKEY1$PRF$n$c" || pass != "LMKEY1$s$n$c" {
 		t.Fatalf("wraps mismatch: %q %q err=%v", prf, pass, err)
 	}
-	// Wraps ohne Eintrag → leer, kein Fehler
+	// wraps without entry → empty, no error
 	if p1, p2, err := l.WAGetWraps("nope"); err != nil || p1 != "" || p2 != "" {
 		t.Fatalf("expected empty wraps, got %q %q err=%v", p1, p2, err)
 	}
-	// Liste pro Konto
+	// list per account
 	c2 := c
 	c2.CredID = "cred-def"
 	c2.Name = "Pixel"
@@ -54,7 +54,7 @@ func TestWACredentialRoundtrip(t *testing.T) {
 	if err != nil || len(list) != 2 {
 		t.Fatalf("expected 2 credentials, got %d err=%v", len(list), err)
 	}
-	// Löschen kaskadiert auf Wraps
+	// delete cascades to wraps
 	if err := l.WADeleteCredential("cred-abc"); err != nil {
 		t.Fatal(err)
 	}

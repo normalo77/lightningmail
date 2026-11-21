@@ -1,5 +1,5 @@
-// Etappe J1: Drive-Endpunkte — disabled/enabled, Upload+Usage+Release ueber
-// routes(), fremdes-sha 403, Tier-Kauf (Geld + Quota + txlog), 402 bei Pleite.
+// Etappe J1: drive endpoints — disabled/enabled, upload+usage+release via
+// routes(), foreign-sha 403, tier purchase (money + quota + txlog), 402 when broke.
 package relaysrv
 
 import (
@@ -40,7 +40,7 @@ drive:
       sats: 5000
 `
 
-// driveServer: alice (tok-a) + bob (tok-b), httptest ueber routes() (ui_test-Muster).
+// driveServer: alice (tok-a) + bob (tok-b), httptest via routes() (ui_test pattern).
 func driveServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	cfg, err := config.ParseConfig([]byte(strings.Replace(driveTestYAML, "%s", t.TempDir(), 1)))
@@ -68,7 +68,7 @@ func driveServer(t *testing.T) (*Server, string) {
 	return srv, ts.URL
 }
 
-// driveReq: string-Body geht roh raus (Uploads), alles andere als JSON.
+// driveReq: string body goes out raw (uploads), everything else as JSON.
 func driveReq(t *testing.T, method, target, tok string, body any) (int, []byte) {
 	t.Helper()
 	var rd io.Reader
@@ -103,11 +103,11 @@ func TestDriveDisabled(t *testing.T) {
 	if code, _ := driveReq(t, "POST", url+"/v1/drive/buy", "tok-a", map[string]int{"tier": 0}); code != 404 {
 		t.Fatalf("buy disabled: %d", code)
 	}
-	// Mail-Uploads bleiben unberuehrt
+	// mail uploads stay untouched
 	if code, body := driveReq(t, "POST", url+"/v1/blob", "tok-a", "hello"); code != 200 {
 		t.Fatalf("mail-upload: %d %s", code, body)
 	}
-	// kaputtes kind → 400
+	// broken kind → 400
 	if code, _ := driveReq(t, "POST", url+"/v1/blob?kind=quux", "tok-a", "hello"); code != 400 {
 		t.Fatalf("kind=quux: %d, want 400", code)
 	}
@@ -115,7 +115,7 @@ func TestDriveDisabled(t *testing.T) {
 
 func TestDriveUploadUsageRelease(t *testing.T) {
 	srv, url := driveServer(t)
-	// /health meldet die Drive-Sektion
+	// /health reports the drive section
 	code, body := driveReq(t, "GET", url+"/health", "", nil)
 	var hj map[string]any
 	json.Unmarshal(body, &hj)
@@ -142,7 +142,7 @@ func TestDriveUploadUsageRelease(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("datei fehlt: %v", err)
 	}
-	// Usage zaehlt den Drive-Blob
+	// usage counts the drive blob
 	code, body = driveReq(t, "GET", url+"/v1/drive/usage", "tok-a", nil)
 	var us struct {
 		Enabled bool                       `json:"enabled"`
@@ -155,7 +155,7 @@ func TestDriveUploadUsageRelease(t *testing.T) {
 		us.Quota != 10*1048576 || len(us.Tiers) != 1 || us.Tiers[0].GB != 5 || us.Tiers[0].Sats != 5000 {
 		t.Fatalf("usage: %d %s", code, body)
 	}
-	// Release: letzte Ref → Datei weg, Usage sinkt auf 0
+	// release: last ref → file gone, usage drops to 0
 	code, body = driveReq(t, "DELETE", url+"/v1/blob", "tok-a", map[string]string{"sha": hexSha})
 	if code != 200 {
 		t.Fatalf("release: %d %s", code, body)
@@ -192,7 +192,7 @@ func TestDriveReleaseForeign(t *testing.T) {
 	if code, body := driveReq(t, "POST", url+"/v1/blob?kind=drive", "tok-b", payload); code != 200 {
 		t.Fatalf("bob upload: %d %s", code, body)
 	}
-	// alice darf bobs sha nicht freigeben
+	// alice must not release bob's sha
 	if code, _ := driveReq(t, "DELETE", url+"/v1/blob", "tok-a", map[string]string{"sha": hexSha}); code != 403 {
 		t.Fatalf("fremdes sha: %d, want 403", code)
 	}
@@ -200,11 +200,11 @@ func TestDriveReleaseForeign(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("datei darf nicht verschwinden: %v", err)
 	}
-	// kaputter sha → 400
+	// broken sha → 400
 	if code, _ := driveReq(t, "DELETE", url+"/v1/blob", "tok-a", map[string]string{"sha": "xyz"}); code != 400 {
 		t.Fatalf("bad sha: %d, want 400", code)
 	}
-	// ohne Token → 401 (auth-Middleware)
+	// without token → 401 (auth middleware)
 	if code, _ := driveReq(t, "DELETE", url+"/v1/blob", "", map[string]string{"sha": hexSha}); code != 401 {
 		t.Fatalf("ohne token: %d, want 401", code)
 	}
@@ -212,7 +212,7 @@ func TestDriveReleaseForeign(t *testing.T) {
 
 func TestDriveBuy(t *testing.T) {
 	srv, url := driveServer(t)
-	// alice: 10.000 sats Guthaben
+	// alice: 10,000 sats balance
 	if err := srv.ledger.ApplyDelta("alice", 10_000_000, ledger.KindTopup, "test-faucet"); err != nil {
 		t.Fatal(err)
 	}
@@ -244,11 +244,11 @@ func TestDriveBuy(t *testing.T) {
 	if !found {
 		t.Fatalf("txlog ref 'drive-tier:5GB' fehlt: %+v", hist)
 	}
-	// ungueltiger Tier-Index → 400
+	// invalid tier index → 400
 	if code, _ := driveReq(t, "POST", url+"/v1/drive/buy", "tok-a", map[string]int{"tier": 9}); code != 400 {
 		t.Fatalf("tier=9: %d, want 400", code)
 	}
-	// Pleite → 402 (byteporto-Responseform)
+	// broke → 402 (byteporto response shape)
 	bal, _ := srv.ledger.Balance("alice")
 	if err := srv.ledger.ApplyDelta("alice", -bal, ledger.KindWithdraw, "drain"); err != nil {
 		t.Fatal(err)

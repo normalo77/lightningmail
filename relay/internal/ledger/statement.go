@@ -1,12 +1,12 @@
-// Etappe G2 — Statement-Export (§25): Konto- und Betreiber-Sichten als
-// hash-verkettete Zeilen. Kette: hash_i = sha256(hash_{i-1} || kanonische
-// Zeile_i), Genesis = sha256("bmail-statement-v1:"|<konto>). Monatsanfang =
-// Anker: wer einen Export archiviert, kann spaetere Exporte als Fortsetzung
-// pruefen — der Stapel kann bei der Pruefung nicht umfallen.
+// Etappe G2 — statement export (§25): account and operator views as
+// hash-chained rows. Chain: hash_i = sha256(hash_{i-1} || canonical
+// row_i), genesis = sha256("bmail-statement-v1:"|<account>). Month start =
+// anchor: whoever archives an export can verify later exports as its
+// continuation — the stack cannot topple during verification.
 //
-// Wichtig: Die Kette wird IMMER von Genesis an neu gerechnet (auch fuer
-// Teilbereiche), sonst waeren from/to-Ausschnitte nicht verkettbar.
-// Persoenliche Konten haben wenig Zeilen — O(n) pro Export ist fine.
+// Important: the chain is ALWAYS recomputed from genesis (even for
+// partial ranges), otherwise from/to slices would not be chainable.
+// Personal accounts have few rows — O(n) per export is fine.
 package ledger
 
 import (
@@ -15,8 +15,8 @@ import (
 	"fmt"
 )
 
-// StmtRow = eine Statement-Zeile inkl. Ketten-Hashes. NULL-Spalten (ungeratet)
-// bleiben Pointer — fuer die Kanon-Form relevant ("" vs "0").
+// StmtRow = one statement row incl. chain hashes. NULL columns (unrated)
+// stay pointers — relevant for the canonical form ("" vs "0").
 type StmtRow struct {
 	ID        int64
 	CreatedAt int64
@@ -32,8 +32,8 @@ type StmtRow struct {
 	Hash      string
 }
 
-// CanonRow ist die kanonische Zeilenform fuer die Hash-Kette (auch von
-// Clients/Prueftools reproduzierbar: Felder mit '|', NULL als Leerstring).
+// CanonRow is the canonical row form for the hash chain (reproducible by
+// clients/verification tools too: fields joined with '|', NULL as empty string).
 func (r StmtRow) CanonRow() string {
 	return fmt.Sprintf("%d|%d|%s|%s|%d|%s|%s|%s|%s|%s",
 		r.ID, r.CreatedAt, r.Kind, r.Currency, r.DeltaMsat,
@@ -62,8 +62,8 @@ func GenesisHash(account string) string { return shaHex("bmail-statement-v1:" + 
 
 func OperatorGenesisHash(relayName string) string { return shaHex("bmail-operator-v1:" + relayName) }
 
-// StatementChain liefert die Zeilen in [from,to] (Unix-Sekunden, 0 = offen)
-// plus die bis dahin durchgerechnete Kette. Alle Zeilen ASCENDING nach id.
+// StatementChain returns the rows in [from,to] (unix seconds, 0 = open)
+// plus the chain computed up to that point. All rows ASCENDING by id.
 func (l *Ledger) StatementChain(account string, from, to int64) (rows []StmtRow, head string, err error) {
 	q := `SELECT t.id, t.created_at, t.kind, t.currency, t.delta_msat, t.eur_micro, t.rate_ts, t.rate_src, t.rate_meur_per_btc, COALESCE(t.ref,'')
       FROM txlog t JOIN account a ON a.id=t.account_id WHERE a.name=?`
@@ -89,16 +89,16 @@ func (l *Ledger) StatementChain(account string, from, to int64) (rows []StmtRow,
 		r.Hash = shaHex(prev + r.CanonRow())
 		prev = r.Hash
 		if from > 0 && r.CreatedAt < from {
-			continue // nur fuer die Kette mitrechnen, nicht ausgeben
+			continue // compute for the chain only, don't emit
 		}
 		rows = append(rows, r)
 	}
 	return rows, prev, rs.Err()
 }
 
-// OpRow = Betreiber-Zeile: Einnahmen des Relays (positive Betraege) bzw.
-// Erstattungen (negativ). Quelle: txlog kind='fee' (Byte-Porto/Refunds,
-// Vorzeichen gedreht: was der Nutzer zahlt, verdient der Betreiber).
+// OpRow = operator row: relay income (positive amounts) or
+// refunds (negative). Source: txlog kind='fee' (byte postage/refunds,
+// sign flipped: what the user pays, the operator earns).
 type OpRow struct {
 	Source     string // "txlog"
 	ID         int64
@@ -121,8 +121,8 @@ func (r OpRow) CanonRow() string {
 		optI64(r.EurMicro), optI64(r.RateTs), optStr(r.RateSrc), optI64(r.RateMEur), r.Ref)
 }
 
-// OperatorChain: Kettenkonstruktion ueber alle Betreiber-Fees (txlog kind='fee'),
-// aufsteigend nach id — deterministisch.
+// OperatorChain: chain construction over all operator fees (txlog kind='fee'),
+// ascending by id — deterministic.
 func (l *Ledger) OperatorChain(relayName string, from, to int64) (rows []OpRow, head string, err error) {
 	extra, args := "", []any{}
 	if to > 0 {
@@ -143,7 +143,7 @@ func (l *Ledger) OperatorChain(relayName string, from, to int64) (rows []OpRow, 
 		if err := rs.Scan(&r.ID, &r.CreatedAt, &r.Account, &r.AmountMsat, &r.EurMicro, &r.RateTs, &r.RateSrc, &r.RateMEur, &r.Ref); err != nil {
 			return nil, "", err
 		}
-		// eur_micro der txlog-Zeile ist aus Nutzersicht (negativ) → drehen
+		// eur_micro of the txlog row is from the user's view (negative) → flip
 		if r.EurMicro != nil {
 			v := -(*r.EurMicro)
 			r.EurMicro = &v

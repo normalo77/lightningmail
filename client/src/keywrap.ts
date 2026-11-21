@@ -1,6 +1,6 @@
-// keywrap.ts — passwort-verschluesselte Key-Dateien im Format LMKEY1.
-// WebCrypto (crypto.subtle) faellt im LAN unter http weg (Secure-Context-Pflicht),
-// deshalb reine noble-Pfade: PBKDF2-HMAC-SHA256 -> XChaCha20-Poly1305.
+// keywrap.ts — password-encrypted key files in LMKEY1 format.
+// WebCrypto (crypto.subtle) is unavailable over plain http in the LAN
+// (secure-context requirement), so pure noble paths: PBKDF2-HMAC-SHA256 -> XChaCha20-Poly1305.
 import { pbkdf2 } from "@noble/hashes/pbkdf2.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { xchacha20poly1305 } from "@noble/ciphers/chacha.js";
@@ -41,9 +41,9 @@ export function unwrapKey(fileText: string, passphrase: string): string {
 
 export const isWrapped = (t: string): boolean => t.trim().startsWith("LMKEY1$");
 
-// --- Etappe 6: PRF-Wraps (WebAuthn, CONCEPT §21) ---
-// PRF-Secret (32B, vom Authenticator) ersetzt die Passphrase als KDF-Input:
-// Format LMKEY1$PRF$<nonce>$<ct>, Entschluesselung direkt mit dem Secret.
+// --- Etappe 6: PRF wraps (WebAuthn, CONCEPT §21) ---
+// The PRF secret (32B, from the authenticator) replaces the passphrase as KDF input:
+// format LMKEY1$PRF$<nonce>$<ct>, decryption directly with the secret.
 
 export function prfSalt(address: string): Uint8Array {
   return sha256(enc.encode("lm-prf-v1:" + address));

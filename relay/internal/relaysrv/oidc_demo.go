@@ -1,9 +1,9 @@
 package relaysrv
 
-// oidcDemoPage = eingebettete Demo-RP (Relying Party) zum Anklicken:
-// startet den Authorization-Code-Flow mit PKCE gegen dieses Relay, tauscht
-// den Code gegen Tokens und verifiziert das ID-Token (ES256 via WebCrypto
-// gegen /oidc/jwks). Reines statisches JS — keine Build-Abhängigkeit.
+// oidcDemoPage = embedded demo RP (Relying Party) to click through:
+// starts the authorization code flow with PKCE against this relay, exchanges
+// the code for tokens and verifies the ID token (ES256 via WebCrypto
+// against /oidc/jwks). Pure static JS — no build dependency.
 const oidcDemoPage = `<!doctype html>
 <html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

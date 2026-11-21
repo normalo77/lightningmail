@@ -22,7 +22,7 @@ func TestAuthPubkeyAutoLookup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 1. Auto-Lookup ohne Kontoname (address="") -> liefert Token + "alice"
+	// 1. auto lookup without account name (address="") -> returns token + "alice"
 	body, _ := json.Marshal(map[string]string{
 		"address":    "",
 		"pubkey_hex": pubHex,
@@ -39,7 +39,7 @@ func TestAuthPubkeyAutoLookup(t *testing.T) {
 		t.Fatalf("unexpected auth response: %+v", out)
 	}
 
-	// Token funktioniert für authentifizierte Endpunkte
+	// token works for authenticated endpoints
 	reqBal := httptest.NewRequest(http.MethodGet, "/v1/balance", nil)
 	reqBal.Header.Set("Auth"+"orization", "Bearer "+out["token"])
 	recBal := httptest.NewRecorder()
@@ -48,7 +48,7 @@ func TestAuthPubkeyAutoLookup(t *testing.T) {
 		t.Fatalf("balance with auto-lookup token failed: %d", recBal.Code)
 	}
 
-	// 2. Unbekannter Key mit gültiger Eigen-Signatur -> 404
+	// 2. unknown key with valid self-signature -> 404
 	otherPriv, _ := crypto.GenerateKeyPair()
 	otherPub := crypto.PublicBytes(otherPriv)
 	otherHex := hex.EncodeToString(otherPub[:])
@@ -64,7 +64,7 @@ func TestAuthPubkeyAutoLookup(t *testing.T) {
 		t.Fatalf("expected 404 for unknown pubkey, got %d", rec2.Code)
 	}
 
-	// 3. Gefälschte Signatur für bekannten Key -> 401
+	// 3. forged signature for a known key -> 401
 	body3, _ := json.Marshal(map[string]string{
 		"address":    "",
 		"pubkey_hex": pubHex,

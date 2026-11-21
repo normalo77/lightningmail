@@ -1,6 +1,6 @@
-// receipts.mts — Headless-E2E Etappe 6b (CONCEPT §23): ✓✓ bei Client-Abruf.
-// Kette: sender@alpha sendet -> recip@beta ruft Inbox ab -> beta stempelt +
-// spiegelt an alpha -> senders /v1/receipts liefert msg_id.
+// receipts.mts — headless E2E Etappe 6b (CONCEPT §23): ✓✓ on client fetch.
+// Chain: sender@alpha sends -> recip@beta fetches inbox -> beta stamps +
+// mirrors to alpha -> sender's /v1/receipts returns msg_id.
 import { newPrivKey, pubFromPriv, authSign, toHex } from "../src/crypto";
 import { composeAndSend } from "../src/send";
 import { execFileSync } from "node:child_process";
@@ -39,15 +39,15 @@ const sender = await mkAccount(A, "rcps");
 const recip = await mkAccount(B, "rcpr");
 topUp(dbA, sender.name, 5_000_000);
 
-// 1) sender@alpha sendet an recip@beta (ohne dass recip auf alpha angelegt ist -> Peer-Föderation!)
+// 1) sender@alpha sends to recip@beta (without recip existing on alpha -> peer federation!)
 const { msg_id } = await composeAndSend(A, sender.token, sender.priv, { to: recip.name + "@beta", subject: "Receipt-Test", body: "ein haken, zwei haken" });
 ok(!!msg_id, `send ok msg_id=${msg_id.slice(0, 12)}…`);
 
-// 2) Vor Abruf: noch kein ✓✓
+// 2) Before the fetch: no ✓✓ yet
 let rc = await getJSON(A + "/v1/receipts", sender.token);
 ok(!(rc.receipts || []).some((x: any) => x.msg_id === msg_id), "vor Empfanger-Abruf kein ✓✓ (✓-Stufe)");
 
-// 3) recip ruft Inbox auf beta ab -> Stempel + Mirror nach alpha
+// 3) recip fetches the inbox on beta -> stamp + mirror to alpha
 let inbox: any = null, found = false;
 for (let i = 0; i < 15 && !found; i++) {
   inbox = await getJSON(B + "/v1/inbox", recip.token);
@@ -57,13 +57,13 @@ for (let i = 0; i < 15 && !found; i++) {
 ok(found, "Empfaenger sieht die Nachricht");
 await new Promise((r) => setTimeout(r, 1200));
 
-// 4) sender sieht ✓✓
+// 4) sender sees ✓✓
 rc = await getJSON(A + "/v1/receipts", sender.token);
 const hit = (rc.receipts || []).find((x: any) => x.msg_id === msg_id);
 ok(!!hit, "nach Abruf: ✓✓ beim Absender (cross-relay gemirrort)");
 if (hit) ok(hit.ts > 1_700_000_000, `ts plausibel (${hit.ts})`);
 
-// 5) Doppelter Abruf bleibt folgenlos (kein zweiter Eintrag)
+// 5) A duplicate fetch has no effect (no second entry)
 await getJSON(B + "/v1/inbox", recip.token);
 await new Promise((r) => setTimeout(r, 800));
 rc = await getJSON(A + "/v1/receipts", sender.token);

@@ -57,7 +57,7 @@ func main() {
 	}
 
 	// Connect to LND REST + lncli
-	// Derive gRPC port from REST port: REST 8080→gRPC 10009 (mainnet-Standard),
+	// Derive gRPC port from REST port: REST 8080→gRPC 10009 (mainnet default),
 	// REST 8081→gRPC 10001, REST 8082→gRPC 10002 (regtest-Compose)
 	rpcAddr := strings.Replace(cfg.LND.RPCHost, ":8081", ":10001", 1)
 	rpcAddr = strings.Replace(rpcAddr, ":8082", ":10002", 1)
@@ -72,13 +72,13 @@ func main() {
 	})
 
 	p := postage.New(cfg)
-	// EIN Kurs-Feed fuer HTTP-Server UND LN-Ingest (§25: jeder
-	// Zufluss wird zum Tageskurs gestempelt; ohne Kurs bleibt er ungeratet).
+	// ONE rate feed for both HTTP server AND LN ingest (§25: every
+	// inflow is stamped with the daily rate; without one it stays unrated).
 	feed := rates.NewFeed(cfg.Rates.RateURL, cfg.Rates.ManualEurPerBtc)
 	go feed.Start()
 	srv := relaysrv.New(cfg, l, ln, p, feed)
 
-	// M3 Retention: Sweep 60s nach Start und dann taeglich; -cleanup-once fuer Tests.
+	// M3 retention: sweep 60s after start, then daily; -cleanup-once for tests.
 	sweep := func() {
 		shas, err := l.RetentionSweep(time.Now().Unix(), int64(cfg.Retention.GraceDays)*86400, int64(cfg.Retention.MaxDays)*86400)
 		if err != nil {
@@ -129,8 +129,8 @@ func main() {
 			}
 			envRaw, ok := update.CustomRecords[34349334]
 			if !ok || len(envRaw) == 0 {
-				// Kein bmail-TLV: evtl. Lightning-Top-Up (Bolt11-Invoice mit
-				// Memo "bmail-topup:ACCOUNT", von /v1/topup oder LUD-16 erzeugt).
+				// No bmail TLV: possibly a Lightning top-up (Bolt11 invoice with
+				// memo "bmail-topup:ACCOUNT", created via /v1/topup or LUD-16).
 				if strings.HasPrefix(update.Memo, "bmail-topup:") {
 					acctName := strings.TrimPrefix(update.Memo, "bmail-topup:")
 					if _, err2 := l.GetAccount(acctName); err2 != nil {
@@ -151,9 +151,9 @@ func main() {
 						}
 					}
 					if dup {
-						continue // gleiche Invoice schon gutgeschrieben (Replay nach Restart)
+						continue // same invoice already credited (replay after restart)
 					}
-					// §25 G1: Zufluss mit Tageskurs stempeln, wenn der Feed einen hat
+					// §25 G1: stamp inflow with the daily rate when the feed has one
 					if snap, ok := feed.Current(); ok {
 						err2 = l.ApplyDeltaMeta(acctName, update.AmtPaid*1000, ledger.KindTopup, ref, "btc", &snap)
 					} else {
@@ -178,7 +178,7 @@ func main() {
 			}
 			if tSig, ok1 := update.CustomRecords[34349337]; ok1 && len(tSig) == 64 {
 				if tPubRaw, ok2 := update.CustomRecords[34349339]; ok2 && len(tPubRaw) == 33 {
-					// Nur pruefen wenn tSig nicht 64 Null-Bytes (Legacy-Kompatibilitaet)
+					// only verify when tSig is not 64 zero bytes (legacy compatibility)
 					nonZero := false
 					for _, b := range tSig {
 						if b != 0 {
@@ -213,10 +213,10 @@ func main() {
 				continue
 			}
 			if !inserted {
-				continue // Duplikat-Event: Portokasse NICHT doppelt fuellen
+				continue // duplicate event: do NOT credit the postage pot twice
 			}
 			creditRef := hex.EncodeToString(env.MsgID[:])
-			// §25 G1: Zufluss mit Tageskurs stempeln, wenn der Feed einen hat
+			// §25 G1: stamp inflow with the daily rate when the feed has one
 			if snap, ok := feed.Current(); ok {
 				err2 = l.ApplyDeltaMeta(acct.Name, update.AmtPaid*1000, ledger.KindPostageIn, creditRef, "btc", &snap)
 			} else {
@@ -226,7 +226,7 @@ func main() {
 				log.Printf("incoming: credit error for %s: %v", acct.Name, err2)
 			}
 			log.Printf("incoming: msg stored for %s seq=%d amt=%d", acct.Name, seq, update.AmtPaid)
-			// Blob-Mirror (spec 6.4): Empfaenger-Relay holt referenzierte Blobs vom Peer und vergibt ACL
+			// Blob mirror (spec 6.4): receiving relay fetches referenced blobs from the peer and grants ACL
 			if cfg.RelaySecret != "" && len(env.BlobRefs) > 0 {
 				mirrorBlobs(cfg, l, env.BlobRefs, acct.ID, acct.Name)
 			}

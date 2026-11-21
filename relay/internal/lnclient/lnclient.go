@@ -39,8 +39,8 @@ type InvoiceUpdate struct {
 	AmtPaid         int64  // sats
 	PaymentPreimage string // hex
 	CustomRecords   map[uint64][]byte
-	Memo            string // Bolt11-Memo (z.B. "bmail-topup:ACCOUNT")
-	RHashHex        string // payment_hash der Invoice, hex
+	Memo            string // Bolt11 memo (e.g. "bmail-topup:ACCOUNT")
+	RHashHex        string // payment_hash of the invoice, hex
 	Error           error
 }
 
@@ -179,8 +179,8 @@ func (c *Client) SubscribeInvoices(ctx context.Context) (<-chan *InvoiceUpdate, 
 				return
 			case <-time.After(2 * time.Second):
 			}
-			// shortcut: LND-REST ignoriert first_index (0.21.8实测) — wir ziehen
-			// die neuesten 100 und filtern numerisch. Upgrade: gRPC-Streaming.
+			// shortcut: LND REST ignores first_index (verified on 0.21.8) — we fetch
+			// the latest 100 and filter numerically. Upgrade: gRPC streaming.
 			path := "/v1/invoices?reversed=true&num_max_invoices=100"
 			data, err := c.do(ctx, "GET", path, nil)
 			if err != nil {
@@ -235,8 +235,8 @@ func (c *Client) SubscribeInvoices(ctx context.Context) (<-chan *InvoiceUpdate, 
 						recs[key] = b
 					}
 				}
-				// Kein TLV-Record ist kein Skip mehr: normale Bolt11-Invoices
-				// (Top-Up, Memo "bmail-topup:ACCOUNT") werden auch emittiert.
+				// No TLV record is no longer a skip: normal Bolt11 invoices
+				// (top-up, memo "bmail-topup:ACCOUNT") are emitted too.
 				rHashHex := ""
 				if rh, derr := base64.StdEncoding.DecodeString(inv.RHash); derr == nil {
 					rHashHex = hex.EncodeToString(rh)
@@ -268,8 +268,8 @@ func (c *Client) SubscribeInvoices(ctx context.Context) (<-chan *InvoiceUpdate, 
 
 var ErrNotBmail = errors.New("lnclient: no bmail TLV in invoice")
 
-// AddInvoice legt eine Bolt11-Invoice an (Top-Up / LUD-16).
-// Gibt payment_request und r_hash (hex) zurück.
+// AddInvoice creates a Bolt11 invoice (top-up / LUD-16).
+// Returns payment_request and r_hash (hex).
 func (c *Client) AddInvoice(ctx context.Context, amtSats int64, memo string) (string, string, error) {
 	data, err := c.do(ctx, "POST", "/v1/invoices", map[string]any{
 		"value":  fmt.Sprintf("%d", amtSats),
@@ -293,8 +293,8 @@ func (c *Client) AddInvoice(ctx context.Context, amtSats int64, memo string) (st
 	return resp.PaymentRequest, rHashHex, nil
 }
 
-// PayInvoice bezahlt eine Bolt11-Invoice (via lncli sendpayment --pay_req,
-// wie SendKeysend — robust gegen LND-REST-Deprecation in v0.21+).
+// PayInvoice pays a Bolt11 invoice (via lncli sendpayment --pay_req,
+// like SendKeysend — robust against the LND REST deprecation in v0.21+).
 func (c *Client) PayInvoice(ctx context.Context, payReq string) (string, int64, error) {
 	args := []string{
 		"--network=" + c.cfg.Network,
@@ -343,14 +343,14 @@ func (c *Client) PayInvoice(ctx context.Context, payReq string) (string, int64, 
 	return result.PaymentPreimage, amtSats, nil
 }
 
-// DecodePayReq dekodiert eine Bolt11-Invoice: Betrag (sats) + payment_hash (hex).
+// DecodePayReq decodes a Bolt11 invoice: amount (sats) + payment_hash (hex).
 func (c *Client) DecodePayReq(ctx context.Context, payReq string) (int64, string, error) {
 	data, err := c.do(ctx, "GET", "/v1/payreq/"+url.PathEscape(payReq), nil)
 	if err != nil {
 		return 0, "", err
 	}
 	var resp struct {
-		NumSatoshis any    `json:"num_satoshis"` // LND liefert string oder Zahl
+		NumSatoshis any    `json:"num_satoshis"` // LND returns string or number
 		PaymentHash string `json:"payment_hash"`
 	}
 	if err := json.Unmarshal(data, &resp); err != nil {

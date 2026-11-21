@@ -31,7 +31,7 @@ func TestLNDNetwork(t *testing.T) {
 		}
 		return []byte(s + "postage: {foreign_sats: 10, min_sats: 1}\n")
 	}
-	// Auto-Detect aus dem Macaroon-Pfad
+	// auto-detect from the macaroon path
 	for mac, want := range map[string]string{
 		"/lnd/data/chain/bitcoin/mainnet/admin.macaroon": "mainnet",
 		"/lnd/data/chain/bitcoin/testnet/admin.macaroon": "testnet",
@@ -46,7 +46,7 @@ func TestLNDNetwork(t *testing.T) {
 			t.Fatalf("mac %s: want %s, got %s", mac, want, c.LND.Network)
 		}
 	}
-	// Explizites network gewinnt ueber Auto-Detect
+	// explicit network wins over auto-detect
 	c, err := ParseConfig(yaml("/lnd/data/chain/bitcoin/mainnet/admin.macaroon", "signet"))
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func TestLNDNetwork(t *testing.T) {
 	if c.LND.Network != "signet" {
 		t.Fatalf("explicit network not honored: %s", c.LND.Network)
 	}
-	// Ungueltiges network -> ErrValidation
+	// invalid network -> ErrValidation
 	if _, err := ParseConfig(yaml("/x/admin.macaroon", "litecoin")); !errors.Is(err, ErrValidation) {
 		t.Fatalf("want ErrValidation for bad network, got %v", err)
 	}
@@ -144,7 +144,7 @@ func TestDriveConfig(t *testing.T) {
 	base := "name: alpha\nlisten_addr: 127.0.0.1:8443\ndata_dir: /var/lib/bmail\nlnd:\n" +
 		"  rpc_host: 127.0.0.1:8080\n  tls_cert_path: /lnd/tls.cert\n  macaroon_path: /x/admin.macaroon\n" +
 		"postage: {foreign_sats: 10, min_sats: 1}\n"
-	// Default: Sektion ungesetzt → QuotaMB 5120, disabled, keine Tiers
+	// default: section unset → QuotaMB 5120, disabled, no tiers
 	c, err := ParseConfig([]byte(base))
 	if err != nil {
 		t.Fatal(err)
@@ -152,7 +152,7 @@ func TestDriveConfig(t *testing.T) {
 	if c.Drive.QuotaMB != DefaultDriveQuotaMB || c.Drive.Enabled || len(c.Drive.Tiers) != 0 {
 		t.Fatalf("drive default: %+v", c.Drive)
 	}
-	// Explizit: enabled, quota, tiers
+	// explicit: enabled, quota, tiers
 	c, err = ParseConfig([]byte(base + "drive:\n  enabled: true\n  quota_mb: 2048\n  tiers:\n    - {gb: 5, sats: 5000}\n    - {gb: 50, sats: 40000}\n"))
 	if err != nil {
 		t.Fatal(err)
@@ -161,7 +161,7 @@ func TestDriveConfig(t *testing.T) {
 		c.Drive.Tiers[0].GB != 5 || c.Drive.Tiers[0].Sats != 5000 || c.Drive.Tiers[1].GB != 50 {
 		t.Fatalf("drive parse: %+v", c.Drive)
 	}
-	// Validierung: quota_mb<=0 und kaputte Tiers sammeln Fehler
+	// validation: quota_mb<=0 and broken tiers collect errors
 	_, err = ParseConfig([]byte(base + "drive:\n  quota_mb: -5\n  tiers:\n    - {gb: 0, sats: 10}\n    - {gb: 5, sats: 0}\n"))
 	if !errors.Is(err, ErrValidation) {
 		t.Fatalf("want ErrValidation, got %v", err)

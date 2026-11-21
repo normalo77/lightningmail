@@ -13,19 +13,19 @@ func TestStateCAS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// leerer Start
+	// empty start
 	v, blob, err := l.GetState(a.ID)
 	if err != nil || v != 0 || blob != nil {
 		t.Fatalf("empty state: v=%d blob=%v err=%v", v, blob, err)
 	}
 
-	// erster Schreibfall (expect 0)
+	// first write case (expect 0)
 	nv, err := l.PutState(a.ID, 0, []byte("geraet-a"))
 	if err != nil || nv != 1 {
 		t.Fatalf("first put: v=%d err=%v", nv, err)
 	}
 
-	// veraltete Version muss 409-wuerdig konfligieren, Blob unveraendert
+	// stale version must conflict 409-style, blob unchanged
 	cur, err := l.PutState(a.ID, 0, []byte("verloren"))
 	if !errors.Is(err, ErrConflict) || cur != 1 {
 		t.Fatalf("stale put must conflict: err=%v cur=%d", err, cur)
@@ -35,7 +35,7 @@ func TestStateCAS(t *testing.T) {
 		t.Fatalf("blob must survive conflict: %q err=%v", blob, err)
 	}
 
-	// korrekter Zweitschreibfall
+	// correct second write case
 	nv, err = l.PutState(a.ID, 1, []byte("geraet-b"))
 	if err != nil || nv != 2 {
 		t.Fatalf("second put: v=%d err=%v", nv, err)

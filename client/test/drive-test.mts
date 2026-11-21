@@ -1,8 +1,8 @@
-// drive-test.mts — Etappe J2–J4: Drive-Client (state.ts files-Merge + drive.ts).
-// Unit-Teil läuft ohne Netz; der Integrationsteil braucht ein laufendes Relay mit
-// J1-Deployment (RELAY=… überschreibbar, Default http://127.0.0.1:8443):
+// drive-test.mts — Etappe J2–J4: drive client (state.ts files merge + drive.ts).
+// The unit part runs without network; the integration part needs a running relay
+// with the J1 deployment (RELAY=… overridable, default http://127.0.0.1:8443):
 //   NODE_OPTIONS='--experimental-global-webcrypto' npx tsx test/drive-test.mts
-// Einweg-Konto (newPrivKey + POST /v1/account + auth) — KEINE Prod-Datei-Keys!
+// Throwaway account (newPrivKey + POST /v1/account + auth) — NO prod file keys!
 import { newPrivKey, pubFromPriv, authSign, toHex } from "../src/crypto";
 import { StateSync, mergeDocs, emptyDoc, type DriveEntry } from "../src/state";
 import { uploadFile, downloadFile, deleteFile, usage, buyTier, newDriveId } from "../src/drive";
@@ -12,7 +12,7 @@ const base = process.env.RELAY || "http://127.0.0.1:8443";
 const ok = (c: boolean, m: string) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) process.exitCode = 1; };
 const skip = (m: string) => console.log("SKIP " + m);
 
-// --- Unit: files-Merge, pure Funktion gegen simulierte Docs, ohne Netz ---
+// --- Unit: files merge, pure function against simulated docs, no network ---
 const f = (id: string, ts: number, extra: Partial<DriveEntry> = {}): DriveEntry =>
   ({ id, ts, name: id, parent: "root", kind: "f", size: 10, size_plain: 5, mime: "text/plain", ...extra });
 
@@ -32,7 +32,7 @@ ok(typeof emptyDoc().files === "object", "emptyDoc hat files-Map");
 const m5 = mergeDocs({ ...emptyDoc(), contacts: { c: { id: "c", ts: 1, name: "x" } as any } }, emptyDoc());
 ok(!!m5.contacts.c, "contacts-Merge unverändert intakt (Regression)");
 
-// StateSync.saveFile/delFile ohne Netz (Push-Timer läuft nach Testende harmlos leer)
+// StateSync.saveFile/delFile without network (the push timer harmlessly fires into the void after the test ends)
 const offline = new StateSync("", new Uint8Array(32), () => "", "drvUnit");
 offline.saveFile(f("u1", 1, { name: "eins" }));
 ok(offline.doc.files.u1.ts >= Math.floor(Date.now() / 1000), "saveFile stempelt max(now,prev)+1");
@@ -45,19 +45,19 @@ ok(!offline.doc.files.u1.gone && offline.doc.files.u1.name === "wieder-da" && of
 ok(offline.liveFiles().length === 1 && offline.liveFiles()[0].id === "u1", "liveFiles filtert Gräber");
 ok(/^[0-9a-f]{16}$/.test(newDriveId()) && newDriveId() !== newDriveId(), "newDriveId: hex16, eindeutig");
 
-// --- Integration: erst wenn ein Relay erreichbar ist (sonst pending CT113) ---
+// --- Integration: only when a relay is reachable (otherwise pending CT113) ---
 const alive = await fetch(base + "/health").then(r => r.ok).catch(() => false);
 if (!alive) {
   skip(`Integration: kein Relay unter ${base} — pending CT113 (nach J1-Deploy: NODE_OPTIONS='--experimental-global-webcrypto' RELAY=… npx tsx test/drive-test.mts)`);
   console.log("EXITCODE", process.exitCode || 0);
 } else {
 
-// 1) /health- und usage-Shape
+// 1) /health and usage shape
 const health = await (await fetch(base + "/health")).json() as any;
 ok(health.drive && typeof health.drive.enabled === "boolean" && typeof health.drive.quota_mb === "number",
   `/health liefert drive:{enabled,quota_mb} (${JSON.stringify(health.drive)})`);
 
-// Einweg-Konto
+// Throwaway account
 const priv = newPrivKey();
 const acct = `drv${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`.slice(0, 32);
 const cr = await fetch(base + "/v1/account", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -87,7 +87,7 @@ A.saveFile({ id: dirId, name: "orderA", parent: "root", kind: "d", size: 0, size
 await A.push();
 ok(A.liveFiles().some(x => x.id === dirId && x.kind === "d"), "mkdir: Ordner orderA im State-Doc");
 
-// 3) Upload 2.5 MiB crypto-zufällige Bytes (NIE periodisch füllen — Dedup-Falle)
+// 3) Upload 2.5 MiB of crypto-random bytes (NEVER fill periodically — dedup trap)
 const big = new Uint8Array(Math.floor(1048576 * 2.5));
 for (let o = 0; o < big.length; o += 32768) globalThis.crypto.getRandomValues(big.subarray(o, o + 32768));
 const up = await uploadFile(base, token, priv, A, big, "gross.bin", "application/octet-stream", dirId, () => {});
@@ -96,18 +96,18 @@ ok(!!up.msha && /^[0-9a-f]{64}$/.test(up.msha), `uploadFile → msha (${String(u
 ok(up.size > big.length && up.size_plain === big.length,
   `size = gespeichert (Chiffre+Manifest ${up.size}) > size_plain = Klartext (${up.size_plain})`);
 
-// 4) list-Merge: zweiter Client sieht den Eintrag mit msha
+// 4) list merge: a second client sees the entry with msha
 const B = new StateSync(base, priv, () => token, "drvB");
 await B.pull();
 const seen = B.liveFiles().find(x => x.name === "gross.bin");
 ok(!!seen && seen!.msha === up.msha && seen!.parent === dirId && seen!.kind === "f",
   "list-Merge: Eintrag auf Gerät B sichtbar (msha, parent, kind)");
 
-// 5) downloadFile → bytegleich
+// 5) downloadFile → byte-identical
 const back = await downloadFile(base, token, priv, B, seen!.id);
 ok(back.length === big.length && back.every((b, i) => b === big[i]), "downloadFile stellt Original bytegleich wieder her");
 
-// 6) Löschen: nicht-leerer Ordner → Fehler; Datei → usage sinkt, Blob weg
+// 6) Delete: non-empty folder → error; file → usage drops, blob gone
 let threw = false;
 try { await deleteFile(base, token, B, dirId); } catch { threw = true; }
 ok(threw, "delete nicht-leerer Ordner → Error (kein Tombstone)");
@@ -125,7 +125,7 @@ await deleteFile(base, token, B, dirId);
 ok(!B.liveFiles().some(x => x.id === dirId), "leerer Ordner löschbar");
 await B.push();
 
-// 7) buy tier (kleinster sats-Wert aus der Config) → quota steigt, balance −sats*1000
+// 7) buy tier (smallest sats value from the config) → quota rises, balance −sats*1000
 if (u2.tiers.length) {
   const ti = u2.tiers.reduce((best, t, i) => (t.sats < u2.tiers[best].sats ? i : best), 0);
   const tier = u2.tiers[ti];
@@ -150,15 +150,15 @@ if (u2.tiers.length) {
   }
 } else skip("buy tier (keine tiers in der Relay-Config)");
 
-// 8) State-CAS/409: A steht auf alter Version (B hat zwischendurch gepusht) →
-//    A.saveFile+push läuft durch den 409→pull→merge→retry-Pfad, BEIDE Einträge bleiben.
+// 8) State CAS/409: A sits on an old version (B pushed in between) →
+//    A.saveFile+push goes through the 409→pull→merge→retry path, BOTH entries survive.
 const ida = newDriveId(), idc = newDriveId();
 A.saveFile({ id: ida, name: "casA", parent: "root", kind: "d", size: 0, size_plain: 0, mime: "" });
 const C = new StateSync(base, priv, () => token, "drvC");
 await C.pull();
 C.saveFile({ id: idc, name: "casC", parent: "root", kind: "d", size: 0, size_plain: 0, mime: "" });
-await C.push(); // externer Version-Bump
-await A.push(); // stale version → 409-Pfad
+await C.push(); // external version bump
+await A.push(); // stale version → 409 path
 const D = new StateSync(base, priv, () => token, "drvD");
 await D.pull();
 ok(!!D.liveFiles().find(x => x.id === ida) && !!D.liveFiles().find(x => x.id === idc),

@@ -1,4 +1,4 @@
-// main.ts — DOM-Leim für die lightningmail v0.1 PWA (M2c). Logik lebt in src/crypto + src/send.
+// main.ts — DOM glue for the lightningmail v0.1 PWA (M2c). Logic lives in src/crypto + src/send.
 import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, decryptPayload, TAG, blobCount, blobRef, sec1PEM, schnorr, sha256 } from '../src/crypto';
 import { newMnemonic, checkMnemonic, keyFromMnemonic, quizPositions, quizOptions } from '../src/bip39';
 import { parseManifest, reassemble } from '../src/chunks';
@@ -9,7 +9,7 @@ import { wrapKey, unwrapKey, isWrapped, wrapKeyPRF, unwrapKeyPRF } from '../src/
 let pendingWrap = '';
 
 
-// Buffer shim: noble-Bibliotheken referenzieren Node-APIs auch im Browser
+// Buffer shim: noble libraries reference Node APIs even in the browser
 (globalThis as any).Buffer ??= class extends Uint8Array {
   static from(x: any, _enc?: string): Uint8Array {
     if (typeof x === "string") {
@@ -43,17 +43,17 @@ let pendingWrap = '';
 
 const $ = (id: string) => document.getElementById(id)!;
 let base = '/relay-b', token = '', priv: Uint8Array | null = null, acct = '';
-let SELF_RELAY = false; // UI laeuft auf ihrem eigenen Relayd (Etappe O, Selbstbau)
+let SELF_RELAY = false; // the UI runs on its own relayd (Etappe O, self-hosted)
 let msgs: MsgRow[] = [];
-let tipSats = 0, myForeign = 0, myWelcome = 0, portoBase = ''; // §30.4 Beilage + Test/Mainnet-Kennung
-let receipts: Record<string, number> = {}; // msg_id(hex) -> ✓✓-Zeitstempel (Etappe 6b)
+let tipSats = 0, myForeign = 0, myWelcome = 0, portoBase = ''; // §30.4 enclosure + testnet/mainnet marker
+let receipts: Record<string, number> = {}; // msg_id(hex) -> ✓✓ timestamp (Etappe 6b)
 let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' | 'ab' | 'ums' | 'drv' = 'in';
 let pemCache = '';
-// Auto-Login: erfolgreicher Login merkt sich Schluessel+Konto+Relay im Geraetespeicher
-// Session-Speicher: Der entschlüsselte Private Key liegt im Browser nur noch im
-// flüchtigen sessionStorage (wird beim Schließen des Browserfensters oder beim
-// Klick auf "Abmelden" gelöscht). Auf Android übernimmt der Hardware-Keystore
-// (AndroidNative.saveVault/loadVault) die persistente Versiegelung.
+// Auto-login: a successful login remembers key+account+relay in device storage.
+// Session storage: in the browser the decrypted private key only lives in the
+// volatile sessionStorage (cleared when the browser window closes or on
+// "Abmelden"). On Android the hardware keystore
+// (AndroidNative.saveVault/loadVault) takes over persistent sealing.
 const AUTO_KEY = 'lm_autologin', NOAUTO_KEY = 'lm_noauto';
 const LAST_USER_KEY = 'lm_last_user';
 const loadLastUser = (): { acct: string; base: string } | null => {
@@ -71,8 +71,8 @@ const setLoginStatus = (msg: string, isErr = true) => {
 };
 const loadAuto = (): { acct: string; base: string; pem: string } | null => {
   try {
-    // Migration: falls aus einer älteren Sitzung noch ein Klartext-Key in localStorage lag,
-    // einmalig in sessionStorage umziehen und sofort aus localStorage tilgen.
+    // Migration: if a plaintext key from an older session is still in localStorage,
+    // move it to sessionStorage once and immediately erase it from localStorage.
     const legacy = localStorage.getItem(AUTO_KEY);
     if (legacy) {
       sessionStorage.setItem(AUTO_KEY, legacy);
@@ -84,18 +84,18 @@ const loadAuto = (): { acct: string; base: string; pem: string } | null => {
 };
 let sync: StateSync | null = null;
 let draftId = '';
-let healthCache: any = null; // Etappe 7: /health (Byte-Porto-Preis + Kurs) für die Compose-Schätzung
-// IdP (§21/§29): OIDC-Login-Modus — ?oidc=<issuer>&sid=… verwandelt die PWA
-// in die „Sign in with lightningmail"-Seite (Login wie üblich, dann Consent).
+let healthCache: any = null; // Etappe 7: /health (byte-postage price + rate) for the compose estimate
+// IdP (§21/§29): OIDC login mode — ?oidc=<issuer>&sid=… turns the PWA into
+// the „Sign in with lightningmail" page (login as usual, then consent).
 const oidcQ = new URLSearchParams(location.search);
 const oidcRelay = oidcQ.get('oidc'), oidcSid = oidcQ.get('sid');
-let abSel = '', abEdit = '', abQ = ''; // Adressbuch (Etappe A)
+let abSel = '', abEdit = '', abQ = ''; // address book (Etappe A)
 const spamKey = () => `lm_spam_${base.slice(1)}_${acct}`;
 const spamSet = (): Set<string> => sync ? new Set(Object.keys(sync.doc.spam)) : new Set(JSON.parse(localStorage.getItem(spamKey()) || '[]'));
 const spamAdd = (k: string) => { if (sync) sync.toggleSpam(k, true); else { const x = [...spamSet()]; x.push(k); localStorage.setItem(spamKey(), JSON.stringify(x)); } };
 const spamDel = (k: string) => { if (sync) sync.toggleSpam(k, false); else { const x = new Set(spamSet()); x.delete(k); localStorage.setItem(spamKey(), JSON.stringify([...x])); } };
 
-// Gesendet-Ordner: localStorage als Geraete-Fallback, Synchronisierung via StateSync.sent (Stern-Sync)
+// Sent folder: localStorage as device fallback, synchronization via StateSync.sent (star sync)
 type MsgRow = { seq: number; msgId: string; subject: string; body: string; sender: string; pub: string; ts: number; signup?: boolean; recv?: number; atts: { sha256: string; name: string; chunked?: boolean }[] };
 type SentRow = { ts: number; to: string; subject: string; msg_id: string; bytes: number; body?: string };
 const sentKey = () => `lm_out_${base.slice(1)}_${acct}`;
@@ -131,9 +131,9 @@ async function api(path: string, init?: RequestInit) {
   return r;
 }
 
-// Gewählter Basis-Pfad des Relay-Dropdowns. '__custom__' (eigenes Relay per URL)
-// ist kein fetch-Basis — dort führt die Navigation zum /app/ des fremden Relays;
-// als API-Basis bleibt bis dahin der erste echte Vorschlag.
+// Chosen base path of the relay dropdown. '__custom__' (own relay via URL)
+// is not a fetch base — there the navigation goes to the foreign relay's /app/;
+// until then the first real suggestion remains the API base.
 function relayVal(sel?: HTMLSelectElement | null): string {
   const s = sel ?? ($('l-relay') as HTMLSelectElement | null);
   const v = s?.value || '';
@@ -156,9 +156,9 @@ function relayCandidates(preferred = ''): string[] {
   const lu = loadLastUser();
   if (lu?.base) push(lu.base);
   for (const o of opts) push(o);
-  // Synchroner Fallback vor der asynchronen Selbstbau-Erkennung (Etappe O):
-  // die API dieses Origins als letzte Kandidatin (am Hosting-UI ein 404 mehr,
-  // auf einem Fremd-Relay der Treffer).
+  // Synchronous fallback before the async self-host detection (Etappe O):
+  // this origin's API as the last candidate (one more 404 on the hosting UI,
+  // the hit on a foreign relay).
   out.push('');
   return out;
 }
@@ -216,9 +216,9 @@ async function finishLogin(pem: string, privBytes: Uint8Array, resolvedAcct: str
   if (relEl && [...relEl.options].some(o => o.value === base)) relEl.value = base;
   try { localStorage.setItem(LAST_USER_KEY, JSON.stringify({ acct, base })); } catch {}
   localStorage.removeItem(AUTO_KEY);
-  // Auf Android im Hardware-Keystore versiegeln; im Browser nur in sessionStorage (Tab-Lebensdauer)
+  // On Android seal in the hardware keystore; in the browser only sessionStorage (tab lifetime)
   if ((window as any).AndroidNative?.saveVault) {
-    try { (window as any).AndroidNative.saveVault(JSON.stringify({ acct, base, pem })); } catch { /* Tresor ist Komfort */ }
+    try { (window as any).AndroidNative.saveVault(JSON.stringify({ acct, base, pem })); } catch { /* the vault is a convenience */ }
     sessionStorage.setItem(AUTO_KEY, JSON.stringify({ acct, base, pem }));
   } else {
     sessionStorage.setItem(AUTO_KEY, JSON.stringify({ acct, base, pem }));
@@ -234,21 +234,21 @@ async function finishLogin(pem: string, privBytes: Uint8Array, resolvedAcct: str
   if (kw) { kw.style.display = ''; kw.onclick = openExportKeyModal; }
   $('who').textContent = `${acct}@${hostLabelOf(base)} · `;
   applyNetBadge(base);
-  // eigene Porto-Normen: Badge im Posteingang nur, wenn real MEHR als das Standardporto einging (§30.4)
+  // own postage norms: inbox badge only when actually MORE than the standard postage arrived (§30.4)
   fetch(`${base}/v1/profile/${acct}`).then(r => r.ok ? r.json() : null).then((p: any) => {
     if (p && p.foreign_sats) { myForeign = p.foreign_sats; myWelcome = p.welcome_sats ?? p.foreign_sats * 3; render(); }
-  }).catch(() => { /* Badge-Komfort, kein Fehlerfall */ });
+  }).catch(() => { /* badge is a convenience, not an error case */ });
   sync = new StateSync(base, priv, () => token, `lm_state_${base.slice(1)}_${acct}`);
   sync.cacheLoad();
   for (const k of JSON.parse(localStorage.getItem(spamKey()) || '[]')) sync.doc.spam[k] = 1;
   for (const s of JSON.parse(localStorage.getItem(sentKey()) || '[]'))
     if (!sync.liveSent().some(x => x.msg_id === s.msg_id)) sync.addSent(s);
-  try { await sync.pull(); } catch { /* ohne State-Slot laeuft die UI aus dem Cache */ }
+  try { await sync.pull(); } catch { /* without a state slot the UI runs from the cache */ }
   await refresh();
   if (oidcRelay && oidcSid) oidcFlow();
 }
 
-// Automatischer Login allein über den privaten Schlüssel (findet Kontoname & Relay selbständig)
+// Automatic login from the private key alone (finds account name & relay autonomously)
 async function loginAuto(pem: string, hintedAcct = '', onErr?: (msg: string) => void): Promise<boolean> {
   let p: Uint8Array;
   try {
@@ -266,7 +266,7 @@ async function loginAuto(pem: string, hintedAcct = '', onErr?: (msg: string) => 
 
   for (const candBase of candidates) {
     try {
-      // 1. Primärpfad: Pubkey-basierte Konto-Auflösung am Server (address="")
+      // 1. Primary path: pubkey-based account resolution at the server (address="")
       const sigAuto = authSign(p, pubHex);
       let r = await fetch(candBase + '/v1/auth', {
         method: 'POST',
@@ -279,7 +279,7 @@ async function loginAuto(pem: string, hintedAcct = '', onErr?: (msg: string) => 
         await finishLogin(pem, p, resolved, candBase, j.token);
         return true;
       }
-      // 2. Fallback für ältere Dritt-Relays, falls Kontoname bekannt ist
+      // 2. Fallback for older third-party relays when the account name is known
       const fbAcct = (advOpen && typedAcct) ? typedAcct : (hintedAcct || typedAcct);
       if (r.status === 400 && fbAcct) {
         r = await fetch(candBase + '/v1/auth', {
@@ -307,8 +307,8 @@ async function loginAuto(pem: string, hintedAcct = '', onErr?: (msg: string) => 
 
 async function login(pem: string, explicitAcct = '', explicitBase = ''): Promise<boolean> {
   const targetAcct = (explicitAcct || ($('l-acct') as HTMLInputElement).value || '').trim().toLowerCase();
-  // Auf der relay-eigenen UI gibt es nur "dieses Origin" — ein gemerkter
-  // /relay-a-Pfad aus einem Android-Vault (geraete-global!) ins Leere fuehren wuerde.
+  // On the relay's own UI there is only "this origin" — a remembered
+  // /relay-a path from an Android vault (device-global!) would lead nowhere.
   const targetBase = SELF_RELAY ? '' : (explicitBase || relayVal());
   if (!targetAcct) return loginAuto(pem);
   try {
@@ -325,7 +325,7 @@ async function login(pem: string, explicitAcct = '', explicitBase = ''): Promise
       await finishLogin(pem, p, j.address || targetAcct, targetBase, j.token);
       return true;
     }
-    // Falls falscher Kontoname/Relay im Feld stand: automatisch über Pubkey suchen!
+    // If the field held a wrong account name/relay: search automatically via the pubkey!
     if (r.status === 401 || r.status === 404) {
       return await loginAuto(pem, targetAcct);
     }
@@ -344,12 +344,12 @@ async function refreshBalance() {
   $('balance').textContent = `Guthaben: ${Math.floor((bal.balance_msat || 0) / 1000)} sats`;
 }
 
-// Etappe 6b: ✓✓-Receipts des eigenen Kontos laden (Gesendet-Ordner)
+// Etappe 6b: load the ✓✓ receipts of the own account (sent folder)
 async function fetchReceipts() {
   try {
     const r = await api('/v1/receipts');
     if (r.ok) for (const x of (((await r.json()) as any).receipts || [])) receipts[x.msg_id] = x.ts;
-  } catch { /* Receipts sind Komfort, kein Fehlerfall */ }
+  } catch { /* receipts are a convenience, not an error case */ }
 }
 
 async function refresh() {
@@ -441,8 +441,8 @@ function renderDrafts() {
 
 function esc(s: string) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!)); }
 
-// Anhang-Cache in IndexedDB: einmal geöffnete Blobs überleben lokal dauerhaft —
-// auch nachdem der Relay-Sweep (Erstdownload + 7 Tage) sie serverseitig löscht.
+// Attachment cache in IndexedDB: blobs opened once survive locally for good —
+// even after the relay sweep (first download + 7 days) deletes them server-side.
 const idbOpen = (): Promise<IDBDatabase> => new Promise((res, rej) => {
   const rq = indexedDB.open('lightningmail_blobs', 1);
   rq.onupgradeneeded = () => rq.result.createObjectStore('blobs');
@@ -468,10 +468,10 @@ async function idbPutBlob(sha: string, bytes: Uint8Array): Promise<void> {
       tx.oncomplete = () => res();
       tx.onerror = () => res();
     });
-  } catch { /* Cache ist Komfort, kein Fehlerfall */ }
+  } catch { /* cache is a convenience, not an error case */ }
 }
 
-// Hole Anhang-Inhalt (IDB-Cache vor Relay-Download) — geteilt von Download und Speichern.
+// Fetch attachment content (IDB cache before relay download) — shared by download and save.
 async function attBytes(a: { sha256: string; chunked?: boolean }): Promise<Uint8Array> {
   const cached = await idbGetBlob(a.sha256);
   if (cached) return cached;
@@ -497,7 +497,7 @@ async function attBytes(a: { sha256: string; chunked?: boolean }): Promise<Uint8
 const safeName = (v: string): string =>
   (v || "teil").replace(/[\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) || "teil";
 
-// Brief + Anhänge in einen Zielordner: "yyyy_mm_dd Absender Betreff.txt" + Original-Anhangnamen
+// Letter + attachments into a target folder: "yyyy_mm_dd sender subject.txt" + original attachment names
 async function saveMailAs(m: MsgRow): Promise<string> {
   const d = new Date(m.ts * 1000);
   const p2 = (n: number) => String(n).padStart(2, "0");
@@ -518,7 +518,7 @@ async function saveMailAs(m: MsgRow): Promise<string> {
     try {
       const dir = await (window as any).showDirectoryPicker({ mode: "write" });
       for (const f of files) {
-        const fh = await dir.getFileHandle(f.name, { create: true });  // gleichnamige Datei wird aktualisiert
+        const fh = await dir.getFileHandle(f.name, { create: true });  // a file with the same name gets updated
         const w = await fh.createWritable();
         await w.write(f.blob);
         await w.close();
@@ -555,9 +555,9 @@ function renderDetail() {
       ${cn ? '' : '<button id="cl-ab">als Kontakt speichern</button>'}
     </div></div>`;
   document.querySelectorAll('.attach').forEach(el => el.addEventListener('click', async () => {
-    // Etappe 7: chunked Anhänge erst aus Manifest + Scheiben zusammensetzen.
-    // IndexedDB-Cache hat Vorrang: bedient den Anhang sofort und dauerhaft,
-    // selbst wenn das Relay den Blob längst gesweept hat.
+    // Etappe 7: reassemble chunked attachments from manifest + slices first.
+    // The IndexedDB cache takes precedence: serves the attachment instantly and
+    // permanently, even if the relay swept the blob long ago.
     const sha = el.getAttribute('data-sha')!, fname = el.getAttribute('data-name')!;
     const save = (blob: Blob) => {
       const url = URL.createObjectURL(blob);
@@ -579,10 +579,10 @@ function renderDetail() {
   };
 }
 
-// --- Etappe A: Adressbuch (90er-Mailclient: Toolbar, Kontaktliste, Eigenschaften-Fenster) ---
+// --- Etappe A: address book (90s mail client: toolbar, contact list, properties window) ---
 const abLabel = (c: Contact) => [c.name, c.given].filter(Boolean).join(", ") || c.lnaddr || c.email || "(ohne Namen)";
 const contactFor = (pub: string) => sync?.liveContacts().find(c => c.pubkey && c.pubkey === pub);
-const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6); // randomUUID braucht Secure-Context, wir laufen LAN-http
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6); // randomUUID needs a secure context, we run LAN http
 let abSeed: Partial<Contact> = {};
 const ABFIELDS: [keyof Contact, string][] = [
   ['name', 'Nachname'], ['given', 'Vorname'], ['org', 'Firma'], ['title', 'Position'],
@@ -693,7 +693,7 @@ function openPicker(cb: (addrs: string[]) => void) {
   };
 }
 
-// Foto-Kompression: längste Kante 1600px, JPEG q0.82; wenn teurer als Original -> Original
+// Photo compression: longest edge 1600px, JPEG q0.82; if larger than the original -> original
 async function shrinkImage(file: File): Promise<{ bytes: Uint8Array; name: string; note: string }> {
   const raw = new Uint8Array(await file.arrayBuffer());
   try {
@@ -711,7 +711,7 @@ async function shrinkImage(file: File): Promise<{ bytes: Uint8Array; name: strin
   } catch { return { bytes: raw, name: file.name, note: '(Bild nicht lesbar — Original)' }; }
 }
 
-// --- §30.4 Satoshis-Beilage: Footer, Chip, Menu, Dialog ---
+// --- §30.4 satoshis enclosure: footer, chip, menu, dialog ---
 const setPorto = () => {
   const el = $('portofuss'); if (!el) return;
   el.textContent = portoBase + (tipSats ? ` · ⚡ +${tipSats.toLocaleString('de')} Sats Beilage` : '');
@@ -745,8 +745,8 @@ const openTipDialog = () => {
   });
 };
 
-// Test/Produkt-Kennung: die Regtest-Relays bleiben als Spielwiese online — der Client
-// hebt sie deutlich vom Mainnet-Postfach ab. Das Netzwerk holt sich die UI direkt vom Relay.
+// Test/production marker: the regtest relays stay online as a playground — the
+// client clearly sets them apart from the mainnet mailbox. The UI gets the network straight from the relay.
 async function applyNetBadge(b: string) {
   let net = '';
   try { net = String(((await fetch(b + '/health').then(r => r.json())) as any).network || ''); } catch { return; }
@@ -784,9 +784,9 @@ async function renderCompose() {
     setPorto();
   };
   $('c-to').addEventListener('change', lookup);
-  // Split-Button: Klick/Kurztipp = Dateien (wie früher, 0 Extra-Klicks);
-  // Longpress (Touch) oder Caret-Klick = Menu Datei/Beilage.
-  // shortcut: 450 ms Longpress-Schwelle; wenn Menüs wachsen, auf langes Pointerdown-Intent umstellen.
+  // Split button: click/short tap = files (as before, 0 extra clicks);
+  // long press (touch) or caret click = file/enclosure menu.
+  // shortcut: 450 ms long-press threshold; if menus grow, switch to a long pointerdown intent.
   let pressT = 0;
   const att = $('c-att');
   att.addEventListener('pointerdown', () => { pressT = window.setTimeout(() => { pressT = 0; attMenu(); }, 450); });
@@ -796,7 +796,7 @@ async function renderCompose() {
   att.addEventListener('pointercancel', attAbort);
   $('c-att-caret').onclick = attMenu;
   updateTipChip();
-  // Etappe I (§28): Deep-Link ?an=<adresse>&signup=1 → Dienst-Registrierung vorbefüllen
+  // Etappe I (§28): deep link ?an=<adresse>&signup=1 → prefill the service registration
   const cq = new URLSearchParams(location.search);
   if (cq.get('signup') === '1' || cq.get('an')) {
     ($('c-signup') as HTMLInputElement).checked = true;
@@ -812,7 +812,7 @@ async function renderCompose() {
   $('c-file').addEventListener('change', async () => {
     const fs = [...($('c-file') as any).files] as File[];
     if (!fs.length) { portoBase = 'Empfänger wählen — Porto und Fingerprint erscheinen hier.'; setPorto(); return; }
-    // Etappe 7: Byte-Porto-Schätzung aus /health (Preis + Tageskurs)
+    // Etappe 7: byte-postage estimate from /health (price + daily rate)
     let cost = '';
     try {
       healthCache ??= await fetch(base + '/health').then(r => r.json());
@@ -823,14 +823,14 @@ async function renderCompose() {
         const msat = Math.ceil(x1000 * 1e8 / h.rate_meur_per_btc);
         cost = ` · Byte-Porto ≈ ${Math.ceil(msat / 1000)} sats (${(h.byte_porto_meur_per_mb / 10).toLocaleString('de')} ct/MiB; Fotos ggf. kleiner nach Kompression)`;
       }
-    } catch { /* Schätzung ist Komfort, kein Fehlerfall */ }
+    } catch { /* the estimate is a convenience, not an error case */ }
     portoBase = `${fs.length} Anhang: ` + fs.map(f => `${f.name} (${f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.round(f.size / 1024) + ' kB'})`).join(', ') + cost;
     setPorto();
   });
 
   $('c-save').onclick = () => {
     if (!sync) { $('c-msg').textContent = '✗ ohne Sync keine Entwürfe'; return; }
-    if (!draftId) draftId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); // randomUUID braucht Secure-Context, wir laufen LAN-http
+    if (!draftId) draftId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); // randomUUID needs a secure context, we run LAN http
     sync.saveDraft({ id: draftId, to: $('c-to').value, subject: $('c-subj').value, body: $('c-body').value });
     $('c-msg').textContent = '✓ Entwurf gespeichert (synchronisiert).';
   };
@@ -855,7 +855,7 @@ async function renderCompose() {
         onProgress: (m) => { const e = $('c-msg'); if (e) e.textContent = m; } });
       sentPush({ ts: Math.floor(Date.now() / 1000), to: ($('c-to') as HTMLInputElement).value, subject: ($('c-subj') as HTMLInputElement).value, msg_id: String(out.msg_id || ''), bytes: total, body: ($('c-body') as HTMLTextAreaElement).value.slice(0, 2000) });
       if (draftId && sync) { sync.delDraft(draftId); draftId = ''; }
-      tipSats = 0; updateTipChip(); // shortcut: Beilage ist bewusst nicht im Entwurf persistiert
+      tipSats = 0; updateTipChip(); // shortcut: the enclosure is deliberately not persisted in the draft
       $('c-msg').textContent = '✓ gesendet (' + (out.msg_id || '').slice(0, 10) + '…)';
       await refreshBalance();
     } catch (e: any) {
@@ -954,8 +954,8 @@ async function useKey(rawTxt: string, fname = '') {
   setLoginStatus(`✗ „${fname || 'Datei'}“ ist keine gültige lightningmail-Schlüsseldatei (.lmkey / .key).`);
 }
 
-// PRF-Selbstheilung (§21): Credential-ID + PRF-Geheimnis der letzten Assertion,
-// wird nach dem letzten Passphrase-Login einmalig auf Direkt-Fingerabdruck hochgezogen.
+// PRF self-healing (§21): credential ID + PRF secret of the last assertion,
+// upgraded once to direct fingerprint after the last passphrase login.
 let waUpgrade: { credID: string; secret: Uint8Array } | null = null;
 
 async function tryUnwrap() {
@@ -973,14 +973,14 @@ async function tryUnwrap() {
           headers: uh,
           body: JSON.stringify({ cred_id: u.credID, wrap_prf: wrapKeyPRF(pemCache, u.secret) }) });
         if (ur.ok) setTimeout(() => alert('✓ Passkey upgraded — beim nächsten Mal reicht der reine Fingerabdruck.'), 400);
-      } catch { /* Upgrade ist Komfort, kein Fehlerfall */ }
+      } catch { /* the upgrade is a convenience, not an error case */ }
     }
   } catch (e: any) { setLoginStatus('✗ ' + e.message); }
 }
 if (document.getElementById('l-pass')) ($('l-pass') as HTMLInputElement).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); tryUnwrap(); } };
-// --- Etappe 6d (§27): Setup-Wizard — 24-Wort-Recovery (BIP39), Schluessel im Browser,
-// Wortquiz als Backup-Beweis, .lmkey-Datei OPTIONAL (Wörter sind das Haupt-Backup).
-// Reihenfolge behält die ecd07eb-Lektion: Backup exists VOR der Konto-Anlage → kein Waisen-Konto.
+// --- Etappe 6d (§27): setup wizard — 24-word recovery (BIP39), key in the browser,
+// word quiz as backup proof, .lmkey file OPTIONAL (the words are the main backup).
+// The order keeps the ecd07eb lesson: backup exists BEFORE account creation → no orphan account.
 const wizOverlay = (title: string, width = 560): { body: HTMLElement; close: () => void } => {
   const ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:60;overflow:auto;padding:10px';
@@ -992,7 +992,7 @@ const wizOverlay = (title: string, width = 560): { body: HTMLElement; close: () 
 const ERRROW = `<p id="w-err" class="meta" style="color:#8b0000"></p>`;
 
 async function openWizard() {
-  base = relayVal(); // vor Login ist base noch der Default
+  base = relayVal(); // before login, base is still the default
   const mn = newMnemonic();
   const { body, close } = wizOverlay('✨ Neues lightningmail-Postfach anlegen', 540);
   const setErr = (t: string) => { const e = $('w-err'); if (e) e.textContent = t; };
@@ -1003,7 +1003,7 @@ async function openWizard() {
     <span class="wiz-step ${step === 3 ? 'active' : ''}">3. Kurzer Check</span>
   </div>`;
 
-  // Schritt 1: Wunschadresse
+  // Step 1: desired address
   const hostLabel = location.hostname || 'lightningmail.app';
   const curVal = (($('l-acct') as HTMLInputElement).value.trim() || '');
   const initName = curVal === 'alice' ? '' : curVal;
@@ -1032,7 +1032,7 @@ async function openWizard() {
   $('w-next').onclick = goStep2;
   ($('w-name') as HTMLInputElement).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); goStep2(); } };
 
-  // Schritt 2: die 24 Wörter
+  // Step 2: the 24 words
   function stepWords(nm: string) {
     const words = mn.split(' ');
     body.innerHTML = `${stepsBar(2)}
@@ -1062,7 +1062,7 @@ async function openWizard() {
     $('w-next').onclick = () => stepQuiz(nm);
   }
 
-  // Schritt 3: Wortquiz -> legt nach dem 3. richtigen Wort sofort das Konto an
+  // Step 3: word quiz -> creates the account immediately after the 3rd correct word
   function stepQuiz(nm: string) {
     const words = mn.split(' ');
     const qs = quizPositions(mn, 3);
@@ -1130,7 +1130,7 @@ async function openWizard() {
   }
 }
 
-// Recovery: 24 Wörter → Key-Ableitung im Browser → findet Konto & Server automatisch!
+// Recovery: 24 words → key derivation in the browser → finds account & server automatically!
 function openRestore() {
   const { body, close } = wizOverlay('🌱 Mit 24 Backup-Wörtern anmelden', 480);
   body.innerHTML = `<p class="meta" style="margin:0 0 8px">Gib deine 24 Wörter ein — dein Schlüssel wird lokal berechnet und dein Postfach automatisch gefunden (kein Kontoname nötig):</p>
@@ -1169,7 +1169,7 @@ const readFileText = (f: File): Promise<string> => new Promise((res, rej) => {
 const decodeUtf8B64 = (b64: string): string =>
   new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
 
-// Android-APK: direkter Datei-Callback aus Java ContentResolver (umgeht alle WebView-File-Bugs)
+// Android APK: direct file callback from the Java ContentResolver (bypasses all WebView file bugs)
 (window as any).onNativeKeyFile = (nameB64: string, dataB64: string) => {
   try {
     const fname = decodeUtf8B64(nameB64);
@@ -1183,7 +1183,7 @@ const decodeUtf8B64 = (b64: string): string =>
   setLoginStatus('✗ Datei-Auswahl fehlgeschlagen: ' + msg);
 };
 
-// Auf Android direkt den nativen Dateipicker auf #l-file-wrap binden (ohne WebView-<input>-Umweg)
+// On Android bind the native file picker directly to #l-file-wrap (no WebView <input> detour)
 if ((window as any).AndroidNative?.pickKeyFile) {
   ($('l-file') as HTMLInputElement).style.display = 'none';
   const fw = document.getElementById('l-file-wrap');
@@ -1217,7 +1217,7 @@ $('l-file').onchange = async (ev: Event) => {
   }
 };
 
-// Desktop-Komfort: Schlüsseldatei einfach per Drag & Drop auf die Login-Karte ziehen
+// Desktop convenience: just drag & drop the key file onto the login card
 const loginCard = document.getElementById('login');
 if (loginCard) {
   loginCard.addEventListener('dragover', (e) => { e.preventDefault(); });
@@ -1235,7 +1235,7 @@ $('l-login').onclick = async () => {
   await loginAuto(pemCache);
 };
 
-// --- Etappe 6: Passkey/WebAuthn-Login + Registrierung (CONCEPT §21) ---
+// --- Etappe 6: passkey/WebAuthn login + registration (CONCEPT §21) ---
 const passkeyAvailable = (): boolean => window.isSecureContext && !!(window as any).PublicKeyCredential;
 
 const b64u = (buf: ArrayBuffer | Uint8Array): string => {
@@ -1246,21 +1246,21 @@ const b64uDec = (s: string): Uint8Array => {
   const p = s.replace(/-/g, '+').replace(/_/g, '/');
   return Uint8Array.from(atob(p + '='.repeat((4 - (p.length % 4)) % 4)), (c) => c.charCodeAt(0));
 };
-// Server-Options (JSON, b64url) -> WebAuthn-API (ArrayBuffer-Felder)
+// Server options (JSON, b64url) -> WebAuthn API (ArrayBuffer fields)
 const decodeOpts = (o: any): any => {
   o.challenge = b64uDec(o.challenge).slice().buffer;
   if (o.user?.id) o.user.id = b64uDec(o.user.id).slice().buffer;
   for (const c of o.excludeCredentials || []) c.id = b64uDec(c.id).slice().buffer;
   for (const c of o.allowCredentials || []) c.id = b64uDec(c.id).slice().buffer;
-  // PRF-Salt kommt base64url vom Server, die WebAuthn-API will ArrayBuffer
-  // (prf.eval.first IST der Salt, kein .salt-Unterfeld)
+  // The PRF salt arrives base64url from the server; the WebAuthn API wants ArrayBuffer
+  // (prf.eval.first IS the salt, no .salt subfield)
   const ev = o.extensions?.prf?.eval;
   if (ev) for (const k of ['first', 'second']) {
     if (typeof ev[k] === 'string') ev[k] = b64uDec(ev[k]).slice().buffer;
   }
   return o;
 };
-// Credential-Response -> JSON fuer go-webauthn (b64url, leere Felder weg)
+// Credential response -> JSON for go-webauthn (b64url, empty fields dropped)
 const cred2json = (c: any): any => {
   const r: any = { clientDataJSON: b64u(c.response.clientDataJSON) };
   for (const f of ['attestationObject', 'authenticatorData', 'signature', 'userHandle'] as const) {
@@ -1275,7 +1275,7 @@ if (!passkeyAvailable() && !(window as any).AndroidNative?.requestBiometricAuth)
   lp.disabled = true; lp.title = 'Passkeys brauchen HTTPS (Secure Context) oder die Android-App';
 }
 
-// Hilfsfunktion für den nativen Android-Fingerabdruck-Dialog (BiometricPrompt)
+// Helper for the native Android fingerprint dialog (BiometricPrompt)
 function androidBiometricAuth(): Promise<boolean> {
   return new Promise((resolve) => {
     const an = (window as any).AndroidNative;
@@ -1316,7 +1316,7 @@ function askAccountForPasskey(): Promise<string> {
 
 async function passkeyLogin() {
   setLoginStatus('', false);
-  // 1) In der Android-APK: Nativer Android-Fingerabdruck entsperrt direkt den Hardware-Keystore-Vault
+  // 1) In the Android APK: the native Android fingerprint directly unlocks the hardware keystore vault
   const an = (window as any).AndroidNative;
   if (an?.loadVault) {
     try {
@@ -1333,7 +1333,7 @@ async function passkeyLogin() {
         setLoginStatus('Noch kein Konto auf diesem Handy gespeichert — bitte einmalig mit „📂 Schlüsseldatei" oder „🌱 24 Backup-Wörtern" anmelden. Ab danach klappt der Fingerabdruck sofort!', false);
         return;
       }
-    } catch { /* Fallback auf WebAuthn */ }
+    } catch { /* fall back to WebAuthn */ }
   }
   let targetAcct = ($('l-acct') as HTMLInputElement).value.trim().toLowerCase().split('@')[0] || loadLastUser()?.acct || '';
   if (!targetAcct) {
@@ -1355,7 +1355,7 @@ async function passkeyLogin() {
     } catch (e: any) { lastErr = String(e?.message || e); }
   }
   if (!begin || !chosenBase) {
-    // Falls ein alter gemerkter Name keinen Passkey hatte -> einmal Name erfragen lassen
+    // If an old remembered name had no passkey -> have the name asked once
     if (!($('l-acct') as HTMLInputElement).value.trim() && loadLastUser()?.acct) {
       localStorage.removeItem(LAST_USER_KEY);
     }
@@ -1377,8 +1377,8 @@ async function passkeyLogin() {
       pemCache = unwrapKeyPRF(fin.wrap_prf, prfSecret);
       await login(pemCache, targetAcct, chosenBase);
     } else if (fin.wrap_pass) {
-      // Selbstheilung (§21): Geraet kann PRF, Credential hat nur Passphrase-Wrap ->
-      // nach diesem letzten Passphrase-Login den Wrap auf Direkt-Fingerabdruck heben.
+      // Self-healing (§21): the device supports PRF but the credential only has a
+      // passphrase wrap -> after this last passphrase login, upgrade the wrap to direct fingerprint.
       waUpgrade = prfSecret && fin.cred_id ? { credID: String(fin.cred_id), secret: prfSecret } : null;
       openPassModal(fin.wrap_pass, `Passkey (${targetAcct})`);
     } else {
@@ -1391,7 +1391,7 @@ async function passkeyLogin() {
 $('l-passkey').onclick = passkeyLogin;
 
 async function passkeyRegister() {
-  // 1) In der Android-APK: Nativen Fingerabdruck prüfen & Schlüssel im AndroidKeyStore versiegeln
+  // 1) In the Android APK: check the native fingerprint & seal the key in the AndroidKeyStore
   const an = (window as any).AndroidNative;
   if (an?.saveVault && an?.requestBiometricAuth) {
     const ok = await androidBiometricAuth();
@@ -1455,8 +1455,8 @@ function mark() {
   if ($('nav-ums')) $('nav-ums').classList.toggle('on', folder === 'ums');
 }
 
-// --- Etappe G2 (§25): Umsätze — Monatsliste aus /v1/statement + CSV-Knopf.
-// Kein neues Subsystem: liest nur das Statement, EUR-Spalte kommt vom Server. ---
+// --- Etappe G2 (§25): statements — monthly list from /v1/statement + CSV button.
+// No new subsystem: just reads the statement, the EUR column comes from the server. ---
 const KINDDE: Record<string, string> = {
   postage_out: 'Porto versendet', postage_in: 'Porto erhalten', topup: 'Einzahlung',
   withdraw: 'Auszahlung', fee: 'Gebühr/Erstattung',
@@ -1509,7 +1509,7 @@ async function renderUms() {
     }).join('') || '<div class="meta" style="padding:12px">— keine Buchungen —</div>');
   $('ums-csv').onclick = () => dlCsv('/v1/statement?fmt=csv', `umsaetze-${acct}.csv`);
 
-  // ⚡ Aufladen: Bolt11-Invoice vom Relay holen (Gutschrift erfolgt nach Settlement)
+  // ⚡ Top up: fetch a Bolt11 invoice from the relay (credit happens after settlement)
   $('ums-topup').onclick = async () => {
     const sats = prompt('Betrag in sats (1–10 000 000):', '1000');
     if (!sats) return;
@@ -1529,7 +1529,7 @@ async function renderUms() {
     };
   };
 
-  // 📤 Abheben: Bolt11-Invoice einfügen, Relay bezahlt vom Guthaben
+  // 📤 Withdraw: paste a Bolt11 invoice, the relay pays it from the balance
   $('ums-withdraw').onclick = () => {
     $('detail').innerHTML = `<div class="window" style="max-width:72ch"><div class="title-bar"><div class="title-bar-text">📤 Abheben</div></div>
       <div class="window-body">
@@ -1547,7 +1547,7 @@ async function renderUms() {
       const j = await r.json().catch(() => ({})) as any;
       await refreshBalance();
       if (!r.ok) { $('wd-msg').textContent = '✗ ' + errText(r.status, j.error || ''); $('wd-go').removeAttribute('disabled'); return; }
-      await renderUms(); // Umsätze neu laden …
+      await renderUms(); // reload the statements …
       $('detail').innerHTML = `<div class="window" style="max-width:72ch"><div class="title-bar"><div class="title-bar-text">📤 Ausgezahlt</div></div>
         <div class="window-body"><p>✓ ${fmtSat(j.amount_sats)} sats bezahlt.</p>
         <p class="meta" style="word-break:break-all">Preimage: ${esc(String(j.preimage || ''))}<br>Payment-Hash: ${esc(String(j.payment_hash || ''))}</p></div></div>`;
@@ -1571,21 +1571,21 @@ async function renderUms() {
   }));
 }
 
-// --- Etappe J3/J4: 🗂 Laufwerk — verschlüsselter Speicher am eigenen Relay. ---
-// Logik lebt DOM-frei in src/drive.ts; Ordnerwechsel rendert rein aus dem lokalen
-// stateDoc (renderUms-Muster), saveFile/delFile stoßen den bestehenden Debounce-
-// State-Push an. Design: Navy/Pergament/Gold, Touch ≥44px (CSS in index.html).
+// --- Etappe J3/J4: 🗂 drive — encrypted storage on your own relay. ---
+// Logic lives DOM-free in src/drive.ts; folder switching renders purely from the
+// local stateDoc (renderUms pattern), saveFile/delFile trigger the existing
+// debounced state push. Design: navy/parchment/gold, touch ≥44px (CSS in index.html).
 let drvDir = 'root', drvNew = false, drvRen = '', drvOff = false, drvMsg = '';
 let drvUse: DriveUsage | null = null;
 const sizeHuman = (n: number): string =>
   n >= 1073741824 ? (n / 1073741824).toLocaleString('de', { maximumFractionDigits: 1 }) + ' GB'
   : n >= 1048576 ? (n / 1048576).toLocaleString('de', { maximumFractionDigits: 1 }) + ' MB'
   : n >= 1024 ? Math.round(n / 1024) + ' kB' : n + ' B';
-const DRV_NAME = /^[^/]{1,100}$/; // kein '/', 1–100 Zeichen
+const DRV_NAME = /^[^/]{1,100}$/; // no '/', 1–100 chars
 const drvStatus = (m: string) => { const el = $('drv-status'); if (el) el.textContent = m; };
 
-// Upload: input + drag&drop, sequentiell. shortcut: kein Multi-Upload-Queue-
-// Manager, sequentielles for-of; upgraden wenn Nutzer große Batches fordern.
+// Upload: input + drag&drop, sequential. shortcut: no multi-upload queue
+// manager, sequential for-of; upgrade if users demand large batches.
 async function drvUpload(fs: File[]) {
   if (!sync || !priv || !token || drvOff) return;
   for (const f of fs) {
@@ -1596,8 +1596,8 @@ async function drvUpload(fs: File[]) {
       drvStatus(`✓ „${f.name}“ hochgeladen`);
     } catch (e: any) { drvStatus('✗ ' + String(e?.message || e).slice(0, 120)); }
   }
-  refreshBalance().catch(() => {}); // Byte-Porto der Blobs
-  renderDrv(); // Liste + Quota-Balken frisch
+  refreshBalance().catch(() => {}); // byte postage of the blobs
+  renderDrv(); // fresh list + quota bar
 }
 
 function renderDrvDetail(e?: DriveEntry) {
@@ -1631,13 +1631,13 @@ async function renderDrv() {
   drvUse = null;
   let useErr = '';
   try { drvUse = await driveUsage(base, token); } catch (e: any) { useErr = String(e?.message || e).slice(0, 140); }
-  try { healthCache ??= await fetch(base + '/health').then(r => r.json()); } catch { /* healthCache ist Komfort */ }
+  try { healthCache ??= await fetch(base + '/health').then(r => r.json()); } catch { /* healthCache is a convenience */ }
   drvOff = drvUse ? !drvUse.enabled : !!(healthCache?.drive && healthCache.drive.enabled === false);
 
   const ents = sync.liveFiles();
   const byId: Record<string, DriveEntry> = {};
   for (const e of ents) byId[e.id] = e;
-  if (drvDir !== 'root' && !byId[drvDir]) drvDir = 'root'; // Ordner anderswo gelöscht
+  if (drvDir !== 'root' && !byId[drvDir]) drvDir = 'root'; // folder deleted elsewhere
   const chain: DriveEntry[] = [];
   for (let cur = byId[drvDir]; cur && chain.length < 64; cur = byId[cur.parent]) chain.unshift(cur);
   const kids = ents.filter(e => e.parent === drvDir)
@@ -1668,14 +1668,14 @@ async function renderDrv() {
       `</div></div>`).join('') ||
       (drvOff ? '' : '<div class="meta drvempty">— dieser Ordner ist leer —<br>⬆ Datei hochladen oder hierher ziehen</div>'));
 
-  // Breadcrumb-Navigation (Parent-Kette)
+  // Breadcrumb navigation (parent chain)
   list.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
     drvDir = (b as HTMLElement).dataset.go!; drvNew = false; drvRen = ''; renderDrv();
   }));
   $('d-up').onclick = () => ($('d-file') as HTMLInputElement).click();
   const dfile = $('d-file') as HTMLInputElement;
   dfile.onchange = () => { const fs = [...(dfile.files || [])] as File[]; dfile.value = ''; if (fs.length) drvUpload(fs); };
-  // ＋ Ordner: Inline-Zeile statt nativem prompt() (headless-Test-Falle)
+  // ＋ Folder: inline row instead of native prompt() (headless test trap)
   $('d-mkdir').onclick = () => { drvNew = true; drvRen = ''; renderDrv(); setTimeout(() => ($('d-newname') as HTMLInputElement)?.focus(), 30); };
   if (drvNew) {
     const inp = $('d-newname') as HTMLInputElement;
@@ -1688,7 +1688,7 @@ async function renderDrv() {
       } else if (ev.key === 'Escape') { drvNew = false; renderDrv(); }
     };
   }
-  // ✏️ Rename inline (Enter = speichern, Esc = Abbruch), Name-Validierung ^[^/]{1,100}$
+  // ✏️ Rename inline (Enter = save, Esc = cancel), name validation ^[^/]{1,100}$
   list.querySelectorAll('[data-ren]').forEach(b => b.addEventListener('click', (ev) => {
     ev.stopPropagation(); drvRen = (b as HTMLElement).dataset.ren!; drvNew = false; renderDrv();
     setTimeout(() => { const i = document.querySelector('.d-ren') as HTMLInputElement; i?.focus(); i?.select(); }, 30);
@@ -1705,8 +1705,8 @@ async function renderDrv() {
       } else if (ev.key === 'Escape') { drvRen = ''; renderDrv(); }
     };
   });
-  // ⬇ Download: Chunk-Download + Decrypt aus drive.ts, Browser-Download wie beim
-  // Anhang-Pfad (safeName aus §31 wiederverwendet).
+  // ⬇ Download: chunk download + decrypt from drive.ts, browser download like the
+  // attachment path (reuses safeName from §31).
   list.querySelectorAll('[data-dl]').forEach(b => b.addEventListener('click', async (ev) => {
     ev.stopPropagation();
     const e = sync!.doc.files[(b as HTMLElement).dataset.dl!]; if (!e) return;
@@ -1719,7 +1719,7 @@ async function renderDrv() {
       drvStatus(`✓ „${e.name}“ heruntergeladen`);
     } catch (err: any) { drvStatus('✗ ' + String(err?.message || err).slice(0, 120)); }
   }));
-  // 🗑 Löschen: native confirm() ist hier ok (Spec) — Server-Freigabe VOR Tombstone.
+  // 🗑 Delete: native confirm() is fine here (spec) — server release BEFORE the tombstone.
   list.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async (ev) => {
     ev.stopPropagation();
     const e = sync!.doc.files[(b as HTMLElement).dataset.del!]; if (!e) return;
@@ -1729,7 +1729,7 @@ async function renderDrv() {
     catch (err: any) { alert('✗ Löschen: ' + String(err?.message || err).slice(0, 140)); }
     renderDrv();
   }));
-  // Zeilenklick: Ordner navigiert, Datei zeigt Eigenschaften im Detail-Pane
+  // Row click: folders navigate, files show properties in the detail pane
   list.querySelectorAll('.drvrow[data-id]').forEach(row => row.addEventListener('click', () => {
     const e = sync!.doc.files[(row as HTMLElement).dataset.id!]; if (!e || e.gone) return;
     if (e.kind === 'd') { drvDir = e.id; drvNew = false; drvRen = ''; renderDrv(); }
@@ -1738,13 +1738,13 @@ async function renderDrv() {
   renderDrvDetail();
 }
 
-// Drag & Drop aufs Listen-Pane: nur aktiv solange der Laufwerk-Tab offen ist.
+// Drag & drop onto the list pane: only active while the drive tab is open.
 $('list').addEventListener('dragover', (e) => { if (folder !== 'drv' || drvOff) return; e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; });
 $('list').addEventListener('drop', (e) => { if (folder !== 'drv' || drvOff) return; e.preventDefault(); const fs = [...(e.dataTransfer?.files || [])]; if (fs.length) drvUpload(fs); });
 
-// --- IdP (§21): OIDC-Login-Flow — Consent + BIP340-Signatur der Server-Challenge
-// mit dem Mailbox-Key (Föderations-Beweis im bmail-Claim; Relay sieht den
-// privaten Key nie, Signatur entsteht hier im Browser). ---
+// --- IdP (§21): OIDC login flow — consent + BIP340 signature of the server
+// challenge with the mailbox key (federation proof in the bmail claim; the relay
+// never sees the private key, the signature is made here in the browser). ---
 function oidcScreen(inner: string) {
   const ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:70;padding:10px';
@@ -1777,7 +1777,7 @@ async function oidcFlow() {
       <div class="row"><button id="oidc-ok">${lj.pay_sats > 0 ? '⚡ ' + lj.pay_sats + ' sats zahlen & freischalten' : 'Erlauben'}</button><button id="oidc-no">Ablehnen</button></div>
       <p id="oidc-err" class="meta"></p>`);
     const finish = (redirect: string) => {
-      // OIDC-Parameter aus der URL putzen, damit ein Zurück nicht erneut triggert
+      // Clean the OIDC parameters from the URL so going back doesn't trigger again
       history.replaceState(null, '', location.pathname);
       location.href = redirect;
     };
@@ -1796,7 +1796,7 @@ async function oidcFlow() {
         const dr = await fetch(oidcRelay + '/oidc/auth/sign', { method: 'POST', headers: hdrs(), body: JSON.stringify({ sid: oidcSid, deny: true }) });
         const dj = await dr.json() as any;
         if (dj.redirect) { finish(dj.redirect); return; }
-      } catch { /* kein Redirect möglich — einfach schließen */ }
+      } catch { /* no redirect possible — just close */ }
       oidcScreen('<p>Abgebrochen. Du kannst dieses Fenster schließen.</p>');
     };
   } catch (e: any) {
@@ -1804,12 +1804,12 @@ async function oidcFlow() {
   }
 }
 
-// ---- Selbstbau & eigenes Relay (Etappe O) --------------------------------
-// Serviert dieses Origin sein relayd gleich die UI mit (/app/, ui_dir), liegt
-// die API auf demselben Origin ganz oben — alpha/beta-Vorschlaege waeren hier
-// Unsinn, also ein einziges „Dieses Relay" (base = '', same-origin ohne CORS).
-// Synchron erkannt ueber ?self=1 (Navigation aus der App), asynchron per
-// /health-Probe als Fallback fuer direkt aufgerufene Relay-Adressen.
+// ---- Self-hosting & own relay (Etappe O) --------------------------------
+// If this origin's relayd also serves the UI (/app/, ui_dir), the API on the
+// same origin comes first — alpha/beta suggestions would be nonsense here, so a
+// single „Dieses Relay" (base = '', same-origin without CORS).
+// Detected synchronously via ?self=1 (navigation from the app), asynchronously
+// via a /health probe as fallback for directly opened relay addresses.
 function applySelfRelayUi() {
   if (SELF_RELAY) return;
   SELF_RELAY = true;
@@ -1823,13 +1823,13 @@ if (new URLSearchParams(location.search).has('self')) applySelfRelayUi();
 (async () => {
   if (SELF_RELAY) return;
   let j: any = null;
-  try { j = await (await fetch('/health')).json(); } catch { /* Site-Frontend, kein Relayd */ }
+  try { j = await (await fetch('/health')).json(); } catch { /* site frontend, not a relayd */ }
   if (j && typeof j.network === 'string') applySelfRelayUi();
 })();
 
-// Dropdown-Eintrag „Eigenes Relay (URL)": URL-Feld einblenden; Enter oder
-// „Öffnen" NAVIGIERT zum /app/ des eigegebenen Relays (keine CORS, Seite kommt
-// dort vom Relay selbst). Auf Android merkt die APK das Relay als Start-Ziel.
+// Dropdown entry „Eigenes Relay (URL)": show the URL field; Enter or
+// „Öffnen" NAVIGATES to the /app/ of the entered relay (no CORS, the page is
+// served there by the relay itself). On Android the APK remembers the relay as start target.
 {
   const custWrap = document.getElementById('l-relay-custom-wrap');
   const custInp = $('l-relay-custom') as HTMLInputElement | null;
@@ -1843,7 +1843,7 @@ if (new URLSearchParams(location.search).has('self')) applySelfRelayUi();
   const openCustom = () => {
     const origin = normOrigin(custInp?.value || '');
     if (!origin) { setLoginStatus('✗ Das ist keine gültige Relay-Adresse (z. B. relay.example.org:8443).'); return; }
-    try { (window as any).AndroidNative?.setHomeRelay?.(origin); } catch { /* Browser ohne native Bruecke */ }
+    try { (window as any).AndroidNative?.setHomeRelay?.(origin); } catch { /* browser without the native bridge */ }
     location.href = origin + '/app/?self=1';
   };
   if (custWrap && custInp && custGo) {
@@ -1857,7 +1857,7 @@ if (new URLSearchParams(location.search).has('self')) applySelfRelayUi();
   }
 }
 
-// Letzten bekannten Kontonamen (ohne Geheimnis) für Passkey-Komfort vorbelegen
+// Prefill the last known account name (no secret) for passkey convenience
 const relSel0 = document.getElementById('l-relay') as HTMLSelectElement | null;
 relSel0?.addEventListener('change', () => applyNetBadge(relayVal(relSel0)));
 applyNetBadge(relSel0 ? relayVal(relSel0) : base);
@@ -1872,15 +1872,15 @@ if (rememberedUser) {
   }
 }
 
-// Start: gespeicherten Schluessel wiederladen. Ohne explizites Abmelden (lm_noauto)
-// loggt die App sofort ein; nach Abmelden reicht 1 Klick bzw. Fingerabdruck.
+// Startup: reload the stored key. Without explicit logout (lm_noauto) the app
+// logs in immediately; after logout, 1 click or fingerprint is enough.
 let autoSaved = loadAuto();
 let fromNativeVault = false;
 if (!autoSaved && (window as any).AndroidNative?.loadVault) {
   try {
     const nv = JSON.parse((window as any).AndroidNative.loadVault() || 'null');
     if (nv && typeof nv.pem === 'string' && nv.pem && nv.acct && nv.base) { autoSaved = nv; fromNativeVault = true; }
-  } catch { /* Tresor leer oder kaputt — normaler Login */ }
+  } catch { /* vault empty or broken — normal login */ }
 }
 if (autoSaved) {
   const saved = autoSaved;

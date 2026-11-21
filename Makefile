@@ -5,14 +5,14 @@ smoke:
 smoke-down:
 	docker compose -p lightningmail-test -f test/docker/docker-compose.yml down
 
-# Etappe 2a: Relay-Core (Go).
+# Etappe 2a: relay core (Go).
 relay-build relay-test relay-vet relay-fmt:
 	$(MAKE) -C relay $(@:relay-%=%)
 
 relay-check:
 	$(MAKE) -C relay fmt-check vet test build
 
-# Etappe 3: E2E Portomail-Flow
+# Etappe 3: E2E postage-mail flow
 e2e:
 	./test/e2e.sh
 

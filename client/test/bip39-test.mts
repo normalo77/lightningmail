@@ -1,6 +1,6 @@
-// bip39-test.mts — Etappe 6d (§27): Wort-Generierung, Checksumme, deterministische
-// Ableitung, Quiz-Helfer, Recovery-Roundtrip gegen laufendes Relay.
-// Ablauf: npx tsx test/bip39-test.mts   (RELAY= ueberschreibbar, Default alpha)
+// bip39-test.mts — Etappe 6d (§27): word generation, checksum, deterministic
+// derivation, quiz helpers, recovery roundtrip against a running relay.
+// Run: npx tsx test/bip39-test.mts   (RELAY= overridable, default alpha)
 import { newMnemonic, checkMnemonic, keyFromMnemonic, quizPositions, quizOptions } from "../src/bip39";
 import { pubFromPriv, authSign, toHex, validScalar } from "../src/crypto";
 
@@ -17,7 +17,7 @@ bad[0] = bad[0] === "zoo" ? "abandon" : "zoo";
 ok(checkMnemonic(bad.join(" ")) === null, "ein Wort getauscht -> Checksumme fail");
 ok(checkMnemonic("quatsch mit sosse") === null, "Müll -> null");
 
-// --- Unit: Ableitung ---
+// --- Unit: derivation ---
 const k1 = keyFromMnemonic(mn);
 ok(toHex(keyFromMnemonic(mn)) === toHex(k1), "deterministisch (gleiche Woerter -> gleicher Key)");
 ok(validScalar(k1) && k1.length === 32, "gueltiger 32B-Skalar");
@@ -26,18 +26,18 @@ ok(toHex(keyFromMnemonic(mn, "zusatz")) !== toHex(k1), "BIP39-Passphrase aendert
 const pub = pubFromPriv(k1);
 ok(pub.length === 33 && (pub[0] === 2 || pub[0] === 3), "Pubkey 33B komprimiert");
 
-// --- Unit: Quiz-Helfer ---
+// --- Unit: quiz helpers ---
 const qs = quizPositions(mn, 3);
 ok(qs.length === 3 && qs.every(p => p >= 0 && p < 24) && new Set(qs).size === 3, "3 eindeutige Quiz-Positionen");
 const opts = quizOptions(mn, qs[0]);
 ok(opts.length === 4 && new Set(opts).size === 4 && opts.includes(mn.split(" ")[qs[0]]), "Quiz-Optionen: 4 eindeutig, inkl. richtige");
 
-// --- Integration: Wizard-Key wird Konto, Recovery-Login funktioniert ---
+// --- Integration: wizard key becomes an account, recovery login works ---
 const name = "wiz" + Date.now().toString(36);
 let r = await fetch(base + "/v1/account", { method: "POST", headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ name, pubkey: toHex(pub) }) });
 ok(r.status === 200, `POST /v1/account (${name}) -> 200`);
-// Recovery-Pfad: Schluessel NUR aus den Woertern neu ableiten und damit authen
+// Recovery path: re-derive the key ONLY from the words and authenticate with it
 const recovered = keyFromMnemonic(checkMnemonic(mn)!);
 r = await fetch(base + "/v1/auth", { method: "POST", headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ address: name, pubkey_hex: toHex(pubFromPriv(recovered)), sig: toHex(authSign(recovered, name)) }) });

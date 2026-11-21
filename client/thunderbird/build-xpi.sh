@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# build-xpi.sh — baut die PWA und paketiert site/lightningmail-thunderbird.xpi.
-# Laeuft dort, wo vite funktioniert (CT113; lokal mit Node >= 18).
-# SKIP_BUILD=1 paketiert das vorhandene client/app/dist ohne Neubau.
+# build-xpi.sh — builds the PWA and packages site/lightningmail-thunderbird.xpi.
+# Runs wherever vite works (CT113; locally with Node >= 18).
+# SKIP_BUILD=1 packages the existing client/app/dist without rebuilding.
 set -euo pipefail
 cd "$(dirname "$0")"                 # client/thunderbird
 APP="$(cd ../app && pwd)"            # client/app
@@ -15,11 +15,11 @@ trap 'rm -rf "$STAGE"' EXIT
 # Staging: dist/ -> app/
 mkdir -p "$STAGE/app"
 cp -r "$APP/dist/." "$STAGE/app/"
-# Demo-Keys gehoeren nicht ins Add-on (und /keys/ gibt es in moz-extension:// nicht)
+# demo keys must not ship inside the add-on (and /keys/ does not exist under moz-extension://)
 rm -rf "$STAGE/app/keys"
 
-# absolute /app/-Asset-Pfade -> relativ (vite base './' liefert sie schon relativ;
-# der sed bleibt als Netz, falls base je auf /app/ gestellt wird)
+# absolute /app/ asset paths -> relative (vite base './' already emits them relative;
+# the sed stays as a safety net in case base is ever set to /app/)
 find "$STAGE/app" -name '*.html' -exec sed -i 's#"/app/#"./#g' {} +
 
 python3 - "$STAGE/app/index.html" <<'PY'
@@ -29,11 +29,11 @@ h = open(p, encoding="utf-8").read()
 # Relay-Optionen: Thunderbird hat keinen /relay-* Proxy -> absolute URLs
 h = h.replace('value="/relay-a"', 'value="https://lightningmail.app/relay-a"')
 h = h.replace('value="/relay-b"', 'value="https://lightningmail.app/relay-b"')
-# Impressum: relativer Serverpfad existiert im Add-on nicht
+# impressum: the relative server path does not exist inside the add-on
 h = h.replace('href="/impressum"', 'href="https://lightningmail.app/impressum"')
 h = h.replace('href="/forum"', 'href="https://lightningmail.app/forum"')
 h = h.replace('href="/paywall"', 'href="https://lightningmail.app/paywall"')
-# Eigenes Relay: dritte Option, fragt eine URL ab und merkt sie sich
+# own relay: third dropdown option, asks for a URL and remembers it
 custom = """<script>
 (function () {
   var s = document.getElementById("l-relay");

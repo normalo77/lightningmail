@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lightningmail M2a Interop: echte relayd + LND(regtest) -> lmcli send -> TS-Client decryptet.
+# lightningmail M2a interop: real relayd + LND (regtest) -> lmcli send -> TS client decrypts.
 set -euo pipefail
 REPO=/root/lightningmail; export PATH=$PATH:/usr/local/go/bin
 RA=http://127.0.0.1:8443; RB=http://127.0.0.1:9443

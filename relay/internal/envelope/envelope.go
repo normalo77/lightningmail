@@ -26,7 +26,7 @@ const (
 	TagReceipt           = 0x07
 	TagPayloadCiphertext = 0x08
 	TagEphemeralPubkey   = 0x09
-	TagSignup            = 0x0A // optional: Erstkontakt, Wert 0x01 → Willkommensporto
+	TagSignup            = 0x0A // optional: first contact, value 0x01 → welcome postage
 
 	MaxBlobRefs  = 16
 	SignatureLen = 64 // BIP340 schnorr
@@ -61,7 +61,7 @@ type Envelope struct {
 	Receipt           *PostageReceipt // optional
 	PayloadCiphertext []byte          // 24B nonce + XChaCha20-Poly1305 ct||tag
 	EphemeralPubkey   [33]byte
-	Signup            bool // optional tag 0x0A: Erstkontakt (welcome_sats)
+	Signup            bool // optional tag 0x0A: first contact (welcome_sats)
 }
 
 func (e *Envelope) validate(requireSig bool) error {

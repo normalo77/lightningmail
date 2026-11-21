@@ -1,5 +1,5 @@
-// M0-Spike: natives GTK4/Adwaita-Fenster mit WebKitGTK-6.0-Reader.
-// Beweis: Screenshot unter Xvfb + sauberer stderr-Log.
+// M0 spike: native GTK4/Adwaita window with a WebKitGTK 6.0 reader.
+// Proof: screenshot under Xvfb + clean stderr log.
 package main
 
 import (
@@ -25,8 +25,8 @@ import (
 //go:embed testmail.html
 var testmailHTML string
 
-// PNGs werden in main() generiert und bleiben bis Prozessende referenziert.
-// shortcut: statische RAM-Buffer; bei dynamischen Inhalten auf g_bytes umstellen (M1).
+// PNGs are generated in main() and stay referenced until process end.
+// shortcut: static RAM buffers; switch to g_bytes for dynamic content (M1).
 var (
 	imgInline []byte
 	imgScheme []byte
@@ -34,7 +34,7 @@ var (
 
 var schemeHits atomic.Int32
 
-// schemeCB muss global leben — C hält den Callback über die Registrierung.
+// schemeCB must live globally — C keeps the callback beyond registration.
 var schemeCB = webkit.URISchemeRequestCallback(handleLMScheme)
 
 type mail struct{ subj, abs, vorschau string }
@@ -104,7 +104,7 @@ func activate(app *adw.Application) {
 	}
 	list.ConnectRowSelected(&selcb)
 
-	// A4: externe Links abfangen (Callback-Beweis), initiale about:blank/lm-mail-Navigation durchlassen.
+	// A4: intercept external links (callback proof), let the initial about:blank/lm-mail navigation pass.
 	decide := func(_ webkit.WebView, decPtr uintptr, t webkit.PolicyDecisionType) bool {
 		uri := "?"
 		if d := webkit.NavigationPolicyDecisionNewFromInternalPtr(decPtr); d != nil {
@@ -128,8 +128,8 @@ func activate(app *adw.Application) {
 		log.Printf("load-changed event=%d", int(ev))
 		if ev == webkit.LoadFinishedValue && !a4probed {
 			a4probed = true
-			// A4-Nachweis: simulierte externe Navigation nach Abschluss des Mail-Loads —
-			// muss den decide-policy-Callback erreichen und dort abgewiesen werden.
+			// A4 evidence: simulated external navigation after the mail load finishes —
+			// must reach the decide-policy callback and be rejected there.
 			view.LoadUri("https://lightningmail.example/simulierter-linkklick")
 		}
 	}
@@ -178,7 +178,7 @@ func loadMail(view *webkit.WebView, i int) {
 	log.Printf("LoadHtml Mail %d (%d bytes)", i, len(html))
 }
 
-// C-Signatur: void (*)(WebKitURISchemeRequest *request, gpointer user_data) — Arg1 ist der Request.
+// C signature: void (*)(WebKitURISchemeRequest *request, gpointer user_data) — arg1 is the request.
 func handleLMScheme(reqPtr uintptr, _ uintptr) {
 	req := webkit.URISchemeRequestNewFromInternalPtr(reqPtr)
 	uri := req.GetUri()

@@ -7,7 +7,7 @@ import (
 	"github.com/lightningmail/relay/internal/config"
 )
 
-// relayTransportKey: Persistenz-Roundtrip — zweiter Aufruf lädt denselben Key.
+// relayTransportKey: persistence roundtrip — second call loads the same key.
 func TestRelayTransportKeyRoundtrip(t *testing.T) {
 	dir := t.TempDir()
 	s1 := &Server{cfg: &config.Config{DataDir: dir}}
@@ -18,7 +18,7 @@ func TestRelayTransportKeyRoundtrip(t *testing.T) {
 	if _, err := os.Stat(dir + "/relay_transport.key"); err != nil {
 		t.Fatal("key not persisted:", err)
 	}
-	s2 := &Server{cfg: &config.Config{DataDir: dir}} // simuliert Restart
+	s2 := &Server{cfg: &config.Config{DataDir: dir}} // simulates a restart
 	k2, err := s2.relayTransportKey()
 	if err != nil {
 		t.Fatal(err)
