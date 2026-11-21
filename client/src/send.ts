@@ -75,7 +75,8 @@ export async function composeAndSend(
   };
   for (const a of opts.attachments ?? []) {
     if (needsChunking(a.bytes.length)) {
-      // Etappe 7 (§22): 1-MiB slices + manifest, all hashes into the envelope (ACL/mirror)
+      // Etappe 7 (§22): 1-MiB slices + manifest; the envelope carries ONLY the
+      // manifest ref — the recipient relay mirrors slices via manifest walk.
       const total = Math.ceil(a.bytes.length / CHUNK);
       const hashes: string[] = [];
       let i = 0;
@@ -86,7 +87,7 @@ export async function composeAndSend(
       const man: Manifest = { v: 1, size: a.bytes.length, chunks: hashes };
       opts.onProgress?.(`Anhang „${a.name}": Manifest…`);
       const msha = await upload(manifestBytes(man), `${a.name} Manifest`);
-      for (const hh of [...hashes, msha]) blobRefs.push(fromHex(hh));
+      blobRefs.push(fromHex(msha));
       attList.push({ sha256: msha, name: a.name, size: a.bytes.length, chunked: true, chunks: hashes.length });
     } else {
       const sha = await upload(a.bytes, a.name);

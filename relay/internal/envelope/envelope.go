@@ -28,7 +28,9 @@ const (
 	TagEphemeralPubkey   = 0x09
 	TagSignup            = 0x0A // optional: first contact, value 0x01 → welcome postage
 
-	MaxBlobRefs  = 16
+	// Field count byte holds 255; manifest-only makes >1 per attachment
+	// exceptional, legacy envelopes may carry many slice refs.
+	MaxBlobRefs  = 255
 	SignatureLen = 64 // BIP340 schnorr
 	ReceiptLen   = 40 // 8B BE sats + 32B preimage
 	NonceLen     = 24 // XChaCha20-Poly1305
@@ -54,7 +56,7 @@ type PostageReceipt struct {
 type Envelope struct {
 	RecipientHash     [32]byte
 	MsgID             [32]byte
-	BlobRefs          [][32]byte // optional, <=16
+	BlobRefs          [][32]byte // optional, <=255
 	SenderPubkey      [33]byte
 	Signature         []byte // 64B, set by crypto.SignEnvelope; nil in SigningBytes
 	Timestamp         int64

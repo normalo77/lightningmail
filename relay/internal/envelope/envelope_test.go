@@ -142,6 +142,30 @@ func TestSignupTagRoundTrip(t *testing.T) {
 	}
 }
 
+func TestBlobRefsCap(t *testing.T) {
+	e := testEnv(t)
+	e.BlobRefs = make([][32]byte, MaxBlobRefs)
+	for i := range e.BlobRefs {
+		e.BlobRefs[i][0] = byte(i)
+		e.BlobRefs[i][31] = byte(255 - i)
+	}
+	raw, err := e.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Decode(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.BlobRefs) != MaxBlobRefs || got.BlobRefs[200] != e.BlobRefs[200] {
+		t.Fatalf("255-ref round trip lost refs: %d", len(got.BlobRefs))
+	}
+	e.BlobRefs = append(e.BlobRefs, [32]byte{})
+	if _, err := e.MarshalBinary(); err == nil {
+		t.Fatal("256 refs must be rejected")
+	}
+}
+
 func TestTruncation(t *testing.T) {
 	raw, err := testEnv(t).MarshalBinary()
 	if err != nil {

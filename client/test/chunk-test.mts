@@ -75,6 +75,10 @@ console.log(`byte_porto_meur_per_mb=${bp} rate=${health.rate_meur_per_btc ?? "-"
 if (bp > 0 && !canMoney) skip("Guthaben-Checks (kein sqlite-Zugriff)");
 if (bp > 0 && canMoney) {
   const poor = await mkAccount(baseA, "chkp");
+  // Etappe I welcome credit: force true zero balance before probing 402
+  execFileSync("python3", ["-c",
+    "import sqlite3,sys; db=sqlite3.connect(sys.argv[1]); db.execute(\"UPDATE account SET balance_msat=0 WHERE name=?\", (sys.argv[2],)); db.commit()",
+    dbA, poor.name]);
   const r = await fetch(baseA + "/v1/blob", { method: "POST", headers: auth(poor.token), body: big.slice(0, CHUNK) as any });
   ok(r.status === 402, `Blob-Upload ohne Guthaben -> 402 (${r.status})`);
 }
@@ -118,7 +122,7 @@ else console.log("INFO byte_porto=0 — Uploads gratis (Config aus)");
   else {
     const env = decodeEnvelope(fromB64(inbox.envelope_b64));
     const nRefs = blobCount(env[TAG.BlobRefs]!);
-    ok(nRefs === 4, `Envelope blob_refs = 4 (3 Scheiben + Manifest), ist ${nRefs}`);
+    ok(nRefs === 1, `Envelope blob_refs = 1 (nur Manifest, seit 21.11.), ist ${nRefs}`);
     const aad = new Uint8Array([...env[TAG.RecipientHash], ...env[TAG.MsgID]]);
     const pt = JSON.parse(new TextDecoder().decode(decryptPayload(recip.priv, env[TAG.Ephemeral]!, env[TAG.Payload]!, aad)));
     const att = pt.attachments?.[0];

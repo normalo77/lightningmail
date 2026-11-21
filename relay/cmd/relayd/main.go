@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"io"
 	"log"
@@ -250,46 +251,75 @@ func main() {
 func mirrorBlobs(cfg *config.Config, l *ledger.Ledger, refs [][32]byte, acctID int64, acctName string) {
 	for _, ref := range refs {
 		hexSha := hex.EncodeToString(ref[:])
-		loc := cfg.DataDir + "/blob/" + hexSha[:2] + "/" + hexSha
-		if st, err := os.Stat(loc); err == nil {
-			l.RegisterBlobRef(acctID, ref, st.Size(), "mail")
+		raw, ok := mirrorOneBlob(cfg, l, ref, acctID, acctName)
+		if !ok || raw == nil {
 			continue
 		}
-		var raw []byte
-		for i := range cfg.Peers {
-			p := cfg.Peers[i]
-			if p.URL == "" {
-				continue
+		// Manifest walk (spec 6.5): mirrored envelope refs that are chunk
+		// manifests pull their slices too — one level only, best effort.
+		parts, size, err := parseChunkManifest(raw)
+		if err != nil {
+			if !errors.Is(err, errNotManifest) {
+				log.Printf("mirror: blob %s… als Manifest verworfen: %v (Brief trotzdem zugestellt)", hexSha[:12], err)
 			}
-			req, _ := http.NewRequest("GET", p.URL+"/v1/relay/blob/"+hexSha, nil)
-			req.Header.Set("X-Relay-Secret", p.Token)
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil || resp.StatusCode != 200 {
-				if resp != nil {
-					resp.Body.Close()
-				}
-				continue
-			}
-			raw, err = io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if err == nil {
-				break
-			}
-		}
-		if raw == nil {
-			log.Printf("mirror: blob %s nicht abrufbar (nachricht trotzdem zugestellt)", hexSha[:12])
 			continue
 		}
-		if h := sha256.Sum256(raw); h != ref {
-			log.Printf("mirror: sha mismatch fuer %s", hexSha[:12])
-			continue
+		got := 0
+		for _, p := range parts {
+			if _, ok := mirrorOneBlob(cfg, l, p, acctID, acctName); ok {
+				got++ // per-slice failure is logged in mirrorOneBlob; a missing
+			} // slice must not sink the rest (recipient UI shows it as unloadable)
 		}
-		os.MkdirAll(cfg.DataDir+"/blob/"+hexSha[:2], 0700)
-		if err := os.WriteFile(loc, raw, 0600); err != nil {
-			log.Printf("mirror: write %s: %v", hexSha[:12], err)
-			continue
-		}
-		l.RegisterBlobRef(acctID, ref, int64(len(raw)), "mail")
-		log.Printf("mirror: blob %s gespiegelt fuer %s (%d bytes)", hexSha[:12], acctName, len(raw))
+		log.Printf("mirror: manifest %s…: %d/%d Scheiben gespiegelt (%d bytes deklariert)", hexSha[:12], got, len(parts), size)
 	}
+}
+
+// mirrorOneBlob fetches one blob from the peers, stores it locally and grants
+// the recipient ACL. Returns the bytes (for manifest sniffing) and whether the
+// blob is available.
+func mirrorOneBlob(cfg *config.Config, l *ledger.Ledger, ref [32]byte, acctID int64, acctName string) ([]byte, bool) {
+	hexSha := hex.EncodeToString(ref[:])
+	loc := cfg.DataDir + "/blob/" + hexSha[:2] + "/" + hexSha
+	if st, err := os.Stat(loc); err == nil {
+		l.RegisterBlobRef(acctID, ref, st.Size(), "mail")
+		raw, _ := os.ReadFile(loc) // shortcut: read whole blob to sniff for a manifest; manifests are tiny
+		return raw, true
+	}
+	var raw []byte
+	for i := range cfg.Peers {
+		p := cfg.Peers[i]
+		if p.URL == "" {
+			continue
+		}
+		req, _ := http.NewRequest("GET", p.URL+"/v1/relay/blob/"+hexSha, nil)
+		req.Header.Set("X-Relay-Secret", p.Token)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil || resp.StatusCode != 200 {
+			if resp != nil {
+				resp.Body.Close()
+			}
+			continue
+		}
+		raw, err = io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err == nil {
+			break
+		}
+	}
+	if raw == nil {
+		log.Printf("mirror: blob %s nicht abrufbar (nachricht trotzdem zugestellt)", hexSha[:12])
+		return nil, false
+	}
+	if h := sha256.Sum256(raw); h != ref {
+		log.Printf("mirror: sha mismatch fuer %s", hexSha[:12])
+		return nil, false
+	}
+	os.MkdirAll(cfg.DataDir+"/blob/"+hexSha[:2], 0700)
+	if err := os.WriteFile(loc, raw, 0600); err != nil {
+		log.Printf("mirror: write %s: %v", hexSha[:12], err)
+		return nil, false
+	}
+	l.RegisterBlobRef(acctID, ref, int64(len(raw)), "mail")
+	log.Printf("mirror: blob %s gespiegelt fuer %s (%d bytes)", hexSha[:12], acctName, len(raw))
+	return raw, true
 }

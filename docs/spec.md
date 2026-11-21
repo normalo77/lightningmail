@@ -74,7 +74,7 @@ ausschließlich Doku/Single-Source der Feld-Tags (kein Codegen in v0.1).
 |------|----------------------|-------------------|---------|-----------|
 | 0x01 | recipient_hash       | 32 B              | ja      | `sha256(mailbox_pubkey[33 B])` des Empfänger-Postfachs; der Relay routet übers Postfach-Verzeichnis (Ledger UNIQUE-Index), Adresse/Key bleibt portabel (CONCEPT §4.1) |
 | 0x02 | msg_id               | 32 B              | ja      | Zufall vom Sender-Client; Dedup-Key im Postfach |
-| 0x03 | blob_refs            | 1 B n + n×32 B    | nein    | n ≤ 16; sha256 der Attachment-Blobs (Blob-Store, Abschnitt 6.3), Reihenfolge = JSON-Reihenfolge |
+| 0x03 | blob_refs            | 1 B n + n×32 B    | nein    | n ≤ 255; sha256 der Attachment-Blobs (Blob-Store, Abschnitt 6.3), Reihenfolge = JSON-Reihenfolge. (seit 21.11. trägt das Envelope nur noch Manifest-Refs, Slice-Spiegelung übernimmt das Relay per Manifest-Walk, Abschnitt 6.5) |
 | 0x04 | sender_pubkey        | 33 B              | ja      | compressed secp256k1, Absender-Mailbox-Key (Signatur-Key) |
 | 0x05 | signature            | 64 B              | ja      | BIP340-Schnorr über `sha256(Serialisierung OHNE Feld 0x05)` |
 | 0x06 | timestamp            | 8 B BE            | ja      | unix-secs, Erzeugung |
@@ -382,12 +382,19 @@ Tests: `go test ./internal/ledger/ -run 'RateStamp|Migrate3to4|Statement'`.
 **Chunking (Client):** Anhänge > 1 MiB werden in 1-MiB-Scheiben zerlegt
 (`src/chunks.ts`). Jede Scheibe ist ein eigener Blob (sha256-adressiert →
 Content-Dedup relay- und kontoweit), das Manifest `{"v":1,"size":N,
-"chunks":["sha-hex",…]}` ebenfalls. ALLE Hashes (Scheiben + Manifest) gehen
-in die envelope-blob_refs → ACL (blob_refs) und Relay-Mirror (6.4) bleiben
+"chunks":["sha-hex",…]}` ebenfalls. (seit 21.11. trägt das Envelope nur noch
+Manifest-Refs, Slice-Spiegelung übernimmt das Relay per Manifest-Walk):
+Im Envelope steht pro chunked-Anhang NUR der Manifest-Hash in blob_refs;
+das Empfänger-Relay spiegelt beim Mirror (6.4) zusätzlich die im Manifest
+genannten Scheiben (max. 255 Parts, Volumen-Guard 4 GiB, pro-Slice-Fehler =
+log + skip, nur eine Ebene). Scheiben-Hashes sind Content-Adressen von
+Chiffrat-Slices — für das Relay blinde Zahlen; ACL (blob_refs) bleibt
 unverändert. Payload-attachment: `{sha256:<manifest>, name, size,
 chunked:true, chunks:N}`. Obergrenze 255 Refs/Brief (count = 1 Byte,
 ≈254 MB); echte Grenze = Konto-Quota. Dateien ≤ 1 MiB gehen weiter als
-Single-Blob (e2e/lmcli-interop unverändert). Download: Manifest holen →
+Single-Blob (e2e/lmcli-interop unverändert); alte Multi-Ref-Envelope
+(Scheiben + Manifest in blob_refs) bleiben decode- und liefer-bar.
+Download: Manifest holen →
 Scheiben sequentiell → konkatenieren, Längencheck gegen `size`.
 
 **Byte-Porto (Server):** `postage.byte_porto_meur_per_mb` (0 = aus,

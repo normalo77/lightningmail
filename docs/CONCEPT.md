@@ -487,12 +487,19 @@ ohne öffentliches Telefonbuch/Directory. Die Empfängeradresse allein reicht.
   Cleanup hängt am bestehenden `blob_refs.downloaded_at`-Pfad
   (`relayd -cleanup-once`).
 - **Status (18.11.2026): GEBAUT** — spec §6.5: 1-MiB-Scheiben + Manifest
-  als Blob, alle Hashes in blob_refs (ACL/Mirror unverändert), 255-Ref-Cap
-  (~254 MB/Brief), Byte-Porto `byte_porto_meur_per_mb` (Prod-Regtest-Vorschlag
-  1 ct/MiB) pro frischem blob_ref, erst kassieren dann speichern, Refund bei
-  Infra-Fehler, 503 ohne Kurs. Zeitkomponente offen (Retention deckt Basics).
+  als Blob, 255-Ref-Cap (~254 MB/Brief), Byte-Porto `byte_porto_meur_per_mb`
+  (Prod-Regtest-Vorschlag 1 ct/MiB) pro frischem blob_ref, erst kassieren
+  dann speichern, Refund bei Infra-Fehler, 503 ohne Kurs. Zeitkomponente
+  offen (Retention deckt Basics).
   UI: Kostenschätzung im Compose (/health), Scheiben-Fortschritt, 📦-Download
   mit Reassemblierung. Tests: chunk-test.mts 15/15 inkl. Cross-Relay-Roundtrip.
+- **Protokollfix 21.11. (Bernd-Freigabe, manifest-only Blob-Refs):** (seit
+  21.11. trägt das Envelope nur noch Manifest-Refs, Slice-Spiegelung
+  übernimmt das Relay per Manifest-Walk, spec §3.2/§6.5.) Envelope-Historie
+  skaliert damit nicht mehr mit der Scheibenzahl, `MaxBlobRefs` 16→255;
+  die 254-MB-Grenze (255 Refs a 32 B, count = 1 Byte) gilt jetzt praktisch,
+  weil pro Anhang nur noch EIN Ref nötig ist. Alte Multi-Ref-Envelope
+  bleiben zustell-bar. Test: `npx tsx test/m9b-manifest-only.mts`.
 
 ## 23. Empfangsbestätigung ✓/✓✓ (Etappe 6b, 13.11.2026)
 

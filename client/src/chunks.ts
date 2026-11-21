@@ -3,9 +3,9 @@
 //
 // Model: each slice is its own blob (sha256-addressed = dedup across
 // mails/accounts); the manifest {v,size,chunks[hex…]} is itself a blob.
-// ALL hashes (slices + manifest) go into the envelope blob_refs — ACL and
-// relay mirror (spec 6.4) keep working unchanged. Refs are capped at 255 per
-// letter (count = 1 byte in the envelope) → ~254 MB ceiling;
+// Since 21.11. the envelope carries ONLY the manifest ref — the recipient
+// relay mirrors the slices by walking the manifest (spec 6.4/6.5). Refs are
+// capped at 255 per letter (count = 1 byte in the envelope) → ~254 MB ceiling;
 // the real limit is the account quota.
 export const CHUNK = 1024 * 1024;
 export const MAX_REFS = 255;
