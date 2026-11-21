@@ -1,0 +1,54 @@
+name: beta
+listen_addr: 127.0.0.1:9443
+data_dir: /var/lib/bmail/beta
+lnd:
+  rpc_host: 127.0.0.1:8082
+  tls_cert_path: /root/lightningmail/test/docker/data/lnd-beta/tls.cert
+  macaroon_path: /root/lightningmail/test/docker/data/lnd-beta/data/chain/bitcoin/regtest/admin.macaroon
+postage:
+  foreign_sats: 10
+  contact_sats: 0
+  min_sats: 1
+  # Etappe 7 (§22): byte postage — 10 mEUR/MiB = 1 ct per MiB (proposal, Bernd can veto)
+  byte_porto_meur_per_mb: 10
+peers:
+  - name: alpha
+    url: http://127.0.0.1:8443
+    token: lm-relay-mirror-secret
+    node_pubkey: 029eff8e7a9104be7c26f4c354d9ea1b7bc312dab4b7b8b0fa28c730ed2a34cd9b
+
+relay_secret: lm-relay-mirror-secret
+
+webauthn:
+  rp_id: "lightningmail.app"
+  rp_name: lightningmail
+  origins:
+    - "https://lightningmail.app"
+    - "https://bmail.192-168-177-77.sslip.io:5173"
+
+# Rate feed (§25/§22) — daily rate for tax stamps and byte postage,
+# plus the 429 budget for anonymous key lookups.
+# Regtest operation: manual test rate (rate_src="manual", test-data marking
+# per §25). Mainnet: delete manual_eur_per_btc, set rate_url (daily rate,
+# e.g. https://api.binance.com/api/v3/ticker/price?symbol=BTCEUR).
+rates:
+  manual_eur_per_btc: 50000
+  public_rpm: 30
+
+# IdP (§21/§29): "Sign in with lightningmail" — OIDC authorization code + PKCE.
+# ES256 IdP key is generated: data_dir/idp_es256.pem (600) — NEVER delete it.
+oidc:
+  issuer: "https://relay-b.lightningmail.app"
+  login_page: "https://lightningmail.app/app/"
+  address_domain: "lightningmail.app"
+  clients:
+    - id: demo
+      name: "Demo-Dienst"
+      redirect_uris:
+        - "https://relay-b.lightningmail.app/oidc/demo-callback.html"
+drive:
+  enabled: true
+  quota_mb: 5120
+  tiers:
+    - {gb: 50, sats: 100}
+    - {gb: 500, sats: 400}

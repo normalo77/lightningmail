@@ -1,0 +1,10 @@
+schema: bmail1
+records:
+  - domain: bmail.de
+    relay: https://alpha.internal:8443
+    onion: http://abcdef234567.onion   # optional hint (M2)
+    node: 03678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb6
+    policy: https://bmail.de/policy.json
+  - domain: familie.koeln
+    relay: http://127.0.0.1:9443       # regtest-dev, localhost-exception
+    node: 02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5

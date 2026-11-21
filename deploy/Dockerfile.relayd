@@ -1,0 +1,14 @@
+# relayd-Image (Etappe O, CONCEPT §27): Go-Build (pure-Go sqlite, kein CGO)
+# + lncli aus dem offiziellen LND-Image (relayd shellt fuer Keysend/Pay lncli).
+# Build-Kontext ist das Repo-Root:  docker build -f deploy/Dockerfile.relayd ..
+FROM golang:1.26 AS build
+WORKDIR /src
+COPY relay/go.mod relay/go.sum ./
+RUN go mod download
+COPY relay/ .
+RUN CGO_ENABLED=0 go build -trimpath -o /out/relayd ./cmd/relayd
+
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates
+COPY --from=build /out/relayd /usr/local/bin/relayd
+COPY --from=lightninglabs/lnd:v0.21.8-beta /bin/lncli /usr/local/bin/lncli

@@ -1,0 +1,49 @@
+# Light relay (CONCEPT §27, Etappe O): relayd + LND in neutrino mode —
+# no own bitcoind (~10 GB disk, <300 MB RAM, IBD 30–60 min).
+# Setup: ./install-relay.sh --mode light --domain example.org
+# Start: docker compose -f docker-compose.light-relay.yml up -d
+#        (once beforehand: create the LND wallet, see installer output)
+name: bmail-light-relay
+
+services:
+  lnd:
+    image: lightninglabs/lnd:v0.21.8-beta
+    hostname: lnd            # the TLS cert SAN must match the lncli host "lnd"
+    restart: unless-stopped
+    command:
+      - --bitcoin.active
+      - --bitcoin.mainnet
+      - --bitcoin.node=neutrino
+      # LND >=0.21: without fee.url, neutrino mainnet crashes immediately
+      - --fee.url=https://nodes.lightning.computer/fees/v1/btc-fee-estimates.json
+      - --neutrino.addpeer=btcd.lnolympus.com
+      - --neutrino.addpeer=faucet.lightning.community
+      - --restlisten=0.0.0.0:8080
+      - --rpclisten=0.0.0.0:10009
+      - --listen=0.0.0.0:9735
+      - --tlsextraip=0.0.0.0
+      - --accept-keysend     # bmail postage arrives as keysend TLV (CONCEPT §12/§13)
+    volumes:
+      - lnd-data:/root/.lnd
+    ports:
+      - "9735:9735"          # Lightning-P2P
+
+  relayd:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.relayd
+    restart: unless-stopped
+    depends_on:
+      - lnd
+    command: ["/usr/local/bin/relayd", "-config", "/data/relay.yaml"]
+    volumes:
+      - relay-data:/var/lib/bmail
+      - lnd-data:/lnd:ro     # tls.cert + admin.macaroon (read-only)
+      - ./relay.yaml:/data/relay.yaml:ro
+      - ./ui:/var/lib/bmail/ui:ro
+    ports:
+      - "8443:8443"          # WARNING: relayd speaks HTTP — terminate TLS in front of it!
+
+volumes:
+  lnd-data:
+  relay-data:
