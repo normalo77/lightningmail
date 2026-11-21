@@ -174,7 +174,7 @@ function openExportKeyModal() {
   const { body, close } = wizOverlay('🔐 Schlüsseldatei (.lmkey) speichern', 440);
   body.innerHTML = `<p class="meta" style="margin:0 0 8px">Schützt deinen Schlüssel für <b>${esc(acct)}</b> mit einem Passwort (mindestens 8 Zeichen):</p>
     <label for="ek-p1">Passwort wählen</label>
-    <input type="password" id="ek-p1" placeholder="Mindestens 8 Zeichen…" autocomplete="new-password" style="margin:4px 0 8px">
+    <input type="password" id="ek-p1" placeholder="Mindestens 8 Zeichen — am besten eine Wortkette…" autocomplete="new-password" style="margin:4px 0 8px">
     <label for="ek-p2">Passwort wiederholen</label>
     <input type="password" id="ek-p2" placeholder="Zur Kontrolle wiederholen…" autocomplete="new-password" style="margin:4px 0 4px">
     ${ERRROW}

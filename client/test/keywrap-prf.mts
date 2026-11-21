@@ -21,9 +21,13 @@ threw = false;
 try { unwrapKey(wrapped, 'irgendeinpass1'); } catch { threw = true; }
 if (!threw) throw new Error('FAIL: unwrapKey akzeptiert PRF-Blob');
 
-// classic LMKEY1 wrap stays compatible
-const pw = wrapKey(pem, 'notfall-test-123');
-if (!pw.startsWith('LMKEY1$') || pw.startsWith('LMKEY1$PRF$')) throw new Error('FAIL: Praefix');
-if (unwrapKey(pw, 'notfall-test-123') !== pem) throw new Error('FAIL: Passphrase-Roundtrip');
+// classic LMKEY1 wraps stay readable forever (write path is LMKEY2 since M-SEC.1)
+import { wrapV1, V1_CASE } from "./m-sec-fixtures.mts";
+const pw = wrapV1(pem, V1_CASE.passphrase, V1_CASE.salt, V1_CASE.nonce);
+if (!pw.startsWith("LMKEY1$") || pw.startsWith("LMKEY1$PRF$")) throw new Error("FAIL: Praefix");
+if (unwrapKey(pw, V1_CASE.passphrase) !== pem) throw new Error("FAIL: Passphrase-Roundtrip V1");
+const pw2 = wrapKey(pem, "notfall-test-123");
+if (!pw2.startsWith("LMKEY2$m=65536,t=3,p=1$")) throw new Error("FAIL: Schriftpfad nicht LMKEY2-canonical");
+if (unwrapKey(pw2, "notfall-test-123") !== pem) throw new Error("FAIL: Passphrase-Roundtrip V2");
 
-console.log('OK: PRF-Roundtrip, Wrong-Key-Rejection, Format-Trennung, LMKEY1-Kompatibilitaet');
+console.log('OK: PRF-Roundtrip, Wrong-Key-Rejection, Format-Trennung, LMKEY1-Kompatibilitaet + LMKEY2-Schriftpfad');

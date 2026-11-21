@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
@@ -142,12 +143,13 @@ func mustAuth(home string) *session {
 		os.Exit(1)
 	}
 	keyPath := home + "/" + account + ".key"
-	keyPEM, err := os.ReadFile(keyPath)
+	keyData, err := os.ReadFile(keyPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "read key: %v (run 'lmcli init %s' first)\n", err, account)
 		os.Exit(1)
 	}
-	priv, err := crypto.LoadPrivatePEM(keyPEM)
+	defer clear(keyData)
+	priv, err := loadKey(keyData)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "load key: %v\n", err)
 		os.Exit(1)
@@ -570,4 +572,29 @@ func cmdBlobGet(home string, args []string) {
 		os.Exit(1)
 	}
 	io.Copy(os.Stdout, resp.Body)
+}
+
+// loadKey reads bare PEM or LMKEY1/LMKEY2 wraps (M-SEC.1). Passphrase comes
+// from BMAIL_KEYPASS, else asked interactively.
+func loadKey(data []byte) (*btcec.PrivateKey, error) {
+	if !crypto.IsWrapped(string(data)) {
+		return crypto.LoadPrivatePEM(data)
+	}
+	pass := os.Getenv("BMAIL_KEYPASS")
+	if pass == "" {
+		pass = promptPassphrase()
+	}
+	return crypto.LoadKey(data, pass)
+}
+
+func promptPassphrase() string {
+	fmt.Fprint(os.Stderr, "Passphrase: ")
+	// shortcut: prompt echoes; swap to golang.org/x/term.ReadPassword if a new
+	// dependency is ever acceptable here.
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "no passphrase")
+		os.Exit(1)
+	}
+	return strings.TrimRight(line, "\r\n")
 }

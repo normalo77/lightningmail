@@ -9,6 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+
+	"github.com/btcsuite/btcd/btcec/v2"
+	lm1crypto "github.com/lightningmail/lm1/crypto"
 )
 
 // Config lives at ~/.config/lightningmail/config.json.
@@ -65,4 +69,34 @@ func (c *Config) Validate() error {
 		c.Keyfile = filepath.Join(home, c.Keyfile[2:])
 	}
 	return nil
+}
+
+// LoadKeyFile reads a key file: bare SEC1 PEM, LMKEY1 or LMKEY2 wrap (M-SEC.1).
+// passphrase is only used for wrapped files.
+func LoadKeyFile(path, passphrase string) (*btcec.PrivateKey, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("config: keyfile: %w", err)
+	}
+	defer clear(data) // zero the on-disk copy after parsing
+	// shortcut: Go-strings inside lm1.LoadKey (config/JSON copies) are not
+	// reliably zeroable; upgrade when the runtime exposes its buffers.
+	return lm1crypto.LoadKey(data, passphrase)
+}
+
+// Harden switches off core dumps and pins memory best effort (M-SEC.1).
+// Never aborts: each failure comes back as a log line instead.
+func Harden() (issues []string) {
+	if err := syscall.Setrlimit(syscall.RLIMIT_CORE, &syscall.Rlimit{Cur: 0, Max: 0}); err != nil {
+		issues = append(issues, fmt.Sprintf("RLIMIT_CORE: %v", err))
+	} else {
+		var r syscall.Rlimit
+		if err := syscall.Getrlimit(syscall.RLIMIT_CORE, &r); err != nil || r.Cur != 0 {
+			issues = append(issues, fmt.Sprintf("RLIMIT_CORE still nonzero after set (%v)", err))
+		}
+	}
+	if err := syscall.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE); err != nil {
+		issues = append(issues, fmt.Sprintf("mlockall: %v (key pages may be swappable)", err))
+	}
+	return issues
 }

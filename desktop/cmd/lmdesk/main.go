@@ -28,17 +28,26 @@ var ui *App
 func main() {
 	log.SetOutput(os.Stderr)
 	log.SetPrefix("lmdesk ")
+	for _, issue := range core.Harden() { // M-SEC.1 hygiene, best effort — never aborts
+		log.Printf("hygiene: %v", issue)
+	}
 	warnContainerNoUserNS()
 
 	cfg, err := core.LoadConfig(os.Getenv("LMDESK_CONFIG"))
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
-	keyPEM, err := os.ReadFile(cfg.Keyfile)
-	if err != nil {
-		log.Fatalf("keyfile %s: %v", cfg.Keyfile, err)
+	pass := os.Getenv("BMAIL_KEYPASS")
+	if pass == "" { // GUI M1 has no dialog window yet — fail with a clear hint.
+		if b, err := os.ReadFile(cfg.Keyfile); err == nil {
+			wrapped := crypto.IsWrapped(string(b))
+			clear(b)
+			if wrapped {
+				log.Fatal("keyfile ist gewrappt — BMAIL_KEYPASS setzen; gefuehrter Prompt folgt mit dem M2-Login-Dialog.")
+			}
+		}
 	}
-	priv, err := crypto.LoadPrivatePEM(keyPEM)
+	priv, err := core.LoadKeyFile(cfg.Keyfile, pass) // zeroes its read buffer (M-SEC.1)
 	if err != nil {
 		log.Fatalf("keyfile parse: %v", err)
 	}

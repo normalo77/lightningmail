@@ -1,0 +1,52 @@
+{
+ "generated_by": "client/test/m-sec-golden.mts",
+ "argon2": {
+  "m": 65536,
+  "t": 3,
+  "p": 1,
+  "unit": "KiB (noble memoryKiB == x/crypto memory)"
+ },
+ "unwrap": [
+  {
+   "name": "v2-wordlist",
+   "line": "LMKEY2$m=65536,t=3,p=1$AAECAwQFBgcICQoLDA0ODw==$EBESExQVFhcYGRobHB0eHyAhIiMkJSYn$pHCQuLcwVXh1J6ot8Eov8Via8DTnearoCaxnq/isroHym1WqGdaOoQTMJgAEoGUBT/pRD/jAduK+Pm/7O1GNar/v8JUFg1x4DStcu8mvRnjWen/n4hbhwDApDIMo5E8Ti/7SBDD6rluWXWqbUYTrL0JCCF0Qr5f5sWJxVQ3jtl62Pc/mttXgxNW2Dei8AsTLAtv0YMWJrkSYlyd/hDBQ3GG73jCFe/ofQVdH0ZW9Zc0AVXs/ynIwcvLdOgnCf5JMCK8=",
+   "passphrase": "korrekt-horse-battery-staple",
+   "pem": "-----BEGIN EC PRIVATE KEY-----\nMFQCAQEEIKurq6urq6urq6urq6urq6urq6urq6urq6urq6urq6uroAcGBSuBBAAK\noSQDIgADgaqtyKXoP0V234I88ipbGWnPcEoNX29ovXV0EMmReqw=\n-----END EC PRIVATE KEY-----\n"
+  },
+  {
+   "name": "v2-umlaut-utf8",
+   "line": "LMKEY2$m=65536,t=3,p=1$oKGio6SlpqeoqaqrrK2urw==$sLGys7S1tre4ubq7vL2+v8DBwsPExcbH$XKnt+gcW5ccYR3CA8l3xIsO0dLgZwdDce9biH78D8Tuj8hMFKvaztd8jJj3h4wNB1iKY20oIqChRPiCVKtHfSqI2XYox95syljt/4dPK70lPP66/4g/ofUzQvBe+au6kHuxTd1LYyAmmkqx9rSZw1r2n2PtpJtPjJM3K1BruWsRyqiWj0Q9eMs38yGq+efinKZJCkJaItdtDtQwJ1W9lmpp84HEWmYWRt+6Tv15FD7hW9Suy3tfTvpp1kNDZrAfhgUU=",
+   "passphrase": "Paßwort-mit-ÄÖÜ-1234",
+   "pem": "-----BEGIN EC PRIVATE KEY-----\nMFQCAQEEIKurq6urq6urq6urq6urq6urq6urq6urq6urq6urq6uroAcGBSuBBAAK\noSQDIgADgaqtyKXoP0V234I88ipbGWnPcEoNX29ovXV0EMmReqw=\n-----END EC PRIVATE KEY-----\n"
+  },
+  {
+   "name": "v2-min8",
+   "line": "LMKEY2$m=65536,t=3,p=1$8PHy8/T19vf4+fr7/P3+/w==$AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcY$NfRmCnPV+oypV3ilWrquSuNjDnaQhKxpDn8EtTYb7XjbAVDO6lrKvNJEMb8vPQQIE+jKrFMBZybKT1ljNxpfFOER24MwvIvPhN5l9xUK4qvxosxDSqlkejSyYbQy8Q5ujdCKgGpC4SE5a8y1oAMNTpAGdfAS3aBzA8GtjiXCjO5L2YcBJAVuN28l2QJ7BQEEWUYhHmzsPlUsjbOFYNuTTGdcF0KslIg1zApH3c9ympA7asNRnuhvpRsDJPUWwPbv9VI=",
+   "passphrase": "abcdefgh",
+   "pem": "-----BEGIN EC PRIVATE KEY-----\nMFQCAQEEIKurq6urq6urq6urq6urq6urq6urq6urq6urq6urq6uroAcGBSuBBAAK\noSQDIgADgaqtyKXoP0V234I88ipbGWnPcEoNX29ovXV0EMmReqw=\n-----END EC PRIVATE KEY-----\n"
+  },
+  {
+   "name": "v1-legacy-pbkdf2",
+   "line": "LMKEY1$UFFSU1RVVldYWVpbXF1eXw==$YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3$E5cwedX5Zc4iYIav7A3rIRixwYKVaZHdzZjdAKbgkytkUK7VnjyRZ+NEc971UMb/sHDZhFjVxmk75jXOXip0ABG5vgztDHAVMCJvJsAMWUxMx1u9xNDwIhmrw6qOZGk0zU4RdlrF+5wky5m2Bnt8Sq2v5SP7ihTzCfnJS/8DCdqbXMKj6KlkETdYvyGep6q7wZm76xNa8XRRt2KnvXuLoB9X9Asvr3p0geLWCDaMPLJ+wzaxbzByMB1+KvUtlhjw630=",
+   "passphrase": "sichere-passage-42",
+   "pem": "-----BEGIN EC PRIVATE KEY-----\nMFQCAQEEIKurq6urq6urq6urq6urq6urq6urq6urq6urq6urq6uroAcGBSuBBAAK\noSQDIgADgaqtyKXoP0V234I88ipbGWnPcEoNX29ovXV0EMmReqw=\n-----END EC PRIVATE KEY-----\n"
+  }
+ ],
+ "reject": [
+  {
+   "name": "prf-reject",
+   "line": "LMKEY1$PRF$AAECAwQFBgcICQoLDA0ODxAREhMUFRYX$AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+   "passphrase": "irgendeinpass1"
+  },
+  {
+   "name": "v2-wrong-passphrase",
+   "line": "LMKEY2$m=65536,t=3,p=1$AAECAwQFBgcICQoLDA0ODw==$EBESExQVFhcYGRobHB0eHyAhIiMkJSYn$pHCQuLcwVXh1J6ot8Eov8Via8DTnearoCaxnq/isroHym1WqGdaOoQTMJgAEoGUBT/pRD/jAduK+Pm/7O1GNar/v8JUFg1x4DStcu8mvRnjWen/n4hbhwDApDIMo5E8Ti/7SBDD6rluWXWqbUYTrL0JCCF0Qr5f5sWJxVQ3jtl62Pc/mttXgxNW2Dei8AsTLAtv0YMWJrkSYlyd/hDBQ3GG73jCFe/ofQVdH0ZW9Zc0AVXs/ynIwcvLdOgnCf5JMCK8=",
+   "passphrase": "falsche-passage-9"
+  },
+  {
+   "name": "v2-unknown-param",
+   "line": "LMKEY2$m=65536,t=3,p=1,x=5$AAECAwQFBgcICQoLDA0ODw==$EBESExQVFhcYGRobHB0eHyAhIiMkJSYn$pHCQuLcwVXh1J6ot8Eov8Via8DTnearoCaxnq/isroHym1WqGdaOoQTMJgAEoGUBT/pRD/jAduK+Pm/7O1GNar/v8JUFg1x4DStcu8mvRnjWen/n4hbhwDApDIMo5E8Ti/7SBDD6rluWXWqbUYTrL0JCCF0Qr5f5sWJxVQ3jtl62Pc/mttXgxNW2Dei8AsTLAtv0YMWJrkSYlyd/hDBQ3GG73jCFe/ofQVdH0ZW9Zc0AVXs/ynIwcvLdOgnCf5JMCK8=",
+   "passphrase": "korrekt-horse-battery-staple"
+  }
+ ]
+}
