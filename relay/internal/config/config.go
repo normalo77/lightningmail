@@ -33,11 +33,11 @@ type LND struct {
 }
 
 type Postage struct {
-	ForeignSats  int64 `yaml:"foreign_sats"`
-	ContactSats  int64 `yaml:"contact_sats"`
+	ForeignSats int64 `yaml:"foreign_sats"`
+	ContactSats int64 `yaml:"contact_sats"`
 	// Willkommensporto fuer Erstkontakte (Envelope-Tag 0x0A signup);
 	// 0 = Default 3x foreign_sats (wird in ParseConfig gesetzt).
-	WelcomeSats int64 `yaml:"welcome_sats"`
+	WelcomeSats  int64 `yaml:"welcome_sats"`
 	MinSats      int64 `yaml:"min_sats"`
 	BlobMaxBytes int64 `yaml:"blob_max_bytes"`
 	// Etappe 7 (§22): Byte-Porto — Storage-Preis in Milli-EUR pro MiB beim
@@ -68,6 +68,21 @@ type WebAuthn struct {
 	RPName  string   `yaml:"rp_name"`
 	Origins []string `yaml:"origins"`
 }
+
+// Drive (Etappe J1): persoenlicher Dauerspeicher. QuotaMB = Start-Quota
+// neuer Konten, Tiers = kaufbare Pakete (GB gegen Sats per Byte-Porto-Kasse).
+type DriveTier struct {
+	GB   int64 `yaml:"gb"`
+	Sats int64 `yaml:"sats"`
+}
+
+type Drive struct {
+	Enabled bool        `yaml:"enabled"`
+	QuotaMB int64       `yaml:"quota_mb"`
+	Tiers   []DriveTier `yaml:"tiers"`
+}
+
+const DefaultDriveQuotaMB = 5120 // 5 GiB Start-Quota pro Konto
 
 // Rates (§25/§26/§22): Tageskurs-Feed fuer Steuerstempel und Byte-Porto,
 // sowie 429-Budget fuer anonyme Key-Lookups. Kurs: manual_eur_per_btc > 0
@@ -111,6 +126,7 @@ type Config struct {
 	RelaySecret string    `yaml:"relay_secret"`
 	Retention   Retention `yaml:"retention"`
 	WebAuthn    WebAuthn  `yaml:"webauthn"`
+	Drive       Drive     `yaml:"drive"`
 	Rates       Rates     `yaml:"rates"`
 	Oidc        Oidc      `yaml:"oidc"`
 	// UIDir (Etappe O, Selbstbau): Verzeichnis mit den gebauten PWA-Assets
@@ -139,6 +155,9 @@ func ParseConfig(data []byte) (*Config, error) {
 	}
 	if c.Postage.BlobMaxBytes == 0 {
 		c.Postage.BlobMaxBytes = DefaultBlobMaxBytes // the one explicit default
+	}
+	if c.Drive.QuotaMB == 0 {
+		c.Drive.QuotaMB = DefaultDriveQuotaMB // muss vor Validate stehen (quota_mb > 0)
 	}
 	if c.LND.Network == "" {
 		switch {
@@ -213,6 +232,18 @@ func (c *Config) Validate() error {
 	}
 	if c.Rates.ManualEurPerBtc < 0 {
 		errs = append(errs, "rates.manual_eur_per_btc must be >= 0")
+	}
+	if c.Drive.QuotaMB <= 0 {
+		errs = append(errs, "drive.quota_mb must be > 0")
+	}
+	for i, t := range c.Drive.Tiers {
+		where := fmt.Sprintf("drive.tiers[%d]", i)
+		if t.GB <= 0 {
+			errs = append(errs, where+".gb must be > 0")
+		}
+		if t.Sats <= 0 {
+			errs = append(errs, where+".sats must be > 0")
+		}
 	}
 	if c.Oidc.Issuer != "" {
 		if u, err := url.Parse(c.Oidc.Issuer); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {

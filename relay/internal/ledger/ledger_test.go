@@ -32,7 +32,7 @@ func TestCreateAccountAndLookup(t *testing.T) {
 	pub := make([]byte, 33)
 	pub[0] = 0x02
 	pub[5] = 0xAB
-	a, err := l.CreateAccount("bernd", pub)
+	a, err := l.CreateAccount("bernd", pub, DefaultQuotaBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestCreateAccountAndLookup(t *testing.T) {
 	if _, err := l.LookupByRecipientHash([32]byte{9}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("want ErrNotFound, got %v", err)
 	}
-	if _, err := l.CreateAccount("bernd", pub); !errors.Is(err, ErrDuplicateAccount) {
+	if _, err := l.CreateAccount("bernd", pub, DefaultQuotaBytes); !errors.Is(err, ErrDuplicateAccount) {
 		t.Fatalf("duplicate name accepted: %v", err)
 	}
 }
@@ -57,7 +57,7 @@ func TestCreateAccountAndLookup(t *testing.T) {
 func TestBalanceDeltaHistory(t *testing.T) {
 	l := openTestLedger(t)
 	pub := bytes33(1)
-	if _, err := l.CreateAccount("gisela", pub); err != nil {
+	if _, err := l.CreateAccount("gisela", pub, DefaultQuotaBytes); err != nil {
 		t.Fatal(err)
 	}
 	if err := l.ApplyDelta("gisela", 10_000, KindPostageIn, "msg-a"); err != nil {
@@ -88,7 +88,7 @@ func TestBalanceDeltaHistory(t *testing.T) {
 
 func TestInsufficientFundsLeavesNoTrace(t *testing.T) {
 	l := openTestLedger(t)
-	if _, err := l.CreateAccount("bernd", bytes33(2)); err != nil {
+	if _, err := l.CreateAccount("bernd", bytes33(2), DefaultQuotaBytes); err != nil {
 		t.Fatal(err)
 	}
 	if err := l.ApplyDelta("bernd", 5_000, KindTopup, "x"); err != nil {
@@ -115,7 +115,7 @@ func TestInsufficientFundsLeavesNoTrace(t *testing.T) {
 
 func TestConcurrentNoLostUpdates(t *testing.T) {
 	l := openTestLedger(t)
-	if _, err := l.CreateAccount("busy", bytes33(3)); err != nil {
+	if _, err := l.CreateAccount("busy", bytes33(3), DefaultQuotaBytes); err != nil {
 		t.Fatal(err)
 	}
 	const n = 64
@@ -155,7 +155,7 @@ func TestWALFileDB(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	if _, err := l.CreateAccount("bernd", bytes33(4)); err != nil {
+	if _, err := l.CreateAccount("bernd", bytes33(4), DefaultQuotaBytes); err != nil {
 		t.Fatal(err)
 	}
 	var jm string
@@ -194,7 +194,7 @@ func TestPersistentTokens(t *testing.T) {
 
 func TestBlobACLAndQuota(t *testing.T) {
 	l := openTestLedger(t)
-	a, err := l.CreateAccount("bernd", bytes33(5))
+	a, err := l.CreateAccount("bernd", bytes33(5), DefaultQuotaBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestBlobACLAndQuota(t *testing.T) {
 	sha[31] = 0xCD
 
 	// Register blob ref
-	if _, err := l.RegisterBlobRef(a.ID, sha, 1024); err != nil {
+	if _, err := l.RegisterBlobRef(a.ID, sha, 1024, "mail"); err != nil {
 		t.Fatal(err)
 	}
 

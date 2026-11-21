@@ -17,6 +17,16 @@ export type Contact = {
   lnaddr: string; pubkey: string; pgp: string; note: string;
   btc: string; crypto: string; // BTC-Empfangsadresse, Rest frei ("LTC: ltc1...; XMR: 8...")
 };
+// Etappe J: Drive-Eintrag (Datei/Ordner) im State-Doc. parent = 'root' oder id
+// eines kind:'d'-Eintrags. size = verschluesselte/gespeicherte Bytes (zaehlt fuer
+// die Quota), size_plain = Klartext-Laenge, msha = Manifest-Blob (kind:'f').
+// shortcut: State-Slot cappt 256 kB -> einige hundert Eintraege locker; Paging
+// noetig erst bei Tausenden, nicht vor der Beta.
+export type DriveEntry = {
+  id: string; ts: number; gone?: 1;
+  name: string; parent: string; kind: 'f' | 'd';
+  size: number; size_plain: number; mime: string; msha?: string;
+};
 export type StateDoc = {
   read: Record<string, 1>;
   spam: Record<string, 1>;
@@ -24,8 +34,9 @@ export type StateDoc = {
   drafts: Draft[];
   sent: SentItem[];
   contacts: Record<string, Contact>;
+  files: Record<string, DriveEntry>;
 };
-export const emptyDoc = (): StateDoc => ({ read: {}, spam: {}, deleted: {}, drafts: [], sent: [], contacts: {} });
+export const emptyDoc = (): StateDoc => ({ read: {}, spam: {}, deleted: {}, drafts: [], sent: [], contacts: {}, files: {} });
 
 const cat = (a: Uint8Array, b: Uint8Array): Uint8Array => {
   const o = new Uint8Array(a.length + b.length); o.set(a, 0); o.set(b, a.length); return o;
@@ -41,6 +52,7 @@ export function mergeDocs(a: StateDoc, b: StateDoc): StateDoc {
     drafts: [],
     sent: [],
     contacts: {},
+    files: {},
   };
   const byId: Record<string, Draft> = {};
   // LWW pro id; gleiche ts (Selbe-Sekunde-Zwei-Geraete) entscheidet der
@@ -64,6 +76,11 @@ export function mergeDocs(a: StateDoc, b: StateDoc): StateDoc {
   for (const k of new Set([...Object.keys(a.contacts || {}), ...Object.keys(b.contacts || {})])) {
     const x = a.contacts?.[k], y = b.contacts?.[k];
     out.contacts[k] = !x ? y! : !y ? x : (y.ts > x.ts || (y.ts === x.ts && !!y.gone && !x.gone) ? y : x);
+  }
+  // files (Etappe J): 1:1 das contacts-Muster (id-LWW, Gleichstand -> gone gewinnt).
+  for (const k of new Set([...Object.keys(a.files || {}), ...Object.keys(b.files || {})])) {
+    const x = a.files?.[k], y = b.files?.[k];
+    out.files[k] = !x ? y! : !y ? x : (y.ts > x.ts || (y.ts === x.ts && !!y.gone && !x.gone) ? y : x);
   }
   return out;
 }
@@ -99,7 +116,7 @@ export class StateSync {
       const eph = b.slice(0, 33), sealed = b.slice(33);
       const pt = decryptPayload(this.priv, eph, sealed, new Uint8Array(0));
       const d = JSON.parse(new TextDecoder().decode(pt));
-      return { read: d.read || {}, spam: d.spam || {}, deleted: d.deleted || {}, drafts: d.drafts || [], sent: d.sent || [], contacts: d.contacts || {} };
+      return { read: d.read || {}, spam: d.spam || {}, deleted: d.deleted || {}, drafts: d.drafts || [], sent: d.sent || [], contacts: d.contacts || {}, files: d.files || {} };
     } catch { return null; }
   }
 
@@ -174,4 +191,14 @@ export class StateSync {
   }
   delContact(id: string) { this.saveContact({ id, gone: 1 }); }
   liveContacts(): Contact[] { return Object.values(this.doc.contacts).filter(c => !c.gone); }
+  // Etappe J: Drive-Dateien/-Ordner, exakt das saveContact-Muster (lebendiger
+  // Save erweckt, Grab bleibt beim Merge Sieger bei Gleichstand).
+  saveFile(f: { id: string } & Partial<DriveEntry>) {
+    const { gone: _alt, ...prev } = this.doc.files[f.id] || ({} as DriveEntry);
+    const ts = Math.max(Math.floor(Date.now() / 1000), prev.ts || 0) + 1;
+    this.doc.files[f.id] = { ...prev, ...f, ts } as DriveEntry;
+    this.cacheWrite(); this.schedule();
+  }
+  delFile(id: string) { this.saveFile({ id, gone: 1 }); }
+  liveFiles(): DriveEntry[] { return Object.values(this.doc.files).filter(f => !f.gone); }
 }

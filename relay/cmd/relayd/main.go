@@ -252,7 +252,7 @@ func mirrorBlobs(cfg *config.Config, l *ledger.Ledger, refs [][32]byte, acctID i
 		hexSha := hex.EncodeToString(ref[:])
 		loc := cfg.DataDir + "/blob/" + hexSha[:2] + "/" + hexSha
 		if st, err := os.Stat(loc); err == nil {
-			l.RegisterBlobRef(acctID, ref, st.Size())
+			l.RegisterBlobRef(acctID, ref, st.Size(), "mail")
 			continue
 		}
 		var raw []byte
@@ -289,7 +289,7 @@ func mirrorBlobs(cfg *config.Config, l *ledger.Ledger, refs [][32]byte, acctID i
 			log.Printf("mirror: write %s: %v", hexSha[:12], err)
 			continue
 		}
-		l.RegisterBlobRef(acctID, ref, int64(len(raw)))
+		l.RegisterBlobRef(acctID, ref, int64(len(raw)), "mail")
 		log.Printf("mirror: blob %s gespiegelt fuer %s (%d bytes)", hexSha[:12], acctName, len(raw))
 	}
 }

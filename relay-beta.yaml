@@ -46,3 +46,9 @@ oidc:
       name: "Demo-Dienst"
       redirect_uris:
         - "https://relay-b.lightningmail.app/oidc/demo-callback.html"
+drive:
+  enabled: true
+  quota_mb: 5120
+  tiers:
+    - {gb: 50, sats: 100}
+    - {gb: 500, sats: 400}

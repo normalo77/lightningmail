@@ -20,6 +20,7 @@ Die Idee hinter **lightningmail**: Jede Nachricht kostet den Absender ein kleine
 - **Zwei Relay-Betriebsmodi:**
   - **Light-Relay:** `relayd` + `lnd` im **Neutrino-Modus** (BIP 157/158 Compact Block Filters über öffentliche Bitcoin-Nodes, ~10 GB Speicher, kein eigener `bitcoind` nötig).
   - **Full-Relay:** `relayd` + `lnd` + eigener `bitcoind`.
+- **Laufwerk (Etappe J, optional):** Auf Wunsch des Betreibers (`drive.enabled`) wird das Postfach zum Mini-Netzlaufwerk: private Ordner, Upload/Download per Drag & Drop, Quota-Balken und Speicher-Datenpakete (einmalig vom Guthaben, sichtbar in den Umsätzen). Ordnerstruktur und Dateinamen bleiben Ende-zu-Ende verschlüsselt im Geräte-Sync — das Relay speichert nur content-addressierte Blöcke und sieht weder Pfade noch Inhalte.
 
 ### Fertige Downloads & Clients
 
@@ -74,6 +75,7 @@ bash ../thunderbird/build-xpi.sh
 - **No public directory, no conversation window:** Knowing `name@domain` is enough. A `_bmail._tcp.<domain>` DNS TXT record locates the destination relay, and `GET /v1/profile/{name}` returns the recipient’s public encryption key and postage rates for free.
 - **Dual function (Mailbox + Passwordless Login):** Every mailbox is a `secp256k1` keypair backed up by 24 BIP39 recovery words. That single key decrypts end-to-end encrypted letters (`LM1` envelope: `ECIES + XChaCha20-Poly1305` + 1 MiB chunked attachments) and powers passwordless **OpenID Connect (OIDC)** logins (*“Sign in with lightningmail”* — including zero-registration stateless HTTPS origins). For service registrations requiring a confirmation letter, the user sends a **postage advance** (tag `0x0A`), funding the reply via our headless **Service Connector** (`client/src/connector.ts`).
 - **Star-topology device sync (`/v1/state`):** Inbox, sent folder, drafts, read flags and the private address book sync encrypted across all devices via the user’s own relay; large attachments expire on the relay 7 days after first download and are cached locally on the client (`IndexedDB`).
+- **Network drive (Etappe J, optional):** If the operator enables it (`drive.enabled`), each mailbox becomes a mini network drive: private folders, drag & drop uploads, a quota bar and prepaid storage packs (one-off debit from the mailbox balance, visible in the statement). Folder trees and file names stay end-to-end encrypted inside the device sync — the relay only stores content-addressed chunks and never sees paths or contents.
 
 ### Running your own relay (Etappe O)
 

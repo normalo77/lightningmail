@@ -7,8 +7,8 @@ import (
 
 func TestRetentionSweep(t *testing.T) {
 	l := openTestLedger(t)
-	a, _ := l.CreateAccount("alice", []byte{0x02, 1})
-	b, _ := l.CreateAccount("bob", []byte{0x03, 2})
+	a, _ := l.CreateAccount("alice", []byte{0x02, 1}, DefaultQuotaBytes)
+	b, _ := l.CreateAccount("bob", []byte{0x03, 2}, DefaultQuotaBytes)
 	if err := l.ensureRetention(); err != nil {
 		t.Fatal(err)
 	}

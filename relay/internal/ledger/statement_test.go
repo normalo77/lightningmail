@@ -11,7 +11,7 @@ import (
 
 func mustAccount(t *testing.T, l *Ledger, name string, seed int64) *Account {
 	t.Helper()
-	a, err := l.CreateAccount(name, bytes33(byte(len(name))))
+	a, err := l.CreateAccount(name, bytes33(byte(len(name))), DefaultQuotaBytes)
 	if err != nil {
 		t.Fatal(err)
 	}

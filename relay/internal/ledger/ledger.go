@@ -45,6 +45,10 @@ var (
 
 const maxRetries = 32
 
+// DefaultQuotaBytes: Standard-Quota neuer Konten (100 MiB, Etappe 4a).
+// relayd uebergibt seit Etappe J1 stattdessen cfg.Drive.QuotaMB.
+const DefaultQuotaBytes int64 = 104857600
+
 type Ledger struct{ db *sql.DB }
 
 type Account struct {
@@ -66,11 +70,11 @@ type Tx struct {
 	CreatedAt int64
 	// Etappe B (§25/§26): Waehrung + Steuer-Stempel. RateSrc=="" = ungeratet
 	// (z. B. Regtest ohne Kurs — CONCEPT §25: kein nachtraegliches Raten).
-	Currency     string
-	EurMicro     int64
-	RateTs       int64
-	RateSrc      string
-	RateMEurBtc  int64
+	Currency    string
+	EurMicro    int64
+	RateTs      int64
+	RateSrc     string
+	RateMEurBtc int64
 }
 
 func Open(path string) (*Ledger, error) {
@@ -175,12 +179,12 @@ func RecipientHash(mailboxPubkey []byte) [32]byte {
 	return sha256.Sum256(mailboxPubkey)
 }
 
-func (l *Ledger) CreateAccount(name string, mailboxPubkey []byte) (*Account, error) {
+func (l *Ledger) CreateAccount(name string, mailboxPubkey []byte, quotaBytes int64) (*Account, error) {
 	h := RecipientHash(mailboxPubkey)
 	t := now()
 	res, err := l.db.Exec(
 		`INSERT INTO account (name, mailbox_pubkey, recipient_hash, balance_msat, quota_bytes, version, created_at, updated_at)
-     VALUES (?,?,?,0,104857600,0,?,?)`, name, mailboxPubkey, h[:], t, t)
+     VALUES (?,?,?,0,?,0,?,?)`, name, mailboxPubkey, h[:], quotaBytes, t, t)
 	if err != nil {
 		if isUnique(err) {
 			return nil, fmt.Errorf("%w: %s", ErrDuplicateAccount, name)
@@ -189,7 +193,20 @@ func (l *Ledger) CreateAccount(name string, mailboxPubkey []byte) (*Account, err
 	}
 	id, _ := res.LastInsertId()
 	return &Account{ID: id, Name: name, MailboxPubkey: mailboxPubkey,
-		RecipientHash: h, BalanceMsat: 0, QuotaBytes: 104857600, Version: 0}, nil
+		RecipientHash: h, BalanceMsat: 0, QuotaBytes: quotaBytes, Version: 0}, nil
+}
+
+// AddQuotaBytes erhoeht (delta>0) oder senkt die Storage-Quota eines Kontos.
+func (l *Ledger) AddQuotaBytes(name string, delta int64) error {
+	res, err := l.db.Exec(`UPDATE account SET quota_bytes=quota_bytes+?, updated_at=? WHERE name=?`,
+		delta, now(), name)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (l *Ledger) GetAccount(name string) (*Account, error) {
@@ -552,16 +569,31 @@ func (l *Ledger) CleanExpiredTokens() error {
 // RegisterBlobRef records that an account owns/has access to a blob.
 // fresh=false → Zeile existierte schon (Etappe 7: Byte-Porto wird nur einmal
 // pro (Konto, Blob) fällig — Dedup lädt nicht doppelt zur Kasse).
-func (l *Ledger) RegisterBlobRef(accountID int64, sha256 [32]byte, size int64) (fresh bool, err error) {
+// kind (Etappe J1): "mail" | "drive". Promotion ist stickig: eine bestehende
+// Zeile wird hoechstens mail→drive hochgestuft, nie zurueck.
+func (l *Ledger) RegisterBlobRef(accountID int64, sha256 [32]byte, size int64, kind string) (fresh bool, err error) {
+	if err := l.ensureDrive(); err != nil {
+		return false, err
+	}
 	t := now()
 	res, err := l.db.Exec(
-		`INSERT OR IGNORE INTO blob_refs (sha256, account_id, bytes, created_at)
-     VALUES (?,?,?,?)`, sha256[:], accountID, size, t)
+		`INSERT OR IGNORE INTO blob_refs (sha256, account_id, bytes, created_at, kind)
+     VALUES (?,?,?,?,?)`, sha256[:], accountID, size, t, kind)
 	if err != nil {
 		return false, err
 	}
 	n, _ := res.RowsAffected()
-	return n > 0, nil
+	if n > 0 {
+		return true, nil
+	}
+	if kind == "drive" {
+		if _, err := l.db.Exec(
+			`UPDATE blob_refs SET kind='drive' WHERE sha256=? AND account_id=? AND kind!='drive'`,
+			sha256[:], accountID); err != nil {
+			return false, err
+		}
+	}
+	return false, nil
 }
 
 // HasBlobAccess returns true if the account has a blob_ref for this sha256.
@@ -650,7 +682,12 @@ func (l *Ledger) RetentionSweep(nowUnix, graceSec, maxSec int64) ([][]byte, erro
 	if err := l.ensureRetention(); err != nil {
 		return nil, err
 	}
-	rows, err := l.db.Query(`SELECT sha256, MIN(created_at), MAX(downloaded_at), COUNT(*) FROM blob_refs GROUP BY sha256`)
+	if err := l.ensureDrive(); err != nil {
+		return nil, err
+	}
+	// HAVING (Etappe J1): ein sha mit auch nur einer drive-Ref wird nie getilgt.
+	rows, err := l.db.Query(`SELECT sha256, MIN(created_at), MAX(downloaded_at), COUNT(*) FROM blob_refs
+     GROUP BY sha256 HAVING SUM(CASE WHEN kind='drive' THEN 1 ELSE 0 END)=0`)
 	if err != nil {
 		return nil, err
 	}
@@ -678,4 +715,45 @@ func (l *Ledger) RetentionSweep(nowUnix, graceSec, maxSec int64) ([][]byte, erro
 func (l *Ledger) DeleteBlobRefs(sha []byte) error {
 	_, err := l.db.Exec(`DELETE FROM blob_refs WHERE sha256=?`, sha)
 	return err
+}
+
+// --- Etappe J1 (Drive): blob_refs.kind = 'mail' | 'drive' ---
+
+func (l *Ledger) ensureDrive() error {
+	// ALTER TABLE ignoriert "duplicate column" auf wiederholten Laeufen.
+	_, err := l.db.Exec(`ALTER TABLE blob_refs ADD COLUMN kind TEXT NOT NULL DEFAULT 'mail'`)
+	if err != nil && !containsCI(err.Error(), "duplicate column") {
+		return err
+	}
+	return nil
+}
+
+// HasDriveRef: true wenn das Konto diesen sha als Drive-Datei haelt.
+func (l *Ledger) HasDriveRef(accountID int64, sha [32]byte) (bool, error) {
+	if err := l.ensureDrive(); err != nil {
+		return false, err
+	}
+	var exists int
+	err := l.db.QueryRow(
+		`SELECT COUNT(*) FROM blob_refs WHERE sha256=? AND account_id=? AND kind='drive'`,
+		sha[:], accountID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists > 0, nil
+}
+
+// RemoveDriveRef loescht die drive-Ref des Kontos (kein Rückweg fuer
+// mail-refs, v0) und liefert die Anzahl aller verbleibenden Refs fuer den sha.
+func (l *Ledger) RemoveDriveRef(accountID int64, sha [32]byte) (remaining int64, err error) {
+	if err := l.ensureDrive(); err != nil {
+		return 0, err
+	}
+	if _, err := l.db.Exec(
+		`DELETE FROM blob_refs WHERE sha256=? AND account_id=? AND kind='drive'`,
+		sha[:], accountID); err != nil {
+		return 0, err
+	}
+	err = l.db.QueryRow(`SELECT COUNT(*) FROM blob_refs WHERE sha256=?`, sha[:]).Scan(&remaining)
+	return remaining, err
 }

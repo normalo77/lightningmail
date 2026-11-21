@@ -43,7 +43,7 @@ func walletServer(t *testing.T) *Server {
 	t.Cleanup(func() { l.Close() })
 	priv, _ := crypto.GenerateKeyPair()
 	pub := crypto.PublicBytes(priv)
-	if _, err := l.CreateAccount("alice", pub[:]); err != nil {
+	if _, err := l.CreateAccount("alice", pub[:], ledger.DefaultQuotaBytes); err != nil {
 		t.Fatal(err)
 	}
 	if err := l.StoreToken("tok1", "alice"); err != nil {

@@ -3,7 +3,8 @@ import { parseSec1PEM, pubFromPriv, authSign, toHex, fromB64, decodeEnvelope, de
 import { newMnemonic, checkMnemonic, keyFromMnemonic, quizPositions, quizOptions } from '../src/bip39';
 import { parseManifest, reassemble } from '../src/chunks';
 import { composeAndSend } from '../src/send';
-import { StateSync, type Contact } from '../src/state';
+import { StateSync, type Contact, type DriveEntry } from '../src/state';
+import { uploadFile, downloadFile, deleteFile, usage as driveUsage, buyTier, newDriveId, type DriveUsage } from '../src/drive';
 import { wrapKey, unwrapKey, isWrapped, wrapKeyPRF, unwrapKeyPRF } from '../src/keywrap';
 let pendingWrap = '';
 
@@ -46,7 +47,7 @@ let SELF_RELAY = false; // UI laeuft auf ihrem eigenen Relayd (Etappe O, Selbstb
 let msgs: MsgRow[] = [];
 let tipSats = 0, myForeign = 0, myWelcome = 0, portoBase = ''; // §30.4 Beilage + Test/Mainnet-Kennung
 let receipts: Record<string, number> = {}; // msg_id(hex) -> ✓✓-Zeitstempel (Etappe 6b)
-let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' | 'ab' | 'ums' = 'in';
+let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' | 'ab' | 'ums' | 'drv' = 'in';
 let pemCache = '';
 // Auto-Login: erfolgreicher Login merkt sich Schluessel+Konto+Relay im Geraetespeicher
 // Session-Speicher: Der entschlüsselte Private Key liegt im Browser nur noch im
@@ -384,6 +385,7 @@ function render() {
   if (folder === 'new') { renderCompose(); $('list').innerHTML = ''; return; }
   if (folder === 'ab') { renderAB(); return; }
   if (folder === 'ums') { renderUms(); return; }
+  if (folder === 'drv') { renderDrv(); return; }
   if (folder === 'out') { renderSent(); return; }
   if (folder == 'dra') { renderDrafts(); return; }
   const list = visible().slice().reverse();
@@ -1431,6 +1433,7 @@ if ($('nav-sent')) $('nav-sent').onclick = () => { folder = 'out'; sel = -1; mar
 if ($('nav-dra')) $('nav-dra').onclick = () => { folder = 'dra'; sel = -1; mark(); render(); };
 $('nav-new').onclick = () => { folder = 'new'; draftId = ''; mark(); render(); };
 $('nav-ab').onclick = () => { folder = 'ab'; sel = -1; abEdit = ''; mark(); render(); };
+if ($('nav-drv')) $('nav-drv').onclick = () => { folder = 'drv'; sel = -1; mark(); render(); };
 if ($('nav-ums')) $('nav-ums').onclick = () => { folder = 'ums'; sel = -1; mark(); render(); };
 $('nav-out').onclick = () => {
   if (priv) priv.fill(0);
@@ -1448,6 +1451,7 @@ function mark() {
   if ($('nav-dra')) $('nav-dra').classList.toggle('on', folder === 'dra');
   $('nav-new').classList.toggle('on', folder === 'new');
   $('nav-ab').classList.toggle('on', folder === 'ab');
+  if ($('nav-drv')) $('nav-drv').classList.toggle('on', folder === 'drv');
   if ($('nav-ums')) $('nav-ums').classList.toggle('on', folder === 'ums');
 }
 
@@ -1566,6 +1570,177 @@ async function renderUms() {
     $('ums-mcsv').onclick = () => dlCsv(`/v1/statement?fmt=csv&from=${von}&to=${bis - 1}`, `umsaetze-${acct}-${k}.csv`);
   }));
 }
+
+// --- Etappe J3/J4: 🗂 Laufwerk — verschlüsselter Speicher am eigenen Relay. ---
+// Logik lebt DOM-frei in src/drive.ts; Ordnerwechsel rendert rein aus dem lokalen
+// stateDoc (renderUms-Muster), saveFile/delFile stoßen den bestehenden Debounce-
+// State-Push an. Design: Navy/Pergament/Gold, Touch ≥44px (CSS in index.html).
+let drvDir = 'root', drvNew = false, drvRen = '', drvOff = false, drvMsg = '';
+let drvUse: DriveUsage | null = null;
+const sizeHuman = (n: number): string =>
+  n >= 1073741824 ? (n / 1073741824).toLocaleString('de', { maximumFractionDigits: 1 }) + ' GB'
+  : n >= 1048576 ? (n / 1048576).toLocaleString('de', { maximumFractionDigits: 1 }) + ' MB'
+  : n >= 1024 ? Math.round(n / 1024) + ' kB' : n + ' B';
+const DRV_NAME = /^[^/]{1,100}$/; // kein '/', 1–100 Zeichen
+const drvStatus = (m: string) => { const el = $('drv-status'); if (el) el.textContent = m; };
+
+// Upload: input + drag&drop, sequentiell. shortcut: kein Multi-Upload-Queue-
+// Manager, sequentielles for-of; upgraden wenn Nutzer große Batches fordern.
+async function drvUpload(fs: File[]) {
+  if (!sync || !priv || !token || drvOff) return;
+  for (const f of fs) {
+    drvStatus(`⏳ „${f.name}“ lädt hoch…`);
+    try {
+      await uploadFile(base, token, priv, sync, new Uint8Array(await f.arrayBuffer()),
+        safeName(f.name), f.type || 'application/octet-stream', drvDir, drvStatus);
+      drvStatus(`✓ „${f.name}“ hochgeladen`);
+    } catch (e: any) { drvStatus('✗ ' + String(e?.message || e).slice(0, 120)); }
+  }
+  refreshBalance().catch(() => {}); // Byte-Porto der Blobs
+  renderDrv(); // Liste + Quota-Balken frisch
+}
+
+function renderDrvDetail(e?: DriveEntry) {
+  const tiers = drvUse && !drvOff && drvUse.tiers.length ? `<div class="window" style="max-width:72ch;margin-top:14px">
+    <div class="title-bar"><div class="title-bar-text">💾 Speicher erweitern</div></div>
+    <div class="window-body"><p class="meta">Mehr Quota für dein Laufwerk — einmaliger Kauf vom Guthaben.</p>
+    <div class="row" style="margin-top:6px">${drvUse.tiers.map((t, i) => `<button class="d-tier" data-tier="${i}">＋ ${t.gb} GB — ${fmtSat(t.sats)} sats</button>`).join('')}</div>
+    <p class="meta" style="color:var(--ok)">${esc(drvMsg)}</p></div></div>` : '';
+  $('detail').innerHTML = (e && !e.gone ? `<div class="window" style="max-width:72ch">
+      <div class="title-bar"><div class="title-bar-text">${e.kind === 'd' ? '📁 Ordner' : '📄 Datei'} — ${esc(e.name)}</div></div>
+      <div class="window-body"><p class="meta">${e.kind === 'f'
+        ? `Gespeichert: ${sizeHuman(e.size)} (verschlüsselt, quota-relevant)<br>Original: ${sizeHuman(e.size_plain)}<br>Typ: ${esc(e.mime || '—')}<br>Blob: <span style="font-family:var(--mono)">${esc((e.msha || '').slice(0, 16))}…</span><br>`
+        : ''}Geändert: ${new Date(e.ts * 1000).toLocaleString('de')}</p></div></div>`
+    : `<p class="meta">🗂 Laufwerk: Dateien liegen mit deinem Mailbox-Schlüssel verschlüsselt auf deinem Relay und synchronisieren über den State-Slot zwischen all deinen Geräten. Datei antippen für Details — oder Dateien per Drag &amp; Drop in die Liste ziehen.</p>${drvMsg ? `<p class="meta" style="color:var(--ok)">${esc(drvMsg)}</p>` : ''}`) + tiers;
+  document.querySelectorAll('.d-tier').forEach(b => b.addEventListener('click', async () => {
+    drvMsg = '';
+    try {
+      const out = await buyTier(base, token, +(b as HTMLElement).dataset.tier!);
+      drvMsg = `✓ ${fmtSat(out.cost_sats)} sats bezahlt — Quota ist jetzt ${sizeHuman(out.quota_bytes)}.`;
+      await refreshBalance();
+      renderDrv();
+    } catch (err: any) { drvMsg = '✗ ' + String(err?.message || err).slice(0, 120); renderDrvDetail(e); }
+  }));
+}
+
+async function renderDrv() {
+  const list = $('list');
+  drvOff = false;
+  list.innerHTML = '<div class="meta" style="padding:12px">Laufwerk wird geladen…</div>';
+  if (!sync || !priv || !token) { list.innerHTML = '<div class="meta" style="padding:12px">✗ nicht angemeldet</div>'; $('detail').innerHTML = ''; return; }
+  drvUse = null;
+  let useErr = '';
+  try { drvUse = await driveUsage(base, token); } catch (e: any) { useErr = String(e?.message || e).slice(0, 140); }
+  try { healthCache ??= await fetch(base + '/health').then(r => r.json()); } catch { /* healthCache ist Komfort */ }
+  drvOff = drvUse ? !drvUse.enabled : !!(healthCache?.drive && healthCache.drive.enabled === false);
+
+  const ents = sync.liveFiles();
+  const byId: Record<string, DriveEntry> = {};
+  for (const e of ents) byId[e.id] = e;
+  if (drvDir !== 'root' && !byId[drvDir]) drvDir = 'root'; // Ordner anderswo gelöscht
+  const chain: DriveEntry[] = [];
+  for (let cur = byId[drvDir]; cur && chain.length < 64; cur = byId[cur.parent]) chain.unshift(cur);
+  const kids = ents.filter(e => e.parent === drvDir)
+    .sort((a, b) => a.kind === b.kind ? a.name.localeCompare(b.name, 'de') : a.kind === 'd' ? -1 : 1);
+  const pct = drvUse && drvUse.quota_bytes > 0 ? Math.min(100, drvUse.used_bytes / drvUse.quota_bytes * 100) : 0;
+
+  list.innerHTML =
+    `<div class="abbar drvbar">` +
+    [`<button class="crumb" data-go="root" title="Wurzelordner">🏠</button>`,
+     ...chain.map(c => `<span class="meta">/</span><button class="crumb" data-go="${c.id}">${esc(c.name)}</button>`)].join('') +
+    `</div>` +
+    (drvOff ? '<div class="drvoff">🗂 Laufwerk ist auf diesem Relay deaktiviert.</div>' : '') +
+    `<div class="abbar"><button id="d-up" ${drvOff ? 'disabled' : ''}>⬆ Datei</button>
+      <button id="d-mkdir" ${drvOff ? 'disabled' : ''}>＋ Ordner</button>
+      <span id="drv-status" class="meta" style="align-self:center;flex:1;min-width:80px"></span>
+      <input type="file" id="d-file" multiple hidden></div>` +
+    (drvUse ? `<div class="drvquota"><div class="drvquota-fill" style="width:${pct.toFixed(1)}%"></div>
+      <span class="drvquota-txt">${sizeHuman(drvUse.used_bytes)} von ${sizeHuman(drvUse.quota_bytes)}</span></div>`
+      : useErr ? `<div class="drvoff">✗ ${esc(useErr)}</div>` : '') +
+    (drvNew ? `<div class="row"><input id="d-newname" placeholder="Ordnername… (Enter = OK, Esc = Abbruch)"></div>` : '') +
+    (kids.map(e => `<div class="row drvrow" data-id="${e.id}">
+      <div class="subj">${e.kind === 'd' ? '📁' : '📄'} ${drvRen === e.id
+        ? `<input class="d-ren" data-id="${e.id}" value="${esc(e.name)}">`
+        : `${esc(e.name)} <button class="minib" data-ren="${e.id}" title="Umbenennen">✏️</button>`}</div>
+      <div class="meta">${e.kind === 'f' ? sizeHuman(e.size) + ' · ' : ''}${new Date(e.ts * 1000).toLocaleDateString('de')}` +
+      (e.kind === 'f' && !drvOff ? ` <button class="minib" data-dl="${e.id}" title="Herunterladen">⬇</button> <button class="minib" data-del="${e.id}" title="Löschen">🗑</button>`
+        : e.kind === 'd' ? ` <button class="minib" data-del="${e.id}" title="Löschen">🗑</button>` : '') +
+      `</div></div>`).join('') ||
+      (drvOff ? '' : '<div class="meta drvempty">— dieser Ordner ist leer —<br>⬆ Datei hochladen oder hierher ziehen</div>'));
+
+  // Breadcrumb-Navigation (Parent-Kette)
+  list.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
+    drvDir = (b as HTMLElement).dataset.go!; drvNew = false; drvRen = ''; renderDrv();
+  }));
+  $('d-up').onclick = () => ($('d-file') as HTMLInputElement).click();
+  const dfile = $('d-file') as HTMLInputElement;
+  dfile.onchange = () => { const fs = [...(dfile.files || [])] as File[]; dfile.value = ''; if (fs.length) drvUpload(fs); };
+  // ＋ Ordner: Inline-Zeile statt nativem prompt() (headless-Test-Falle)
+  $('d-mkdir').onclick = () => { drvNew = true; drvRen = ''; renderDrv(); setTimeout(() => ($('d-newname') as HTMLInputElement)?.focus(), 30); };
+  if (drvNew) {
+    const inp = $('d-newname') as HTMLInputElement;
+    inp.onkeydown = (ev) => {
+      if (ev.key === 'Enter') {
+        const n = inp.value.trim();
+        if (!DRV_NAME.test(n)) { inp.value = ''; inp.placeholder = 'Ungültig: kein „/", 1–100 Zeichen'; return; }
+        sync!.saveFile({ id: newDriveId(), name: n, parent: drvDir, kind: 'd', size: 0, size_plain: 0, mime: '' });
+        drvNew = false; renderDrv();
+      } else if (ev.key === 'Escape') { drvNew = false; renderDrv(); }
+    };
+  }
+  // ✏️ Rename inline (Enter = speichern, Esc = Abbruch), Name-Validierung ^[^/]{1,100}$
+  list.querySelectorAll('[data-ren]').forEach(b => b.addEventListener('click', (ev) => {
+    ev.stopPropagation(); drvRen = (b as HTMLElement).dataset.ren!; drvNew = false; renderDrv();
+    setTimeout(() => { const i = document.querySelector('.d-ren') as HTMLInputElement; i?.focus(); i?.select(); }, 30);
+  }));
+  list.querySelectorAll('.d-ren').forEach(inp => {
+    const el = inp as HTMLInputElement;
+    el.addEventListener('click', (ev) => ev.stopPropagation());
+    el.onkeydown = (ev) => {
+      if (ev.key === 'Enter') {
+        const n = el.value.trim();
+        if (!DRV_NAME.test(n)) return;
+        sync!.saveFile({ id: el.dataset.id!, name: n });
+        drvRen = ''; renderDrv();
+      } else if (ev.key === 'Escape') { drvRen = ''; renderDrv(); }
+    };
+  });
+  // ⬇ Download: Chunk-Download + Decrypt aus drive.ts, Browser-Download wie beim
+  // Anhang-Pfad (safeName aus §31 wiederverwendet).
+  list.querySelectorAll('[data-dl]').forEach(b => b.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    const e = sync!.doc.files[(b as HTMLElement).dataset.dl!]; if (!e) return;
+    drvStatus(`⏳ „${e.name}“ lädt herunter…`);
+    try {
+      const bytes = await downloadFile(base, token, priv!, sync!, e.id);
+      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: e.mime || 'application/octet-stream' }));
+      const a = document.createElement('a'); a.href = url; a.download = safeName(e.name); a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 6000);
+      drvStatus(`✓ „${e.name}“ heruntergeladen`);
+    } catch (err: any) { drvStatus('✗ ' + String(err?.message || err).slice(0, 120)); }
+  }));
+  // 🗑 Löschen: native confirm() ist hier ok (Spec) — Server-Freigabe VOR Tombstone.
+  list.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    const e = sync!.doc.files[(b as HTMLElement).dataset.del!]; if (!e) return;
+    if (!confirm(`„${e.name}“ endgültig löschen?`)) return;
+    drvStatus('🗑 gebe Serverdaten frei…');
+    try { await deleteFile(base, token, sync!, e.id); }
+    catch (err: any) { alert('✗ Löschen: ' + String(err?.message || err).slice(0, 140)); }
+    renderDrv();
+  }));
+  // Zeilenklick: Ordner navigiert, Datei zeigt Eigenschaften im Detail-Pane
+  list.querySelectorAll('.drvrow[data-id]').forEach(row => row.addEventListener('click', () => {
+    const e = sync!.doc.files[(row as HTMLElement).dataset.id!]; if (!e || e.gone) return;
+    if (e.kind === 'd') { drvDir = e.id; drvNew = false; drvRen = ''; renderDrv(); }
+    else renderDrvDetail(e);
+  }));
+  renderDrvDetail();
+}
+
+// Drag & Drop aufs Listen-Pane: nur aktiv solange der Laufwerk-Tab offen ist.
+$('list').addEventListener('dragover', (e) => { if (folder !== 'drv' || drvOff) return; e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; });
+$('list').addEventListener('drop', (e) => { if (folder !== 'drv' || drvOff) return; e.preventDefault(); const fs = [...(e.dataTransfer?.files || [])]; if (fs.length) drvUpload(fs); });
 
 // --- IdP (§21): OIDC-Login-Flow — Consent + BIP340-Signatur der Server-Challenge
 // mit dem Mailbox-Key (Föderations-Beweis im bmail-Claim; Relay sieht den

@@ -8,7 +8,7 @@ import (
 
 func TestStateCAS(t *testing.T) {
 	l := openTestLedger(t)
-	a, err := l.CreateAccount("multi", []byte{0x02, 1, 2, 3})
+	a, err := l.CreateAccount("multi", []byte{0x02, 1, 2, 3}, DefaultQuotaBytes)
 	if err != nil {
 		t.Fatal(err)
 	}

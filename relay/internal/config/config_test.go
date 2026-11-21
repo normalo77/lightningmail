@@ -139,3 +139,36 @@ func TestPubkeyValidation(t *testing.T) {
 		t.Fatal("32-byte key accepted")
 	}
 }
+
+func TestDriveConfig(t *testing.T) {
+	base := "name: alpha\nlisten_addr: 127.0.0.1:8443\ndata_dir: /var/lib/bmail\nlnd:\n" +
+		"  rpc_host: 127.0.0.1:8080\n  tls_cert_path: /lnd/tls.cert\n  macaroon_path: /x/admin.macaroon\n" +
+		"postage: {foreign_sats: 10, min_sats: 1}\n"
+	// Default: Sektion ungesetzt → QuotaMB 5120, disabled, keine Tiers
+	c, err := ParseConfig([]byte(base))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Drive.QuotaMB != DefaultDriveQuotaMB || c.Drive.Enabled || len(c.Drive.Tiers) != 0 {
+		t.Fatalf("drive default: %+v", c.Drive)
+	}
+	// Explizit: enabled, quota, tiers
+	c, err = ParseConfig([]byte(base + "drive:\n  enabled: true\n  quota_mb: 2048\n  tiers:\n    - {gb: 5, sats: 5000}\n    - {gb: 50, sats: 40000}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Drive.Enabled || c.Drive.QuotaMB != 2048 || len(c.Drive.Tiers) != 2 ||
+		c.Drive.Tiers[0].GB != 5 || c.Drive.Tiers[0].Sats != 5000 || c.Drive.Tiers[1].GB != 50 {
+		t.Fatalf("drive parse: %+v", c.Drive)
+	}
+	// Validierung: quota_mb<=0 und kaputte Tiers sammeln Fehler
+	_, err = ParseConfig([]byte(base + "drive:\n  quota_mb: -5\n  tiers:\n    - {gb: 0, sats: 10}\n    - {gb: 5, sats: 0}\n"))
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("want ErrValidation, got %v", err)
+	}
+	for _, want := range []string{"drive.quota_mb must be > 0", "drive.tiers[0].gb must be > 0", "drive.tiers[1].sats must be > 0"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error must mention %q, got: %s", want, err)
+		}
+	}
+}

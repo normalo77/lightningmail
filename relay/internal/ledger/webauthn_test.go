@@ -8,7 +8,7 @@ func TestWACredentialRoundtrip(t *testing.T) {
 	acct := "gisela"
 	pub := make([]byte, 33)
 	pub[0] = 0x02
-	if _, err := l.CreateAccount(acct, pub); err != nil {
+	if _, err := l.CreateAccount(acct, pub, DefaultQuotaBytes); err != nil {
 		t.Fatal(err)
 	}
 	c := WACredential{CredID: "cred-abc", Account: acct, Name: "YubiKey 5", PublicKey: []byte{1, 2, 3}, SignCount: 7}

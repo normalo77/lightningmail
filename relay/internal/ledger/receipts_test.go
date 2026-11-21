@@ -13,14 +13,14 @@ func TestReceiptsStampAndIncoming(t *testing.T) {
 	recipPub := make([]byte, 33)
 	recipPub[0] = 0x02
 	recipPub[1] = 0xAA
-	recip, err := l.CreateAccount("bernd", recipPub)
+	recip, err := l.CreateAccount("bernd", recipPub, DefaultQuotaBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
 	senderPub := make([]byte, 33)
 	senderPub[0] = 0x02
 	senderPub[1] = 0xBB
-	sender, err := l.CreateAccount("gisela", senderPub)
+	sender, err := l.CreateAccount("gisela", senderPub, DefaultQuotaBytes)
 	if err != nil {
 		t.Fatal(err)
 	}

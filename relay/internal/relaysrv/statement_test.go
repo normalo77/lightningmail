@@ -42,7 +42,7 @@ func stmtServer(t *testing.T) *Server {
 	t.Cleanup(func() { l.Close() })
 	priv, _ := crypto.GenerateKeyPair()
 	pub := crypto.PublicBytes(priv)
-	if _, err := l.CreateAccount("s1", pub[:]); err != nil {
+	if _, err := l.CreateAccount("s1", pub[:], ledger.DefaultQuotaBytes); err != nil {
 		t.Fatal(err)
 	}
 	if err := l.StoreToken("tok1", "s1"); err != nil {

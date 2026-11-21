@@ -256,7 +256,7 @@ func (s *server) handleAccount(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"invalid pubkey"}`, 400)
 		return
 	}
-	acct, err := s.ledger.CreateAccount(req.Name, pubBytes)
+	acct, err := s.ledger.CreateAccount(req.Name, pubBytes, ledger.DefaultQuotaBytes)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 409)
 		return

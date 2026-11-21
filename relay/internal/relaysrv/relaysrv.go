@@ -110,6 +110,9 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/v1/profile/", s.handleProfile) // Key- + Porto-Lookup
 	mux.HandleFunc("/v1/blob", s.auth(s.handleBlobUpload))
 	mux.HandleFunc("/v1/blob/", s.auth(s.handleBlobGet))
+	// Etappe J1: Drive — Usage-Auskunft + Tier-Kauf (Release = DELETE /v1/blob)
+	mux.HandleFunc("/v1/drive/usage", s.auth(s.handleDriveUsage))
+	mux.HandleFunc("/v1/drive/buy", s.auth(s.handleDriveBuy))
 	mux.HandleFunc("/v1/state", s.auth(s.handleState))
 	mux.HandleFunc("/v1/relay/blob/", s.relayBlob)
 	mux.HandleFunc("/v1/receipts", s.auth(s.handleReceipts))
@@ -139,7 +142,9 @@ func (s *Server) routes() *http.ServeMux {
 		w.Header().Set("Content-Type", "application/json")
 		resp := map[string]any{"ok": true, "currencies": []string{"btc"},
 			"byte_porto_meur_per_mb": s.cfg.Postage.BytePortoMEurPerMB,
-			"network":                s.cfg.LND.Network}
+			"network":                s.cfg.LND.Network,
+			"drive": map[string]any{"enabled": s.cfg.Drive.Enabled,
+				"quota_mb": s.cfg.Drive.QuotaMB}}
 		if rate, ok := s.rateFeed.Current(); ok {
 			resp["rate_meur_per_btc"] = rate.MEurPerBtc
 		}
@@ -551,7 +556,7 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"invalid pubkey"}`, 400)
 		return
 	}
-	acct, err := s.ledger.CreateAccount(req.Name, pubBytes)
+	acct, err := s.ledger.CreateAccount(req.Name, pubBytes, s.cfg.Drive.QuotaMB*1048576)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), 409)
 		return
@@ -570,9 +575,27 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 // --- GET /v1/profile/{addr}: siehe directory.go (Etappe B) ---
 
 // --- POST /v1/blob (attachment upload, spec §6.3, Etappe 4a: quota + ACL) ---
+// Etappe J1: ?kind=drive kennzeichnet persoenliche Drive-Dateien (bleiben vom
+// Retention-Sweep verschont); DELETE auf derselben Route = Drive-Release.
 func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "DELETE" {
+		s.handleDriveRelease(w, r)
+		return
+	}
 	if r.Method != "POST" {
 		http.Error(w, `{"error":"method not allowed"}`, 405)
+		return
+	}
+	kind := r.URL.Query().Get("kind")
+	if kind == "" {
+		kind = "mail"
+	}
+	if kind != "mail" && kind != "drive" {
+		http.Error(w, `{"error":"kind must be mail or drive"}`, 400)
+		return
+	}
+	if kind == "drive" && !s.cfg.Drive.Enabled {
+		http.Error(w, `{"error":"drive disabled"}`, 404)
 		return
 	}
 	account := r.Header.Get("X-Bmail-Account")
@@ -646,7 +669,7 @@ func (s *Server) handleBlobUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Register blob ref for ACL
-	fresh, err := s.ledger.RegisterBlobRef(acct.ID, h, int64(len(raw)))
+	fresh, err := s.ledger.RegisterBlobRef(acct.ID, h, int64(len(raw)), kind)
 	if err != nil {
 		s.refundBytePorto(account, feeMsat, hexSha)
 		http.Error(w, fmt.Sprintf(`{"error":"blob ref: %v"}`, err), 500)

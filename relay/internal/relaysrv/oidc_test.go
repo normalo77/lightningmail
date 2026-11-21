@@ -63,7 +63,7 @@ func newOIDCTestServer(t *testing.T) (*Server, *btcec.PrivateKey) {
 		t.Fatal(err)
 	}
 	pub := crypto.PublicBytes(priv)
-	if _, err := l.CreateAccount("alice", pub[:]); err != nil {
+	if _, err := l.CreateAccount("alice", pub[:], ledger.DefaultQuotaBytes); err != nil {
 		t.Fatal(err)
 	}
 	if err := l.StoreToken("tok123", "alice"); err != nil {
@@ -385,7 +385,7 @@ func TestOIDCPaywall(t *testing.T) {
 	srv, priv := newOIDCTestServer(t)
 	bobPriv, _ := crypto.GenerateKeyPair()
 	bobPub := crypto.PublicBytes(bobPriv)
-	if _, err := srv.ledger.CreateAccount("bob", bobPub[:]); err != nil {
+	if _, err := srv.ledger.CreateAccount("bob", bobPub[:], ledger.DefaultQuotaBytes); err != nil {
 		t.Fatal(err)
 	}
 	if err := srv.ledger.ApplyDeltaMeta("alice", 1_000_000, ledger.KindTopup, "test-faucet", "btc", nil); err != nil {

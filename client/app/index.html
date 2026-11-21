@@ -571,6 +571,49 @@ form.compose textarea {
 }
 .abform label { text-align: right; color: var(--muted); }
 
+/* Laufwerk (Etappe J): Breadcrumb, Quota-Balken (Gold), Zeilen-Minibuttons */
+.drvbar { align-items: center; }
+.crumb {
+  background: transparent;
+  border-color: transparent;
+  padding: 6px 9px;
+  font-weight: 700;
+  min-height: 36px;
+}
+.crumb:hover { background: var(--accent); border-color: var(--accent-hover); }
+.drvquota {
+  position: relative;
+  height: 24px;
+  margin: 10px 12px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.drvquota-fill { position: absolute; top: 0; bottom: 0; left: 0; background: var(--accent); }
+.drvquota-txt {
+  position: relative;
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 22px;
+}
+.drvoff {
+  margin: 10px 12px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: var(--danger);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.9em;
+}
+.drvempty { padding: 30px 16px !important; text-align: center; }
+.minib { padding: 3px 8px; font-size: 12.5px; min-width: 32px; min-height: 32px; }
+.drvrow input.d-ren { padding: 4px 8px; font-size: 0.95em; width: min(100%, 30ch); }
+
 /* 4K Ultra-HD Desktop Scaling (>= 2200px) */
 @media (min-width: 2200px) {
   html, body { font-size: 18px; }
@@ -675,6 +718,9 @@ form.compose textarea {
     gap: 4px;
   }
   .abform label { text-align: left; margin-top: 6px; }
+  /* Laufwerk: Touch-Targets auf dem Handy ≥44px */
+  .drvbar .crumb { min-height: 44px; }
+  .drvrow .minib { min-width: 44px; min-height: 44px; padding: 6px 10px; }
 }
 </style>
 </head>
@@ -762,6 +808,7 @@ form.compose textarea {
     <button id="nav-sent">📤 Gesendet</button>
     <button id="nav-dra">📝 Entwürfe</button>
     <button id="nav-ab">📇 Adressbuch</button>
+    <button id="nav-drv">🗂 Laufwerk</button>
     <button id="nav-ums">💶 Umsätze</button>
     <button id="nav-spam">🛡 Unerwünscht</button>
     <button id="nav-out">🚪 Abmelden</button>

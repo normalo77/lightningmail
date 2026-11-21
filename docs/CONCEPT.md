@@ -725,3 +725,21 @@ Das Relay wird kostendeckend als Infrastruktur betrieben, nicht zur Gewinnmaximi
 **4. Test- und Mainnet-Welt im selben Client (§30.5, gebaut 19.11.2026):**
 - Die Regtest-Relais bleiben öffentlich als Spielwiese online, damit Leute den Ablauf ohne Risiko testen können.
 - Der Client fragt `network` am `/health` des gewählten Relais ab und hebt Nicht-Mainnet-Postfächer deutlich ab: orangefarbene **TEST-WELT**-Balken unter der Kopfzeile, Header-Kennung `🧪 TEST (regtest) · Spielgeld`, und das „+10.000 Test-Sats“ nur, solange das Relay wirklich Regtest ist (fällt auf Mainnet unsichtbar weg). Mainnet-Relais zeigen `⚡ Mainnet` und keinen Test-Banner.
+
+## 32. Laufwerk: das Postfach als Netzlaufwerk (Etappe J, gebaut 21.11.2026)
+
+**Beschluss (Bernd):** Jeder Nutzer bekommt einen privaten Speicherbereich mit echten Ordnern — Upload, Download, Ordner anlegen/löschen, Umbenennen — direkt neben Posteingang, Adressbuch und Umsätzen. Freigaben an andere Nutzer, Versionierung und Papierkorb sind bewusst nicht gebaut.
+
+**Die eine Idee, die alles klein macht:** Das Relay kennt **kein Dateisystem**. Ordnerstruktur, Namen und Metadaten leben als verschlüsselte `files`-Map im bestehenden Geräte-Sync (`/v1/state`, LWW+Tombstone exakt wie beim Adressbuch); die Inhalte sind dieselben content-addressierten Chunk-Blobs wie bei Anhängen. Der Betreiber sieht nur Hashes — ein „verlassbarer HOME-Ordner" ist damit ein Naturgesetz, kein Pfad-Tricks.
+
+**Serverseitig (J1):**
+- `blob_refs.kind` ('mail' | 'drive'): Ein Blob, der auch im Laufwerk liegt, wird stickig auf 'drive' hochgestuft und vom Retention-Sweep **nie** gelöscht. `DELETE /v1/blob {sha}` gibt nur eigene drive-Refs frei (Dateilöschung erst, wenn die letzte Referenz weg ist).
+- Config `drive: {enabled: false, quota_mb: 5120, tiers: [{gb, sats}]}` — standardmäßig deaktiviert; `quota_mb` ersetzt die alte hartkodierte 100-MB-Quota und gilt für den **gesamten** Speicher (Anhänge + Laufwerk zusammen).
+- `POST /v1/blob?kind=drive` nutzt Byte-Porto und Dedup unverändert; neu sind nur `GET /v1/drive/usage`, `POST /v1/drive/buy` und der `drive`-Block in `/health`.
+
+**Kosten-Stufen = Datenpakete, keine Abos:** Lightning kennt keine Pull-Zahlungen, also kauft der Nutzer Speicher einmalig vom Guthaben (Buchung `kind='fee'`, Ref `drive-tier:<gb>GB` — sichtbar in den Umsätzen, steuer-gestempelt wie alles andere). Kein Verfallsdatum in v0; Abo-/Staffel-Logik wäre eine eigene Etappe.
+
+**Grenzen (dokanziert, nicht gebaut):**
+- Das Laufwerk ist **nicht föderiert** — es lebt nur auf dem Home-Relay, kein Blob-Mirror über Relay-Grenzen.
+- Dedup-Buchführung: ein Blob, der als Anhang **und** im Laufwerk liegt, hat pro Konto genau eine Referenz; das Löschen der Laufwerk-Datei kann deshalb den Anhang-Download in der eigenen Gesendet-Kopie freigeben (403). v0 akzeptiert das; die 7-Tage-Mail-Retention begrenzt den Schaden.
+- Betreiber-Haftung: verschlüsselte Fremddaten auf eigener Platte sind nicht „unbesehen" — Containersize bleibt die Quota, Missbrauchsmeldung läuft über das Impressum (`abuse@`-Reserveliste in 6c).
