@@ -750,3 +750,13 @@ Das Relay wird kostendeckend als Infrastruktur betrieben, nicht zur Gewinnmaximi
 - Das Laufwerk ist **nicht föderiert** — es lebt nur auf dem Home-Relay, kein Blob-Mirror über Relay-Grenzen.
 - Dedup-Buchführung: ein Blob, der als Anhang **und** im Laufwerk liegt, hat pro Konto genau eine Referenz; das Löschen der Laufwerk-Datei kann deshalb den Anhang-Download in der eigenen Gesendet-Kopie freigeben (403). v0 akzeptiert das; die 7-Tage-Mail-Retention begrenzt den Schaden.
 - Betreiber-Haftung: verschlüsselte Fremddaten auf eigener Platte sind nicht „unbesehen" — Containersize bleibt die Quota, Missbrauchsmeldung läuft über das Impressum (`abuse@`-Reserveliste in 6c).
+
+## 33. Etappe M: nativer Linux-Client — und Etappe T: Tor-Betriebsstufen (Beschlüsse 21.11.2026)
+
+**Etappe M (Bau läuft, M0/M1 fertig):** Der Linux-Client ist ein natives GTK4/libadwaita/WebKitGTK-Programm in Go (Modul `desktop/`, Bindings via purego — kein CGO, kein Electron/Wrapper). Evolution-Modell: nativer Chrome, WebKit **nur** als HTML-Mail-Renderer. M0 bewies die Machbarkeit (Screenshot), M1a extrahierte `lm1/` (geteilte Krypto, ein Code für relay+desktop), M1b baute den Lese-Pfad: Login per Keydatei, Inbox + StateDoc-Sync (Merge-Regeln golden-getestet gegen die TS-Originale), sanitisiertes HTML-Reading (JS aus, `<style>`/`onclick`/`javascript:`-Links raus), Inline-Bilder über das RAM-Schema `lm-mail://`. M2 = Schreiben/Senden/Antworten + Server-Save, M3 = Adressbuch, Laufwerk, Umsätze (aus dem primären Nav raus, neben Einstellungen), Einstellungen, Packaging (AppImage + .deb; WebKit bleibt System-Lib).
+
+**Etappe T (beschlossen, nicht gebaut):** Anhangs-/Mirror-Traffic kann durch Tor laufen — ohne das Protokoll anzufassen, als Betriebsstufe. Drei Ausbaustufen bei der Relay-Installation:
+1. **ohne** (Default): Klartext-TLS wie bisher.
+2. **Empfang:** Tor-Hidden-Service vor Port 8443 (reiner Eingang, **kein Exit**) + optionales `onion=`-Feld im `_bmail._tcp`-DNS-TXT; Relay↔Relay-Spiegelung läuft über SOCKS5 zu `*.onion`-Peers, https bleibt Fallback.
+3. **Node:** zusätzlich Teilnahme als normales Tor-Relay (Trafficweiterleitung für fremde Kreise, Bandbreiten-Limit; **Exit bleibt ausgeschlossen** — kein fremdes Klartext-Traffic durch das eigene Heimnetz).
+Der Desktop-Client bekommt einen Tor-Schalter in den Einstellungen (SOCKS-Proxy; Orbot am Handy-Äquivalent). Lightning bleibt, wie es ist: Porto + Kuvert laufen schon im Lightning-Onion, Anhänge nie.
