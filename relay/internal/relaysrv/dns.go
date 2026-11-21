@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/lightningmail/relay/internal/config"
-	"github.com/lightningmail/relay/internal/crypto"
+	"github.com/lightningmail/lm1/crypto"
 )
 
 const dnsCacheTTL = 5 * time.Minute

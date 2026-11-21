@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/btcsuite/btcd/btcec/v2"
-	"github.com/lightningmail/relay/internal/envelope"
+	"github.com/lightningmail/lm1/envelope"
 )
 
 func TestPEMRoundTrip(t *testing.T) {

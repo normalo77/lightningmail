@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/lightningmail/relay/internal/config"
-	"github.com/lightningmail/relay/internal/crypto"
+	"github.com/lightningmail/lm1/crypto"
 	"github.com/lightningmail/relay/internal/ledger"
 	"github.com/lightningmail/relay/internal/postage"
 	"github.com/lightningmail/relay/internal/rates"

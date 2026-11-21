@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lightningmail/relay/internal/crypto"
+	"github.com/lightningmail/lm1/crypto"
 	"github.com/lightningmail/relay/internal/ledger"
 )
 

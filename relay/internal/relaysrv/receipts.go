@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lightningmail/relay/internal/envelope"
+	"github.com/lightningmail/lm1/envelope"
 	"github.com/lightningmail/relay/internal/ledger"
 )
 

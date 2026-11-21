@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.5.1
 	github.com/go-webauthn/webauthn v0.18.2
-	golang.org/x/crypto v0.59.0
+	golang.org/x/crypto v0.59.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.62.0
 )
@@ -32,3 +32,7 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
+
+require github.com/lightningmail/lm1 v0.0.0
+
+replace github.com/lightningmail/lm1 => ../lm1

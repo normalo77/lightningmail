@@ -16,7 +16,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	"github.com/lightningmail/relay/internal/envelope"
+	"github.com/lightningmail/lm1/envelope"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/hkdf"
 )
