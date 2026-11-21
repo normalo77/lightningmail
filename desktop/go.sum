@@ -1,0 +1,6 @@
+github.com/bnema/purego v0.13.0-bnema.1 h1:fKRdztnvTmRqAjANMoN+utEIH73dvPqVPJh2iZCCAO8=
+github.com/bnema/purego v0.13.0-bnema.1/go.mod h1:xS1iX3noypxnbOUEUAqOvkfnUzgHuu19VtL4+dfUMJM=
+github.com/bnema/puregotk v0.5.4 h1:SYIS5r5JySaFVw/PrOMoO+j8YlYyB9sJ7g4At8Pv0EI=
+github.com/bnema/puregotk v0.5.4/go.mod h1:pXquWfuhZzVdDJU08CH3De8l9N4MsuOpTjbKHpiOeIs=
+github.com/bnema/puregotk-webkit v0.1.0 h1:5n+AhCsTTr7MPCGLTvrRdM9RWtOFk3o2XFWDMc7f+K4=
+github.com/bnema/puregotk-webkit v0.1.0/go.mod h1:eZmZNyr7lLQ9UFM6nxPASHNDxRjM3S3jmD0lI+jijnU=

@@ -1,0 +1,16 @@
+lmspike 2026/11/21 18:30:42 main: start
+lmspike 2026/11/21 18:30:42 main: activate-cb
+Overriding existing handler for signal 10. Set JSC_SIGNAL_FOR_GC if you want WebKit to use a different signal
+lmspike 2026/11/21 18:30:42 scheme lm-mail registriert (WebContext default)
+lmspike 2026/11/21 18:30:42 row-selected index=0 subj="Wichtige Update-Informationen"
+lmspike 2026/11/21 18:30:42 LoadHtml Mail 0 (2042 bytes)
+lmspike 2026/11/21 18:30:42 UI steht, Mail 0 geladen
+SpiRegistry daemon is running with well-known name - org.a11y.atspi.Registry
+lmspike 2026/11/21 18:30:42 load-changed event=0
+lmspike 2026/11/21 18:30:42 load-changed event=2
+lmspike 2026/11/21 18:30:42 scheme-handler aufruf #1: lm-mail://blob/demo1
+lmspike 2026/11/21 18:30:42 scheme-handler aufruf #2: lm-mail://blob/fehlt
+lmspike 2026/11/21 18:30:42 load-changed event=3
+lmspike 2026/11/21 18:30:42 A4 decide-policy feuert: type=0 uri=https://lightningmail.example/simulierter-linkklick (xdg-open in M1)
+SCREENSHOT_TAKEN
+SPIKE_DONE
