@@ -1,0 +1,18 @@
+lmdesk 2026/11/22 08:52:12 start: account=m3mwrlldv7 relay=http://127.0.0.1:18443 tor_socks=""
+
+(lmdesk:42249): Gtk-WARNING **: 08:52:12.523: Locale not supported by C library.
+	Using the fallback 'C' locale.
+Overriding existing handler for signal 10. Set JSC_SIGNAL_FOR_GC if you want WebKit to use a different signal
+lmdesk 2026/11/22 08:52:12 reader: ephemeral NetworkSession aktiv (keine Disk-Artefakte)
+lmdesk 2026/11/22 08:52:12 scheme lm-mail registriert (WebView-eigener WebContext)
+lmdesk 2026/11/22 08:52:12 UI steht (1200x760), sync-loop gestartet
+lmdesk 2026/11/22 08:52:12 demo-modus: steuere Seed-Mails fuer Evidenz an
+lmdesk 2026/11/22 08:52:12 m3-demo: säe Kontakt + Laufwerk über die GUI-Pfade
+lmdesk 2026/11/22 08:52:13 demo: Mail "Seed 2" nicht gefunden
+lmdesk 2026/11/22 08:52:15 m3ev:seed
+lmdesk 2026/11/22 08:52:16 drive upload ok id=5cb40647620145a4 name="m3-zufall.bin"
+lmdesk 2026/11/22 08:52:21 push ok: version 0 -> 1
+lmdesk 2026/11/22 08:52:21 m3ev:ab
+lmdesk 2026/11/22 08:52:25 demo: Mail "Seed 3" nicht gefunden
+lmdesk 2026/11/22 08:52:28 m3ev:drv
+lmdesk 2026/11/22 08:52:34 m3ev:cfg

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -175,6 +177,7 @@ func (a *App) applyUI(newMails []*core.Mail, bal int64, first bool) {
 		a.mu.Unlock()
 		if start {
 			a.runDemo()
+			a.runM3Demo()
 		}
 	}
 }
@@ -275,6 +278,15 @@ func (a *App) switchFolder(mode string) {
 	a.currentShas = map[string]string{}
 	a.mu.Unlock()
 	a.setReaderActions(false)
+	switch mode {
+	case "ab":
+		a.stack.SetVisibleChildName("ab")
+	case "drv":
+		a.stack.SetVisibleChildName("drv")
+		a.refreshDriveQuota()
+	default:
+		a.stack.SetVisibleChildName("mail")
+	}
 	a.refreshFolderList()
 }
 
@@ -291,6 +303,16 @@ func (a *App) refreshFolderList() {
 		for _, d := range a.doc.LiveDrafts() {
 			ids = append(ids, "d:"+d.ID)
 		}
+	case "ab":
+		for _, c := range a.doc.LiveContacts() {
+			ids = append(ids, "c:"+c.ID)
+		}
+	case "drv":
+		a.mu.Unlock() // driveEntries locks on its own
+		for _, e := range a.driveEntries() {
+			ids = append(ids, "f:"+e.ID)
+		}
+		a.mu.Lock()
 	default:
 		for _, m := range a.mails {
 			if _, del := a.doc.Deleted[m.MsgID]; !del {
@@ -312,6 +334,13 @@ func (a *App) folderLabel() string {
 		return "Gesendet"
 	case "drafts":
 		return "Entwürfe"
+	case "ab":
+		return "Adressbuch"
+	case "drv":
+		if c := a.driveCrumbName(); c != "" {
+			return "🗂 " + c
+		}
+		return "Laufwerk"
 	default:
 		return "Posteingang"
 	}
@@ -365,4 +394,107 @@ func (a *App) handleDelete() {
 	a.reader.LoadHtml("<html><body></body></html>", nil)
 	a.toast("Gelöscht — wird mit dem Server synchronisiert")
 	log.Printf("deleted msg=%s…", msgID[:12])
+}
+
+// --- M3 evidence demo (LMDESK_M3DEMO=1, scripts/run-m3.sh) ---
+// Seeds a contact + a drive folder/file through the SAME code paths the GUI
+// buttons use (SaveContact / Mkdir / uploadDrivePath), then flips the pages
+// on a timer so xvfb screenshots capture real panel state.
+
+func (a *App) runM3Demo() {
+	expect := os.Getenv("LMDESK_M3EXPECT_SHA") != ""
+	if expect && os.Getenv("LMDESK_M3DEMO") != "1" {
+		// download-verification-only pass (interop proof round 2)
+		one2 := func(ms uint, fn func()) {
+			f := glib.SourceFunc(func(_ uintptr) bool { fn(); return false })
+			glib.TimeoutAdd(ms, &f, 0)
+		}
+		one2(6000, func() { log.Printf("m3ev:drv"); a.switchFolder("drv"); a.m3ExpectDownload() })
+		return
+	}
+	if os.Getenv("LMDESK_M3DEMO") != "1" {
+		return
+	}
+	log.Printf("m3-demo: säe Kontakt + Laufwerk über die GUI-Pfade")
+	seed := func() {
+		// contact via the store path (identical to the editor dialog result)
+		a.mu.Lock()
+		a.doc.SaveContact(core.Contact{ID: "m3demo1", Name: "Gisela", Given: "Gisela",
+			Org: "Familie", Lnaddr: "gisela@relay.example", Pubkey: "02c4a7a8f6f6b0e0b5f7d9c1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1"})
+		a.doc.SaveContact(core.Contact{ID: "m3demo2", Name: "Bernd", Email: "bernd@example.de"})
+		parent := core.Mkdir(&a.doc, "belege", "").ID
+		core.Mkdir(&a.doc, "urlaubsfotos", parent)
+		a.mu.Unlock()
+		a.schedulePush()
+		a.mu.Lock()
+		a.driveParent = parent
+		a.mu.Unlock()
+		a.refreshFolderList()
+		// real upload through the panel path (1 MiB random from /tmp)
+		if _, err := os.Stat("/tmp/m3-zufall.bin"); err == nil {
+			a.uploadDrivePath("/tmp/m3-zufall.bin")
+		} else {
+			log.Printf("m3-demo: /tmp/m3-zufall.bin fehlt — Upload skipped")
+		}
+	}
+	// NOTE: IdleAddOnce's second arg is user data, NOT a delay (trap hit in
+	// the first m3 run — all steps fired at once). Real timers via TimeoutAdd.
+	one := func(ms uint, fn func()) {
+		f := glib.SourceFunc(func(_ uintptr) bool { fn(); return false })
+		glib.TimeoutAdd(ms, &f, 0)
+	}
+	one(3000, func() { log.Printf("m3ev:seed"); seed() })
+	one(9000, func() {
+		log.Printf("m3ev:ab")
+		a.switchFolder("ab")
+		if a.sel.GetNItems() > 0 {
+			a.sel.SetSelected(0)
+		}
+	})
+	one(16000, func() { log.Printf("m3ev:drv"); a.switchFolder("drv"); a.m3ExpectDownload() })
+	one(22000, func() {
+		log.Printf("m3ev:cfg")
+		a.stack.SetVisibleChildName("cfg")
+		a.refreshStatement()
+	})
+}
+
+// m3ExpectDownload closes the interop loop: if LMDESK_M3EXPECT_SHA is set
+// (sha256 of the PWA-side drive file), download pwa-reply.bin through the
+// same core path the GUI download button uses and record the result.
+func (a *App) m3ExpectDownload() {
+	want := os.Getenv("LMDESK_M3EXPECT_SHA")
+	if want == "" {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		a.mu.Lock()
+		var id string
+		for fid, e := range a.doc.Files {
+			if e.Gone == 0 && e.Kind == "f" && e.Name == "pwa-reply.bin" {
+				id = fid
+			}
+		}
+		doc := a.doc
+		a.mu.Unlock()
+		if id == "" {
+			log.Printf("m3dl: pwa-reply.bin nicht gefunden")
+			return
+		}
+		data, err := core.DownloadFile(ctx, a.api, a.priv, &doc, id)
+		if err != nil {
+			log.Printf("m3dl: %v", err)
+			return
+		}
+		sum := sha256.Sum256(data)
+		got := hex.EncodeToString(sum[:])
+		if got == want {
+			log.Printf("m3dl: sha256 ok (%d bytes aus PWA-Upload)", len(data))
+			os.WriteFile("/tmp/m3-desktop-download.sha", []byte(got+"\n"), 0600)
+		} else {
+			log.Printf("m3dl: MISMATCH got=%s want=%s", got, want)
+		}
+	}()
 }

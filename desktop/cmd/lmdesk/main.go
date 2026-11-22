@@ -40,7 +40,7 @@ var ui *App
 func main() {
 	log.SetOutput(os.Stderr)
 	log.SetPrefix("lmdesk ")
-	for _, issue := range core.Harden() {
+	for _, issue := range core.HardenGUI() {
 		log.Printf("hygiene: %v", issue)
 	}
 	warnContainerNoUserNS()
@@ -102,10 +102,9 @@ var navItems = []struct{ label, note string }{
 	{"📥 Posteingang", ""},
 	{"📤 Gesendet", "sent"},
 	{"📝 Entwürfe", "drafts"},
-	{"📇 Adressbuch", "M3"},
-	{"🗂 Laufwerk", "M3"},
-	{"💶 Umsätze", "M3"},
-	{"⚙ Einstellungen", "M3"},
+	{"📇 Adressbuch", "ab"},
+	{"🗂 Laufwerk", "drv"},
+	{"⚙ Einstellungen", "cfg"},
 }
 
 func (a *App) activate(app *adw.Application) {
@@ -203,11 +202,13 @@ func (a *App) buildUI(app *adw.Application) {
 		switch note {
 		case "":
 			// Posteingang: already functional from M1, no extra handler needed
-		case "sent":
-			cb := func(_ gtk.Button) { a.switchFolder("sent") }
+		case "sent", "drafts", "ab", "drv":
+			fm := note
+			cb := func(_ gtk.Button) { a.switchFolder(fm) }
 			b.ConnectClicked(&cb)
-		case "drafts":
-			cb := func(_ gtk.Button) { a.switchFolder("drafts") }
+		case "cfg":
+			// Umsaetze live INSIDE settings (Bernd) — no primary nav item.
+			cb := func(_ gtk.Button) { a.stack.SetVisibleChildName("cfg") }
 			b.ConnectClicked(&cb)
 		default:
 			_cb := func(_ gtk.Button) {
@@ -276,13 +277,29 @@ func (a *App) buildUI(app *adw.Application) {
 	a.deleteBtn.ConnectClicked(&dcb)
 	actions.Append(&a.replyBtn.Widget)
 	actions.Append(&a.deleteBtn.Widget)
+	a.abImportBtn = gtk.NewButton()
+	a.abImportBtn.SetLabel("👤→📇")
+	tip := "Absender ins Adressbuch übernehmen"
+	a.abImportBtn.SetTooltipText(&tip)
+	a.abImportBtn.SetSensitive(false)
+	imcb := func(_ gtk.Button) { a.importSenderContact() }
+	a.abImportBtn.ConnectClicked(&imcb)
+	actions.Append(&a.abImportBtn.Widget)
 	right := gtk.NewBox(gtk.OrientationVerticalValue, 0)
 	right.Append(&actions.Widget)
 	right.Append(&a.reader.Widget)
 
+	// M3: mail | ab | drv | cfg live in one GtkStack on the right.
+	a.stack = gtk.NewStack()
+	mailN, abN, drvN, cfgN := "mail", "ab", "drv", "cfg"
+	a.stack.AddTitled(&right.Widget, &mailN, "Mail")
+	a.stack.AddTitled(a.buildAbPage(), &abN, "Kontakte")
+	a.stack.AddTitled(a.buildDrvPage(), &drvN, "Laufwerk")
+	a.stack.AddTitled(a.buildSettingsPage(), &cfgN, "Einstellungen")
+
 	paned := gtk.NewPaned(gtk.OrientationHorizontalValue)
 	paned.SetStartChild(&left.Widget)
-	paned.SetEndChild(&right.Widget)
+	paned.SetEndChild(&a.stack.Widget)
 	paned.SetPosition(580)
 	paned.SetResizeStartChild(false)
 	paned.SetResizeEndChild(true)

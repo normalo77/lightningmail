@@ -63,9 +63,42 @@ type App struct {
 	loginResult chan string // passphrase or "" (empty = failed/cancelled)
 	pushTimer   *time.Timer // debounced state push (read-sync 5s)
 	pushPending bool
-	folderMode  string // "inbox" | "sent" | "drafts"
+	folderMode  string // "inbox" | "sent" | "drafts" | "ab" | "drv"
 	replyBtn    *gtk.Button
 	deleteBtn   *gtk.Button
+
+	// M3: panels — GtkStack right side (mail | ab | drv | cfg)
+	stack         *gtk.Stack
+	abDetail      []detailRow // fixed label/value lines, filled on selection
+	abMailBtn     *gtk.Button
+	curContactID  string // open contact id ("" none)
+	driveParent   string // folder id, "" = drive root
+	curFileID     string // opened drive entry id
+	drvInfo       *gtk.Label
+	drvDownBtn    *gtk.Button
+	drvDelBtn     *gtk.Button
+	drvRenameBtn  *gtk.Button
+	drvQuota      *gtk.ProgressBar
+	drvQuotaLabel *gtk.Label
+	drvTierBtn    *gtk.Button
+	drvTiers      []core.DriveTier
+	abImportBtn   *gtk.Button
+	abDelBtn      *gtk.Button
+	drvHomeBtn    *gtk.Button
+	// settings page widgets
+	cfgRelayEntry *gtk.Entry
+	cfgTorEntry   *gtk.Entry
+	cfgCacheEntry *gtk.Entry
+	cfgAutoSwitch *gtk.Switch
+	umsList       *gtk.ListBox
+	umsStatus     *gtk.Label
+}
+
+// detailRow is one label/value line of the contact detail page (built once).
+type detailRow struct {
+	row *gtk.Box
+	key *gtk.Label
+	val *gtk.Label
 }
 
 type rowWidgets struct {
@@ -81,7 +114,7 @@ func newApp(cfg *core.Config, priv *btcec.PrivateKey) *App {
 		byID:        map[string]*core.Mail{},
 		doc:         core.EmptyDoc(),
 		rows:        map[uintptr]*rowWidgets{},
-		cache:       core.NewCache(),
+		cache:       core.NewCache(cfg),
 		currentShas: map[string]string{},
 		quit:        make(chan struct{}),
 		loginResult: make(chan string, 1),
@@ -150,6 +183,29 @@ func (a *App) rowBind(itemPtr uintptr) {
 				meta = "An: " + s.To + " · " + core.FormatDateDE(s.Ts) + " ✓"
 			}
 		}
+	case strings.HasPrefix(key, "c:"):
+		if c, ok := a.doc.Contacts[key[2:]]; ok && c.Gone == 0 {
+			subj = core.ContactDisplay(c)
+			var bits []string
+			if c.Org != "" {
+				bits = append(bits, c.Org)
+			}
+			if c.Lnaddr != "" {
+				bits = append(bits, c.Lnaddr)
+			} else if c.Email != "" {
+				bits = append(bits, c.Email)
+			}
+			meta = strings.Join(bits, " · ")
+		}
+	case strings.HasPrefix(key, "f:"):
+		if e, ok := a.doc.Files[key[2:]]; ok && e.Gone == 0 {
+			if e.Kind == "d" {
+				subj = "📁 " + e.Name
+			} else {
+				subj = "📄 " + e.Name
+				meta = fmtSize(e.SizePlain)
+			}
+		}
 	default:
 		m := a.byID[key]
 		if m != nil {
@@ -206,15 +262,36 @@ func (a *App) refreshRows() {
 }
 
 // rowSelected opens the newly selected list row (GTK main thread, called
-// from the selection-changed trampoline).
+// from the selection-changed trampoline). M3: contacts/drive rows dispatch
+// to their detail pages, everything else keeps the mail path.
 func (a *App) rowSelected() {
 	pos := a.sel.GetSelected()
 	if pos == 0xFFFFFFFF { // GTK_INVALID_LIST_POSITION
 		return
 	}
 	a.mu.Lock()
+	mode := a.folderMode
+	a.mu.Unlock()
+	switch mode {
+	case "ab":
+		a.mu.Lock()
+		l := a.doc.LiveContacts()
+		a.mu.Unlock()
+		if int(pos) < len(l) {
+			a.showContactDetail("c:" + l[pos].ID)
+		}
+		return
+	case "drv":
+		if l := a.driveEntries(); int(pos) < len(l) {
+			a.openDrive("f:" + l[pos].ID)
+		}
+		return
+	case "cfg":
+		return
+	}
+	a.mu.Lock()
 	cur := ""
-	if a.folderMode != "sent" && a.folderMode != "drafts" && int(pos) < len(a.mails) {
+	if mode != "sent" && mode != "drafts" && int(pos) < len(a.mails) {
 		cur = a.mails[pos].MsgID
 	}
 	seen := cur != "" && cur == a.currentMsgID
@@ -231,6 +308,9 @@ func (a *App) rowSelected() {
 // and enables the native Antworten/Löschen action bar. Draft rows reopen the
 // compose dialog; sent rows show a plain-text echo.
 func (a *App) openMail(pos uint) {
+	if a.stack != nil {
+		a.stack.SetVisibleChildName("mail")
+	}
 	a.mu.Lock()
 	mode := a.folderMode
 	a.lastInteraction = time.Now()
@@ -299,13 +379,17 @@ func (a *App) openMail(pos uint) {
 	log.Printf("openMail seq=%d msg=%s… subj=%q attachments=%d", m.Seq, m.MsgID[:12], m.Subject, len(m.Attachments))
 }
 
-// setReaderActions enables/disables the native reply/delete bar (main thread).
+// setReaderActions enables/disables the native reply/delete/contact bar
+// (main thread).
 func (a *App) setReaderActions(on bool) {
 	if a.replyBtn != nil {
 		a.replyBtn.SetSensitive(on)
 	}
 	if a.deleteBtn != nil {
 		a.deleteBtn.SetSensitive(on)
+	}
+	if a.abImportBtn != nil {
+		a.abImportBtn.SetSensitive(on)
 	}
 }
 

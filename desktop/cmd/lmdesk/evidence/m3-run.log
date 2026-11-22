@@ -1,0 +1,190 @@
+lmdesk 2026/11/22 08:47:46 start: account=m3mwrkz16n relay=http://127.0.0.1:18443 tor_socks=""
+
+(lmdesk:41766): Gtk-WARNING **: 08:47:46.164: Locale not supported by C library.
+	Using the fallback 'C' locale.
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.0' (uid=0 pid=41766 comm="./bin/lmdesk" label="unconfined")
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.portal.Documents' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Successfully activated service 'org.freedesktop.portal.Documents'
+fuse: device not found, try 'modprobe fuse' first
+error: fuse init failed: Can't mount path /run/user/0/doc
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.273: Document portal fuse mount point unknown: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name :1.3 was not provided by any .service files
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.273: Choosing gtk.portal for org.freedesktop.impl.portal.Lockdown as a last-resort fallback
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41809): Gtk-WARNING **: 08:47:46.284: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41809): Gtk-WARNING **: 08:47:46.285: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.301: Failed to load RealtimeKit property: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.RealtimeKit1 was not provided by any .service files
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.301: Failed to load RealtimeKit property: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.RealtimeKit1 was not provided by any .service files
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.301: Failed to load RealtimeKit property: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.RealtimeKit1 was not provided by any .service files
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.301: Choosing gtk.portal for org.freedesktop.impl.portal.Settings as a last-resort fallback
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41813): Gtk-WARNING **: 08:47:46.312: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41813): Gtk-WARNING **: 08:47:46.313: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.315: Failed to create settings proxy: Error calling StartServiceByName for org.freedesktop.impl.portal.desktop.gtk: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.315: No skeleton to export
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.315: Choosing gtk.portal for org.freedesktop.impl.portal.FileChooser as a last-resort fallback
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41815): Gtk-WARNING **: 08:47:46.326: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41815): Gtk-WARNING **: 08:47:46.326: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.328: Failed to create file chooser proxy: Error calling StartServiceByName for org.freedesktop.impl.portal.desktop.gtk: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.328: No skeleton to export
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.328: Choosing gtk.portal for org.freedesktop.impl.portal.AppChooser as a last-resort fallback
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41817): Gtk-WARNING **: 08:47:46.339: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41817): Gtk-WARNING **: 08:47:46.339: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.341: Failed to create app chooser proxy: Error calling StartServiceByName for org.freedesktop.impl.portal.desktop.gtk: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.341: No skeleton to export
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.341: Choosing gtk.portal for org.freedesktop.impl.portal.Print as a last-resort fallback
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41819): Gtk-WARNING **: 08:47:46.352: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41819): Gtk-WARNING **: 08:47:46.352: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.354: Failed to create print proxy: Error calling StartServiceByName for org.freedesktop.impl.portal.desktop.gtk: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.354: No skeleton to export
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.354: Choosing gtk.portal for org.freedesktop.impl.portal.Notification as a last-resort fallback
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41821): Gtk-WARNING **: 08:47:46.365: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41821): Gtk-WARNING **: 08:47:46.366: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.367: Failed to create notification proxy: Error calling StartServiceByName for org.freedesktop.impl.portal.desktop.gtk: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.367: No skeleton to export
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.367: Choosing gtk.portal for org.freedesktop.impl.portal.Inhibit as a last-resort fallback
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41823): Gtk-WARNING **: 08:47:46.379: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41823): Gtk-WARNING **: 08:47:46.379: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.381: Failed to create inhibit proxy: Error calling StartServiceByName for org.freedesktop.impl.portal.desktop.gtk: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.381: No skeleton to export
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.381: Choosing gtk.portal for org.freedesktop.impl.portal.Access as a last-resort fallback
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41825): Gtk-WARNING **: 08:47:46.392: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41825): Gtk-WARNING **: 08:47:46.393: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.394: Failed to create access proxy: Error calling StartServiceByName for org.freedesktop.impl.portal.desktop.gtk: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.394: No skeleton to export
+[W][08:47:46.395466] pw.conf      | [          conf.c: 1182 try_load_conf()] can't load config client.conf: No such file or directory
+[E][08:47:46.395527] pw.conf      | [          conf.c: 1215 pw_conf_load_conf_for_context()] can't load config client.conf: No such file or directory
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.395: Failed connect to PipeWire: Couldn't create PipeWire context
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41827): Gtk-WARNING **: 08:47:46.407: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41827): Gtk-WARNING **: 08:47:46.407: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.409: Failed to create access proxy: Error calling StartServiceByName for org.freedesktop.impl.portal.desktop.gtk: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.409: No skeleton to export
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.409: Choosing gtk.portal for org.freedesktop.impl.portal.Account as a last-resort fallback
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41829): Gtk-WARNING **: 08:47:46.420: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41829): Gtk-WARNING **: 08:47:46.421: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.422: Failed to create account proxy: Error calling StartServiceByName for org.freedesktop.impl.portal.desktop.gtk: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.422: No skeleton to export
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.422: Choosing gtk.portal for org.freedesktop.impl.portal.Email as a last-resort fallback
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41831): Gtk-WARNING **: 08:47:46.434: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41831): Gtk-WARNING **: 08:47:46.435: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.436: Failed to create email proxy: Error calling StartServiceByName for org.freedesktop.impl.portal.desktop.gtk: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.436: No skeleton to export
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.436: Choosing gtk.portal for org.freedesktop.impl.portal.DynamicLauncher as a last-resort fallback
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.1' (uid=0 pid=41790 comm="/usr/libexec/xdg-desktop-portal" label="unconfined")
+
+(process:41833): Gtk-WARNING **: 08:47:46.447: Locale not supported by C library.
+	Using the fallback 'C' locale.
+
+(xdg-desktop-portal-gtk:41833): Gtk-WARNING **: 08:47:46.448: cannot open display: 
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activated service 'org.freedesktop.impl.portal.desktop.gtk' failed: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.450: Failed to create dynamic_launcher proxy: Error calling StartServiceByName for org.freedesktop.impl.portal.desktop.gtk: Process org.freedesktop.impl.portal.desktop.gtk exited with status 1
+
+(/usr/libexec/xdg-desktop-portal:41790): xdg-desktop-portal-WARNING **: 08:47:46.450: No skeleton to export
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Successfully activated service 'org.freedesktop.portal.Desktop'
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.0' (uid=0 pid=41766 comm="./bin/lmdesk" label="unconfined")
+dbus-daemon[41750]: [session uid=0 pid=41750 pidfd=5] Successfully activated service 'org.a11y.Bus'
+Overriding existing handler for signal 10. Set JSC_SIGNAL_FOR_GC if you want WebKit to use a different signal
+lmdesk 2026/11/22 08:47:46 reader: ephemeral NetworkSession aktiv (keine Disk-Artefakte)
+lmdesk 2026/11/22 08:47:46 scheme lm-mail registriert (WebView-eigener WebContext)
+lmdesk 2026/11/22 08:47:46 UI steht (1200x760), sync-loop gestartet
+dbus-daemon[41842]: Activating service name='org.a11y.atspi.Registry' requested by ':1.0' (uid=0 pid=41766 comm="./bin/lmdesk" label="unconfined")
+lmdesk 2026/11/22 08:47:46 demo-modus: steuere Seed-Mails fuer Evidenz an
+lmdesk 2026/11/22 08:47:46 m3-demo: säe Kontakt + Laufwerk über die GUI-Pfade
+dbus-daemon[41842]: Successfully activated service 'org.a11y.atspi.Registry'
+SpiRegistry daemon is running with well-known name - org.a11y.atspi.Registry
+lmdesk 2026/11/22 08:47:46 drive upload ok id=6731dc9912648628 name="m3-zufall.bin"
+lmdesk 2026/11/22 08:47:47 demo: Mail "Seed 2" nicht gefunden
+lmdesk 2026/11/22 08:47:51 push ok: version 0 -> 1
+lmdesk 2026/11/22 08:47:59 demo: Mail "Seed 3" nicht gefunden
+M3_DESK_DONE
