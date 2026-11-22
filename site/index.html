@@ -1,0 +1,1180 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lightningmail · E-Mail mit Lightning-Porto</title>
+<meta name="description" content="lightningmail: E-Mail mit Bitcoin-Lightning-Porto, automatischer Ende-zu-Ende-Verschlüsselung, passwortlosem OpenID-Connect-Login (Sign in with lightningmail) und 5-Satoshi-Mikro-Paywalls. MIT-lizenziert.">
+<meta name="keywords" content="lightningmail, Bitcoin, Lightning Network, E-Mail, Hashcash, E2EE, OpenID Connect, OIDC, passwortloser Login, LND, Neutrino, Anti-Spam, Micro-Paywall">
+<link rel="canonical" href="https://lightningmail.app/">
+<link rel="alternate" hreflang="de" href="https://lightningmail.app/">
+<link rel="alternate" hreflang="en" href="https://lightningmail.app/">
+<link rel="alternate" hreflang="es" href="https://lightningmail.app/">
+<link rel="alternate" hreflang="fr" href="https://lightningmail.app/">
+<link rel="alternate" hreflang="pl" href="https://lightningmail.app/">
+<link rel="alternate" hreflang="x-default" href="https://lightningmail.app/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="lightningmail">
+<meta property="og:url" content="https://lightningmail.app/">
+<meta property="og:title" content="⚡ lightningmail · E-Mail mit Lightning-Porto &amp; passwortlosem Login">
+<meta property="og:description" content="Jeder Brief trägt ein kleines Bitcoin-Lightning-Porto, das direkt beim Empfänger landet. Automatische E2E-Verschlüsselung, passwortloser OIDC-Login und 5-Sat-Paywall.">
+<meta property="og:image" content="https://lightningmail.app/og-card.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="⚡ lightningmail · E-Mail mit Lightning-Porto &amp; OIDC-Login">
+<meta name="twitter:description" content="Hashcash, das beim Empfänger ankommt: E2E-verschlüsselte Post, passwortloser Login (Sign in with lightningmail) und 5-Sat-Paywalls über das Bitcoin Lightning Network.">
+<meta name="twitter:image" content="https://lightningmail.app/og-card.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "lightningmail",
+  "url": "https://lightningmail.app/",
+  "codeRepository": "https://github.com/normalo77/lightningmail",
+  "license": "https://opensource.org/licenses/MIT",
+  "applicationCategory": "CommunicationApplication, SecurityApplication",
+  "operatingSystem": "Linux, Android, Web, Thunderbird",
+  "description": "Open-source e-mail protocol and relay using Bitcoin Lightning keysend postage to eliminate spam, with automatic end-to-end encryption (ECIES + XChaCha20-Poly1305), passwordless OpenID Connect login, and satoshi micro-paywalls.",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+  }
+}
+</script>
+<meta name="theme-color" content="#f5f3ec">
+<link rel="icon" href="/icon.png">
+<style>
+:root {
+  --bg: #f5f3ec;
+  --surface: #e8e4d8;
+  --ink: #122338;
+  --muted: #4a5a6e;
+  --accent: #f4b71a;
+  --accent-ink: #122338;
+  --field-sun: #f6df8f;
+  --field-sky: #dcecf6;
+  --margin: clamp(1rem, 2.2vw, 2rem);
+  --gutter: clamp(1rem, 2vw, 2rem);
+  --section-gap: clamp(5rem, 11vw, 10rem);
+  --step-small: clamp(0.875rem, 0.84rem + 0.12vw, 0.95rem);
+  --step-body: clamp(1.0625rem, 1.02rem + 0.22vw, 1.1875rem);
+  --step-lead: clamp(1.25rem, 1.12rem + 0.55vw, 1.5625rem);
+  --step-head: clamp(2rem, 1.4rem + 2.6vw, 3.6rem);
+  --step-hero: clamp(2.6rem, 1.6rem + 4.4vw, 5.4rem);
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--step-body);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.028em;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+h1 { font-size: var(--step-hero); max-width: 15ch; }
+h2 { font-size: var(--step-head); max-width: 22ch; margin-bottom: 1.25rem; }
+h3 { font-size: var(--step-lead); line-height: 1.2; max-width: 28ch; margin-bottom: 0.5rem; }
+p { margin: 0 0 1.15rem; text-wrap: pretty; max-width: 65ch; }
+p:last-child { margin-bottom: 0; }
+
+a { color: var(--ink); text-underline-offset: 0.2em; }
+a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* Frame & Grid */
+.frame {
+  padding-inline: var(--margin);
+  max-width: 1680px;
+  margin-inline: auto;
+}
+.grid-12 {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gutter);
+  row-gap: var(--gutter);
+}
+
+/* Navigation */
+header.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.25rem var(--margin);
+  max-width: 1680px;
+  margin-inline: auto;
+  position: relative;
+}
+.brand-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: var(--step-lead);
+  letter-spacing: -0.02em;
+}
+.logo { width: 42px; height: 42px; flex: none; }
+.menu-toggle {
+  display: none;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1.5px solid rgba(18,35,56,0.2);
+  border-radius: 7px;
+  padding: 0.5rem 0.85rem;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+nav {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+nav a {
+  text-decoration: none;
+  font-size: var(--step-small);
+  font-weight: 500;
+  padding: 0.4rem 0.2rem;
+}
+nav a:hover { text-decoration: underline; }
+
+/* Funktions-Punkte im Menu: gelblich abgesetzt, Info-Punkte bleiben schlicht */
+.nav-sep { align-self: stretch; width: 1px; margin: 0.15rem 0.1rem; background: rgba(18,35,56,0.28); }
+nav a.funk {
+  background: rgba(244,183,26,0.18);
+  border: 1px solid rgba(146,64,14,0.30);
+  color: #92400e;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0.32rem 0.7rem;
+}
+nav a.funk:hover { background: rgba(244,183,26,0.34); text-decoration: none; }
+
+.lang {
+  background: var(--surface);
+  color: var(--ink);
+  border: 0;
+  padding: 0.55rem 1rem;
+  font-family: inherit;
+  font-size: var(--step-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+.lang:hover { background: var(--accent); color: var(--accent-ink); }
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: var(--step-body);
+  padding: 0.9rem 1.6rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 0;
+  cursor: pointer;
+  transition: transform 0.16s ease-out, background-color 0.16s ease-out;
+}
+.btn:hover { background: #e5a80b; transform: translateY(-2px); }
+.btn.secondary {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+.btn.secondary:hover { background: #dcd6c6; }
+
+/* Sections & Colour Fields */
+section {
+  margin-top: var(--section-gap);
+}
+.field-block {
+  background: var(--surface);
+  padding-block: clamp(3.5rem, 7vw, 6.5rem);
+  margin-top: var(--section-gap);
+}
+.field-sky {
+  background: var(--field-sky);
+  padding-block: clamp(3.5rem, 7vw, 6.5rem);
+  margin-top: var(--section-gap);
+}
+
+/* Hero */
+.hero {
+  margin-top: clamp(1.5rem, 4vw, 3.5rem);
+  align-items: center;
+}
+.hero-copy {
+  grid-column: 1 / 8;
+}
+.hero-lead {
+  font-size: var(--step-lead);
+  margin-top: 1.75rem;
+  max-width: 56ch;
+}
+.cta-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 2.25rem;
+}
+.meta-note {
+  margin-top: 1.5rem;
+  font-size: var(--step-small);
+  color: var(--muted);
+}
+.hero-stamp {
+  grid-column: 8 / 13;
+  background: var(--field-sun);
+  padding: clamp(1.75rem, 3.5vw, 3rem);
+  position: relative;
+  clip-path: polygon(
+    0% 3%, 4% 0%, 8% 3%, 12% 0%, 16% 3%, 20% 0%, 24% 3%, 28% 0%, 32% 3%, 36% 0%, 40% 3%, 44% 0%, 48% 3%, 52% 0%, 56% 3%, 60% 0%, 64% 3%, 68% 0%, 72% 3%, 76% 0%, 80% 3%, 84% 0%, 88% 3%, 92% 0%, 96% 3%, 100% 0%,
+    97% 6%, 100% 12%, 97% 18%, 100% 24%, 97% 30%, 100% 36%, 97% 42%, 100% 48%, 97% 54%, 100% 60%, 97% 66%, 100% 72%, 97% 78%, 100% 84%, 97% 90%, 100% 96%, 97% 100%,
+    92% 97%, 88% 100%, 84% 97%, 80% 100%, 76% 97%, 72% 100%, 68% 97%, 64% 100%, 60% 97%, 56% 100%, 52% 97%, 48% 100%, 44% 97%, 40% 100%, 36% 97%, 32% 100%, 28% 97%, 24% 100%, 20% 97%, 16% 100%, 12% 97%, 8% 100%, 4% 97%, 0% 100%,
+    3% 94%, 0% 88%, 3% 82%, 0% 76%, 3% 70%, 0% 64%, 3% 58%, 0% 52%, 3% 46%, 0% 40%, 3% 34%, 0% 28%, 3% 22%, 0% 16%, 3% 10%, 0% 4%
+  );
+}
+.hero-stamp-inner {
+  background: var(--bg);
+  padding: clamp(1.25rem, 2.5vw, 2rem);
+}
+.stamp-badge {
+  display: block;
+  text-align: center;
+  margin-top: 0.6rem;
+  font-weight: 700;
+  font-size: var(--step-small);
+  letter-spacing: 0.02em;
+  color: #f4b71a;
+}
+.hero-stamp svg.big {
+  width: 100%;
+  max-width: 250px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Status Box (kept per spec, flat surface, no border/shadow) */
+.status {
+  margin-top: 2.5rem;
+  background: var(--field-sun);
+  color: var(--ink);
+  padding: 1.5rem 1.75rem;
+  font-size: var(--step-small);
+  max-width: 78ch;
+  border-left: 6px solid var(--ink);
+}
+.status b {
+  font-weight: 700;
+}
+
+/* Asymmetric Section Layouts */
+.col-head { grid-column: 1 / 5; }
+.col-body { grid-column: 5 / 13; }
+.col-left { grid-column: 1 / 7; }
+.col-right { grid-column: 7 / 13; }
+
+/* Idea Four Blocks (2x2 flat tone blocks, no cards/icons) */
+.four-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gutter);
+  margin-top: 3rem;
+}
+.tone-tile {
+  background: var(--surface);
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+}
+.tone-tile svg {
+  width: 48px;
+  height: 48px;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+
+/* Doppelfunktion Trio */
+.trio-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gutter);
+  margin-top: 2.5rem;
+}
+.trio-item {
+  background: var(--surface);
+  padding: 1.75rem;
+}
+
+/* Ziele Ordered List */
+ol.ziele-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gutter);
+}
+ol.ziele-list li {
+  background: var(--bg);
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+}
+ol.ziele-list li strong {
+  display: block;
+  font-size: var(--step-lead);
+  margin-bottom: 0.5rem;
+}
+
+/* Bausteine Ledger Sheet */
+ul.baus {
+  list-style: none;
+  padding: 0;
+  margin: 2rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+ul.baus li {
+  background: var(--surface);
+  padding: 1.5rem 1.75rem;
+  font-size: var(--step-body);
+}
+ul.baus li b {
+  display: block;
+  font-size: var(--step-lead);
+  margin-bottom: 0.35rem;
+  color: var(--ink);
+}
+
+/* Tiers Table */
+table.tiers {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 2rem;
+  font-variant-numeric: tabular-nums;
+}
+table.tiers tr:nth-child(odd) td {
+  background: var(--surface);
+}
+table.tiers tr:nth-child(even) td {
+  background: #ece8dc;
+}
+table.tiers td {
+  padding: 1.25rem 1.5rem;
+  vertical-align: top;
+  font-size: var(--step-body);
+}
+table.tiers td:first-child {
+  font-weight: 700;
+  width: 240px;
+  color: var(--ink);
+}
+
+/* Footer */
+footer.close-stage {
+  margin-top: var(--section-gap);
+  background: var(--ink);
+  color: var(--bg);
+  padding: clamp(3.5rem, 7vw, 6rem) var(--margin);
+}
+.footer-inner {
+  max-width: 1680px;
+  margin-inline: auto;
+}
+.footer-mark {
+  font-size: clamp(2.8rem, 8vw, 7.5rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 0.92;
+  margin-bottom: 2.5rem;
+  color: var(--accent);
+}
+.footer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1.5rem;
+  font-size: var(--step-small);
+  color: var(--surface);
+}
+
+/* Language Toggle */
+.de-only, .en-only, .es-only, .fr-only, .pl-only { display: none !important; }
+html[lang="de"] .de-only,
+html[lang="en"] .en-only,
+html[lang="es"] .es-only,
+html[lang="fr"] .fr-only,
+html[lang="pl"] .pl-only { display: inline !important; }
+
+/* Responsive (Mobile & Tablet) */
+@media (max-width: 960px) {
+  :root {
+    --section-gap: clamp(2.6rem, 7vw, 4.5rem);
+  }
+  header.top {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding: 0.85rem var(--margin);
+    row-gap: 0.65rem;
+    border-bottom: 1px solid rgba(18,35,56,0.1);
+  }
+  .brand-wrap { margin-right: auto; font-size: 1.18rem; }
+  .logo { width: 34px; height: 34px; }
+  .menu-toggle { display: inline-flex; align-items: center; gap: 0.35rem; }
+  nav {
+    display: none;
+    order: 3;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    background: var(--surface);
+    padding: 0.75rem;
+    border-radius: 10px;
+  }
+  nav.open { display: flex; }
+  .nav-sep { width: 100%; height: 1px; align-self: auto; margin: 0.3rem 0; }
+  nav a {
+    padding: 0.65rem 0.75rem;
+    font-size: 1rem;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.55);
+  }
+  .hero { margin-top: 1.1rem; }
+  h1 {
+    font-size: clamp(1.9rem, 7.2vw, 2.75rem);
+    max-width: 100%;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  h2 {
+    font-size: clamp(1.5rem, 5.6vw, 2.2rem);
+    max-width: 100%;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  .hero-lead { font-size: 1.05rem; margin-top: 1rem; }
+  .cta-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+    margin-top: 1.35rem;
+  }
+  .cta-row .btn {
+    width: 100%;
+    text-align: center;
+    padding: 0.85rem 1rem;
+  }
+  .hero-copy, .hero-stamp, .col-head, .col-body, .col-left, .col-right {
+    grid-column: 1 / -1;
+  }
+  .hero-stamp {
+    margin-top: 0.75rem;
+    padding: 1.25rem;
+  }
+  .hero-stamp svg.big { max-width: 170px; }
+  .four-grid, .trio-strip, ol.ziele-list, ul.baus {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+  .tone-tile, .trio-item, ol.ziele-list li, ul.baus li {
+    padding: 1.25rem;
+    border-radius: 10px;
+  }
+  table.tiers tr {
+    display: block;
+    margin-bottom: 0.75rem;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  table.tiers td, table.tiers td:first-child {
+    display: block;
+    width: 100%;
+    padding: 0.85rem 1.15rem;
+  }
+  table.tiers td:first-child {
+    padding-bottom: 0.25rem;
+  }
+  .footer-mark { font-size: clamp(2.1rem, 11vw, 3.8rem); margin-bottom: 1.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="brand-wrap" href="#">
+    <svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><use href="#oktix"/></svg>
+    <span>lightningmail</span>
+  </a>
+  <div style="display:flex;align-items:center;gap:0.5rem">
+    <select class="lang" id="langSel" aria-label="Language">
+      <option value="de">🇩🇪 DE</option>
+      <option value="en">🇬🇧 EN</option>
+      <option value="es">🇪🇸 ES</option>
+      <option value="fr">🇫🇷 FR</option>
+      <option value="pl">🇵🇱 PL</option>
+    </select>
+    <button type="button" class="menu-toggle" id="menuBtn" aria-expanded="false" onclick="const n=document.getElementById('mainNav');n.classList.toggle('open');this.setAttribute('aria-expanded',n.classList.contains('open'))">☰ Menü</button>
+  </div>
+  <nav id="mainNav" aria-label="Primary" onclick="if(event.target.tagName==='A')this.classList.remove('open')">
+    <a href="#idee"><span class="de-only">Vorgeschichte</span><span class="en-only">Prehistory</span><span class="es-only">Antecedentes</span><span class="fr-only">Préhistoire</span><span class="pl-only">Prehistoria</span></a>
+    <a href="#kreislauf"><span class="de-only">Portokreislauf</span><span class="en-only">Postage cycle</span><span class="es-only">Ciclo de franqueo</span><span class="fr-only">Cycle du port</span><span class="pl-only">Obieg porto</span></a>
+    <a href="#doppelt"><span class="de-only">Passwortlose Anmeldung</span><span class="en-only">Passwordless sign-in</span><span class="es-only">Acceso sin contraseña</span><span class="fr-only">Connexion sans mot de passe</span><span class="pl-only">Logowanie bez hasła</span></a>
+    <a href="#bausteine"><span class="de-only">Baukasten</span><span class="en-only">Toolbox</span><span class="es-only">Herramientas</span><span class="fr-only">Boîte à outils</span><span class="pl-only">Zestaw narzędzi</span></a>
+    <a href="#tiers">Tiers</a>
+    <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektura</span></a>
+    <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a>
+    <span class="nav-sep" aria-hidden="true"></span>
+    <a class="funk" href="/app/">Webmail</a>
+    <a class="funk" href="/forum">🔐 Forum Signin-Demo</a>
+    <a class="funk" href="/paywall">⚡ Paywall-Demo</a>
+  </nav>
+</header>
+
+<main>
+  <!-- HERO -->
+  <div class="frame">
+    <div class="grid-12 hero">
+      <div class="hero-copy">
+        <h1>
+          <span class="de-only">E-Mail mit eigenem&nbsp;Porto</span>
+          <span class="en-only">E-mail with its own&nbsp;postage</span>
+          <span class="es-only">Correo electrónico con franqueo&nbsp;propio</span>
+          <span class="fr-only">L’e-mail avec son propre&nbsp;port</span>
+          <span class="pl-only">E-mail z własnym&nbsp;porto</span>
+        </h1>
+        <p class="hero-lead">
+          <span class="de-only">Die Idee hinter lightningmail: Jede Nachricht kostet den Absender ein kleines Porto, das beim Empfänger ankommen soll. Fremde anschreiben kostet ein paar Cent, Spam rechnet sich nicht mehr, und wer sich gegenseitig schreibt, gleicht die Beträge untereinander aus. Diese Seite beschreibt das geplante Modell und zeigt bei jedem Schritt ehrlich, was der Code heute schon tut.</span>
+          <span class="en-only">The idea behind lightningmail: every message costs the sender a small postage meant to land with the recipient. Writing to strangers costs a few cents, spam stops paying off, and people who write back and forth cancel their costs out over time. This page explains the planned model and states plainly at every step what the code already does today.</span>
+          <span class="es-only">La idea detrás de lightningmail: cada mensaje cuesta al remitente un pequeño franqueo destinado a llegar al destinatario. Escribir a desconocidos cuesta unos céntimos, el spam deja de ser rentable y quienes se escriben mutuamente compensan los importes entre sí. Esta página explica el modelo previsto y muestra con honestidad, en cada paso, qué hace ya hoy el código.</span>
+          <span class="fr-only">L’idée derrière lightningmail : chaque message coûte à l’expéditeur un petit port destiné à arriver chez le destinataire. Écrire à des inconnus coûte quelques centimes, le spam ne rapporte plus rien, et ceux qui s’écrivent mutuellement compensent leurs frais au fil du temps. Cette page décrit le modèle prévu et indique honnêtement, à chaque étape, ce que le code fait déjà aujourd’hui.</span>
+          <span class="pl-only">Idea stojąca za lightningmail: każda wiadomość kosztuje nadawcę niewielkie porto, które ma trafić do odbiorcy. Pisanie do obcych kosztuje kilka centów, spam przestaje się opłacać, a osoby piszące do siebie nawzajem z czasem bilansują swoje opłaty. Ta strona opisuje planowany model i na każdym kroku uczciwie pokazuje, co kod robi już dzisiaj.</span>
+        </p>
+        <div style="margin-top:1.4rem;background:#122338;color:#f5f3ec;border-left:5px solid #f4b71a;border-radius:10px;padding:1rem 1.25rem;max-width:65ch">
+          <div style="font-size:0.84rem;text-transform:uppercase;letter-spacing:0.05em;color:#f4b71a;font-weight:700;margin-bottom:0.35rem">
+            ⚡ <span class="de-only">Countdown bis zum Mainnet-Deployment (18. Januar 2027)</span><span class="en-only">Countdown to Mainnet Deployment (January 18, 2027)</span><span class="es-only">Cuenta atrás para el despliegue en Mainnet (18 de enero de 2027)</span><span class="fr-only">Compte à rebours avant le déploiement Mainnet (18 janvier 2027)</span><span class="pl-only">Odliczanie do wdrożenia Mainnet (18 stycznia 2027)</span>
+          </div>
+          <div id="mainnet-cd" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:clamp(1.25rem,1.1rem + 0.7vw,1.7rem);font-weight:800;color:#fff;margin-bottom:0.35rem">60d : 00h : 00m : 00s</div>
+          <div style="font-size:0.9rem;color:#cbd5e1">
+            <span class="de-only">Aktuell läuft die öffentliche Regtest-Testphase: Jedes neu angelegte Konto startet automatisch mit <b>10.000 Test-Satoshis</b> zum Ausprobieren von Briefversand, <a href="/forum" style="color:#f4b71a;font-weight:700">Forum Sign-in</a> und <a href="/paywall" style="color:#f4b71a;font-weight:700">Paywall Demo</a>.</span>
+            <span class="en-only">Public regtest phase is active: every newly created account starts automatically with <b>10,000 test satoshis</b> to try out encrypted mail, the <a href="/forum" style="color:#f4b71a;font-weight:700">Forum Sign-in</a> and <a href="/paywall" style="color:#f4b71a;font-weight:700">Paywall Demo</a>.</span>
+            <span class="es-only">Fase pública de pruebas (regtest) activa: cada cuenta nueva arranca automáticamente con <b>10.000 satoshis de prueba</b> para probar el correo cifrado, el <a href="/forum" style="color:#f4b71a;font-weight:700">Foro Sign-in</a> y <a href="/paywall" style="color:#f4b71a;font-weight:700">Demo Paywall</a>.</span>
+            <span class="fr-only">Phase publique de test (regtest) active : chaque nouveau compte démarre automatiquement avec <b>10 000 satoshis de test</b> pour essayer le courrier chiffré, le <a href="/forum" style="color:#f4b71a;font-weight:700">Forum Sign-in</a> et <a href="/paywall" style="color:#f4b71a;font-weight:700">Démo Paywall</a>.</span>
+            <span class="pl-only">Trwa publiczna faza testowa (regtest): każde nowo założone konto startuje automatycznie z saldem <b>10 000 testowych satoshi</b> do wypróbowania szyfrowanej poczty, <a href="/forum" style="color:#f4b71a;font-weight:700">Forum Sign-in</a> i <a href="/paywall" style="color:#f4b71a;font-weight:700">Demo Paywall</a>.</span>
+          </div>
+        </div>
+        <p class="meta-note">
+          <span class="de-only">Konzept und Prototyp auf lightningmail.app · MIT-Lizenz · kein Tracking, keine Cookies, kein Dienstversprechen</span>
+          <span class="en-only">Concept and prototype on lightningmail.app · MIT licensed · no tracking, no cookies, no service promise</span>
+          <span class="es-only">Concepto y prototipo en lightningmail.app · Licencia MIT · sin rastreo, sin cookies, sin promesa de servicio</span>
+          <span class="fr-only">Concept et prototype sur lightningmail.app · Licence MIT · sans traçage, sans cookies, sans promesse de service</span>
+          <span class="pl-only">Koncepcja i prototyp na lightningmail.app · licencja MIT · bez śledzenia, bez plików cookie, bez obietnicy usługi</span>
+        </p>
+      </div>
+
+      <div class="hero-stamp">
+        <div class="hero-stamp-inner">
+          <svg class="big" viewBox="0 0 200 200" role="img" aria-label="Pirate octopus mascot">
+            <defs>
+              <symbol id="oktix" viewBox="0 0 200 200">
+                <g fill="none" stroke="#ff8a5c" stroke-width="13" stroke-linecap="round">
+                  <path d="M60 135 Q35 150 42 175"/>
+                  <path d="M80 142 Q70 168 52 182"/>
+                  <path d="M100 145 Q100 172 88 188"/>
+                  <path d="M120 142 Q132 170 148 182"/>
+                  <path d="M140 135 Q168 150 160 176"/>
+                </g>
+                <g fill="none" stroke="#ffc09f" stroke-width="5" stroke-linecap="round" opacity=".7">
+                  <path d="M60 135 Q35 150 42 175"/><path d="M100 145 Q100 172 88 188"/><path d="M140 135 Q168 150 160 176"/>
+                </g>
+                <g transform="rotate(-14 40 158)">
+                  <rect x="14" y="146" width="44" height="28" rx="5" fill="#fffdf5" stroke="#122338" stroke-width="2.5"/>
+                  <path d="M16 148 L36 162 L56 148" fill="none" stroke="#122338" stroke-width="2.5" stroke-linejoin="round"/>
+                </g>
+                <g transform="rotate(12 165 155)">
+                  <path d="M160 132 l-14 24 h11 l-6 24 20 -30 h-11 z" fill="#f4b71a" stroke="#122338" stroke-width="2.5" stroke-linejoin="round"/>
+                </g>
+                <ellipse cx="100" cy="98" rx="52" ry="46" fill="#ff9d73"/>
+                <ellipse cx="100" cy="92" rx="52" ry="40" fill="#ffb38f"/>
+                <path d="M30 74 Q44 30 78 44 Q100 20 122 44 Q156 30 170 74 Q134 58 100 58 Q66 58 30 74 Z" fill="#122338"/>
+                <path d="M30 74 Q66 62 100 62 Q134 62 170 74 Q134 68 100 68 Q66 68 30 74 Z" fill="#233a54"/>
+                <path d="M90 36 l20 15 M110 36 l-20 15" stroke="#f5f3ec" stroke-width="2.8" stroke-linecap="round"/>
+                <circle cx="100" cy="42" r="6.2" fill="#f5f3ec"/>
+                <rect x="97.8" y="47.2" width="4.4" height="3" fill="#f5f3ec"/>
+                <circle cx="98" cy="41.5" r="1.6" fill="#122338"/>
+                <circle cx="102" cy="41.5" r="1.6" fill="#122338"/>
+                <path d="M60 78 Q52 74 50 70" stroke="#122338" stroke-width="3" fill="none"/>
+                <ellipse cx="81" cy="90" rx="15" ry="13" fill="#122338"/>
+                <path d="M67 84 Q81 74 95 84" stroke="#122338" stroke-width="3.5" fill="none"/>
+                <circle cx="122" cy="90" r="9" fill="#fff"/>
+                <circle cx="124" cy="91" r="4.6" fill="#122338"/>
+                <circle cx="125.5" cy="89.5" r="1.6" fill="#fff"/>
+                <path d="M92 116 Q110 130 130 112" stroke="#122338" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <circle cx="136" cy="105" r="4.5" fill="#ff7f9e" opacity=".55"/>
+              </symbol>
+            </defs>
+            <use href="#oktix" width="200" height="200"/>
+          </svg>
+          <div class="stamp-badge">
+            <span class="de-only">Spam und Passwörter ade</span>
+            <span class="en-only">Spam and passwords — goodbye</span>
+            <span class="es-only">Adiós al spam y las contraseñas</span>
+            <span class="fr-only">Adieu spam et mots de passe</span>
+            <span class="pl-only">Pożegnanie spamu i haseł</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IDEE / VORGESCHICHTE -->
+  <section id="idee" class="frame">
+    <div class="grid-12">
+      <div class="col-head">
+        <h2>
+          <span class="de-only">Die Idee von Hashcash&nbsp;1997</span>
+          <span class="en-only">The idea of Hashcash in&nbsp;1997</span>
+          <span class="es-only">La idea de Hashcash en&nbsp;1997</span>
+          <span class="fr-only">L’idée de Hashcash en&nbsp;1997</span>
+          <span class="pl-only">Idea Hashcash z&nbsp;1997&nbsp;roku</span>
+        </h2>
+      </div>
+      <div class="col-body">
+        <p>
+          <span class="de-only">1997 schlug Adam Back ein Gegenmittel gegen Spam vor, das auf den ersten Blick bestechend simpel war: Jede E-Mail sollte den absendenden Rechner ein kleines Stück Rechenarbeit kosten. Ein paar Sekunden Prozessorzeit pro Brief tun einem einzelnen Menschen nicht weh, machen aber den Versand von Millionen Werbemails teuer. Mathematisch ging die Rechnung auf. Durchgesetzt hat sich Hashcash für E-Mail trotzdem nie.</span>
+          <span class="en-only">In 1997 Adam Back proposed a countermeasure against spam that looked disarmingly simple: every e-mail should cost the sending machine a small piece of computational work. A few seconds of CPU time per letter never hurts a single person, but makes sending millions of junk messages expensive. On paper the math worked. In practice, Hashcash never caught on for e-mail.</span>
+          <span class="es-only">En 1997, Adam Back propuso una contramedida contra el spam que parecía de una simplicidad desarmante: cada correo debía costar a la máquina emisora una pequeña cantidad de trabajo computacional. Unos segundos de CPU por carta no duelen a nadie, pero encarecen el envío de millones de mensajes basura. Sobre el papel, las cuentas salían. En la práctica, Hashcash nunca se impuso en el correo electrónico.</span>
+          <span class="fr-only">En 1997, Adam Back a proposé une parade anti-spam d’une simplicité désarmante : chaque e-mail devait coûter à la machine expéditrice un petit travail de calcul. Quelques secondes de processeur par lettre ne coûtent rien à une personne seule, mais rendent l’envoi de millions de messages indésirables onéreux. Sur le papier, le compte était bon. En pratique, Hashcash ne s’est jamais imposé pour l’e-mail.</span>
+          <span class="pl-only">W 1997 roku Adam Back zaproponował środek przeciw spamowi, który wyglądał na rozbrajająco prosty: każdy e-mail miał kosztować maszynę nadawcy odrobinę pracy obliczeniowej. Kilka sekund czasu procesora na list nikogo nie boli, ale czyni wysyłkę milionów reklamowych wiadomości drogą. Na papierze rachunek się zgadzał. W praktyce Hashcash nigdy nie przyjął się w e-mailu.</span>
+        </p>
+        <p>
+          <span class="de-only">Das lag an drei handfesten Hürden. Erstens gab es 1997 kein Zahlungsnetz für Centbeträge im Internet, weshalb Back überhaupt erst den Umweg über verbrannten Strom nehmen musste. Zweitens hatte niemand etwas von dieser Rechenarbeit: Der Absender verheizte Energie, aber der Empfänger bekam für den unerwünschten Brief keinen Pfennig. Ein Porto, das in der Luft verpufft, entschädigt niemanden. Drittens galt im frühen Web das ungeschriebene Gesetz, dass im Netz alles kostenlos sein muss.</span>
+          <span class="en-only">Three practical hurdles stood in the way. First, the internet of 1997 had no payment rail for fractions of a cent, which is why Back had to use burned electricity as a proxy in the first place. Second, that burned work helped nobody: the sender wasted power, yet the bothered recipient never saw a penny. Postage that evaporates into thin air compensates no one. Third, the early web ran on a single expectation: everything online had to be free.</span>
+          <span class="es-only">Tres obstáculos prácticos se interponían. Primero: el internet de 1997 no tenía ninguna vía de pago para fracciones de céntimo, por eso Back tuvo que recurrir a la electricidad quemada como sustituto. Segundo: ese trabajo quemado no ayudaba a nadie: el remitente desperdiciaba energía, pero el destinatario molestado no veía ni un céntimo. Un franqueo que se evapora en el aire no compensa a nadie. Tercero: en la web temprana regía la expectativa de que todo en línea debía ser gratis.</span>
+          <span class="fr-only">Trois obstacles concrets barraient la route. D’abord, l’internet de 1997 n’avait aucun rail de paiement pour des fractions de centime — d’où le détour par l’électricité brûlée. Ensuite, ce travail brûlé n’aidait personne : l’expéditeur gaspillait de l’énergie, mais le destinataire importuné ne voyait pas un centime. Un port qui s’évapore dans l’air ne dédommage personne. Enfin, le web des débuts vivait sur une attente unique : tout devait être gratuit en ligne.</span>
+          <span class="pl-only">Na drodze stanęły trzy konkretne przeszkody. Po pierwsze, internet z 1997 roku nie miał żadnej szyny płatności dla ułamków centa — dlatego Back musiał w ogóle sięgnąć po spaloną energię jako namiastkę. Po drugie, ta spalona praca nikomu nie pomagała: nadawca marnował energię, a zirytowany odbiorca nie dostawał ani grosza. Porto, które wyparowuje w powietrze, nikogo nie rekompensuje. Po trzecie, wczesna sieć żyła jednym oczekiwaniem: wszystko online musiało być darmowe.</span>
+        </p>
+        <p>
+          <span class="de-only">Seit 2018 löst das Lightning-Netzwerk genau diese Punkte. Zahlungen im Bereich einzelner Cents laufen in Sekunden durch, ohne Konto bei einem Zahlungsdienstleister, direkt adressierbar an ein Postfach. Aus dem verbrannten Rechenpfand von damals lässt sich damit echtes Porto bauen, das beim Gegenüber ankommt. lightningmail ist der Versuch, diese fehlende Briefmarke mit heutiger Technik nachzurüsten.</span>
+          <span class="en-only">Since 2018, the Lightning Network has solved those exact problems. Sub-cent payments settle in seconds without corporate accounts, addressed straight to a mailbox. That turns yesterday’s burned CPU cycles into real postage that can land with the other side. lightningmail is an attempt to retrofit the stamp the internet never got, using a network that exists today.</span>
+          <span class="es-only">Desde 2018, la red Lightning resuelve justo esos problemas. Los pagos de apenas unos céntimos se liquidan en segundos, sin cuenta en un proveedor de pagos, direccionables directamente a un buzón. Así, el trabajo de cálculo quemado de antaño se convierte en franqueo real que llega a la otra parte. lightningmail es el intento de añadir, con la tecnología de hoy, ese sello que a internet siempre le faltó.</span>
+          <span class="fr-only">Depuis 2018, le réseau Lightning résout exactement ces problèmes. Les paiements de quelques centimes passent en quelques secondes, sans compte auprès d’un prestataire, adressés directement à une boîte aux lettres. Le travail de calcul brûlé d’hier devient ainsi un vrai port qui arrive à destination. lightningmail est une tentative de rajouter ce timbre manquant avec la technologie d’aujourd’hui.</span>
+          <span class="pl-only">Od 2018 roku sieć Lightning rozwiązuje dokładnie te problemy. Płatności rzędu pojedynczych centów przechodzą w sekundy, bez konta u pośrednika, adresowane wprost do skrzynki. W ten sposób ze spalonej pracy obliczeniowej z tamtych lat powstaje prawdziwe porto, które trafia do drugiej strony. lightningmail to próba dorobienia tego brakującego znaczka przy użyciu dzisiejszej techniki.</span>
+        </p>
+        <p>
+          <span class="de-only">Der nächste Verwandte fährt längst auf denselben Schienen: <a href="https://sphinx.chat" target="_blank" rel="noopener">Sphinx</a> schickt seit 2020 Ende-zu-Ende-verschlüsselte Nachrichten über Lightning-Routen, wobei jede Nachricht als Anhang einer Zahlung durch die Kanäle reitet und die Gebühren in Sat an die Route verteilt. lightningmail erfindet diesen Transport nicht, es benutzt ihn. Das Umfeld ist ein anderes: klassische Adressen nach dem Muster name@domain, Postfächer auf eigenen Relay-Servern, ein Preisprofil des Empfängers und ein Porto, das als Einnahme bei ihm ankommen soll. Wer reinen Chat über Channels will, nimmt <a href="https://sphinx.chat" target="_blank" rel="noopener">Sphinx</a>. Wer Post mit Briefmarken will, liest hier weiter.</span>
+          <span class="en-only">The closest relative already rides the same rails: since 2020 <a href="https://sphinx.chat" target="_blank" rel="noopener">Sphinx</a> has been sending end-to-end encrypted messages over Lightning routes, each message travelling as an attachment to a payment that tips the route in satoshis. lightningmail does not invent this transport; it uses it. The surroundings differ: classic name@domain addresses, mailboxes on self-run relay servers, a price profile on the recipient’s side and postage designed to arrive as their income. If you want pure chat over channels, use <a href="https://sphinx.chat" target="_blank" rel="noopener">Sphinx</a>. If you want mail with stamps, keep reading.</span>
+          <span class="es-only">El pariente más cercano ya circula por las mismas vías: desde 2020 <a href="https://sphinx.chat" target="_blank" rel="noopener">Sphinx</a> envía mensajes cifrados de extremo a extremo por rutas de Lightning, y cada mensaje viaja como adjunto de un pago que retribuye la ruta en sats. lightningmail no inventa ese transporte; lo usa. El entorno es distinto: direcciones clásicas nombre@dominio, buzones en servidores relay propios, un perfil de precios del destinatario y un franqueo que debe llegarle como ingreso. Quien quiera chat puro por canales, que use <a href="https://sphinx.chat" target="_blank" rel="noopener">Sphinx</a>. Quien quiera correo con sellos, que siga leyendo.</span>
+          <span class="fr-only">Le plus proche parent circule déjà sur les mêmes rails : depuis 2020, <a href="https://sphinx.chat" target="_blank" rel="noopener">Sphinx</a> envoie des messages chiffrés de bout en bout via des routes Lightning, chaque message voyageant en pièce jointe d’un paiement qui rémunère la route en sats. lightningmail n’invente pas ce transport ; il l’utilise. Le décor diffère : des adresses classiques nom@domaine, des boîtes aux lettres sur des serveurs relais auto-hébergés, un profil tarifaire côté destinataire et un port conçu pour lui parvenir comme revenu. Pour du chat pur sur canaux, utilisez <a href="https://sphinx.chat" target="_blank" rel="noopener">Sphinx</a>. Pour du courrier avec timbres, lisez la suite.</span>
+          <span class="pl-only">Najbliższy krewny jeździ już po tych samych szynach: od 2020 roku <a href="https://sphinx.chat" target="_blank" rel="noopener">Sphinx</a> wysyła wiadomości szyfrowane end-to-end przez trasy Lightning, przy czym każda wiadomość podróżuje jako załącznik płatności przekazującej trasie napiwek w satach. lightningmail nie wymyśla tego transportu — on z niego korzysta. Otoczenie jest inne: klasyczne adresy nazwa@domena, skrzynki na własnych serwerach relay, profil cenowy odbiorcy i porto, które ma do niego trafić jako przychód. Kto chce czystego czatu przez kanały, niech wybierze <a href="https://sphinx.chat" target="_blank" rel="noopener">Sphinx</a>. Kto chce poczty ze znaczkami, niech czyta dalej.</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="four-grid">
+      <div class="tone-tile">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <rect x="4" y="8" width="40" height="32" fill="#f4b71a"/>
+          <rect x="10" y="14" width="28" height="20" fill="#f5f3ec"/>
+          <path d="M16 24h16M24 18v12" stroke="#122338" stroke-width="3"/>
+        </svg>
+        <h3><span class="de-only">Frankieren statt filtern</span><span class="en-only">Stamp, don’t filter</span><span class="es-only">Franquear en vez de filtrar</span><span class="fr-only">Affranchir plutôt que filtrer</span><span class="pl-only">Znaczek zamiast filtra</span></h3>
+        <p><span class="de-only">Spamfilter sortieren den Müll erst im Nachhinein. Porto setzt vorher an: Einseitige Massenpost kostet ab dem ersten Brief echtes Geld.</span><span class="en-only">Spam filters sort the garbage after it arrives. Postage acts earlier: one-way bulk mail costs real money from the first message.</span><span class="es-only">Los filtros de spam ordenan la basura después de que llega. El franqueo actúa antes: el correo masivo unidireccional cuesta dinero real desde el primer mensaje.</span><span class="fr-only">Les filtres antispam trient les déchets après leur arrivée. Le port agit en amont : le courrier de masse à sens unique coûte de l’argent réel dès le premier message.</span><span class="pl-only">Filtry antyspamowe sortują śmieci dopiero po fakcie. Porto działa wcześniej: masowa korespondencja w jedną stronę kosztuje prawdziwe pieniądze już od pierwszego listu.</span></p>
+      </div>
+
+      <div class="tone-tile">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M8 20L24 8l16 12v20H8V20z" fill="#122338"/>
+          <rect x="18" y="26" width="12" height="14" fill="#f4b71a"/>
+        </svg>
+        <h3><span class="de-only">Postamt am eigenen Rechner</span><span class="en-only">Post office on your own box</span><span class="es-only">Oficina de correos en tu propio equipo</span><span class="fr-only">Bureau de poste sur votre propre machine</span><span class="pl-only">Urząd pocztowy na własnym komputerze</span></h3>
+        <p><span class="de-only">Ein Relay ist ein einzelner Briefkasten-Server. DNS-Einträge zeigen, wo eine Adresse liegt, genau wie MX-Records bei klassischer E-Mail. Wem die Domain gehört, dem gehört das Postamt.</span><span class="en-only">A relay is a standalone mailbox server. DNS records point to where an address lives, just like MX records in classic e-mail. Owning the domain means owning the post office.</span><span class="es-only">Un relay es un servidor de buzones independiente. Las entradas DNS indican dónde vive una dirección, igual que los registros MX en el correo clásico. Quien posee el dominio, posee la oficina de correos.</span><span class="fr-only">Un relais est un serveur de boîtes aux lettres autonome. Les entrées DNS indiquent où se trouve une adresse, exactement comme les enregistrements MX dans l’e-mail classique. Posséder le domaine, c’est posséder le bureau de poste.</span><span class="pl-only">Relay to samodzielny serwer skrzynek. Wpisy DNS wskazują, gdzie znajduje się adres — tak samo jak rekordy MX w klasycznym e-mailu. Kto posiada domenę, posiada urząd pocztowy.</span></p>
+      </div>
+
+      <div class="tone-tile">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="16" cy="24" r="10" fill="#f4b71a"/>
+          <circle cx="16" cy="24" r="4" fill="#f5f3ec"/>
+          <rect x="24" y="21" width="18" height="6" fill="#122338"/>
+          <rect x="34" y="27" width="4" height="6" fill="#122338"/>
+        </svg>
+        <h3><span class="de-only">Adresse ist Schlüssel</span><span class="en-only">Address is key</span><span class="es-only">La dirección es la clave</span><span class="fr-only">L’adresse est la clé</span><span class="pl-only">Adres jest kluczem</span></h3>
+        <p><span class="de-only">Jedes Postfach besteht aus einem kryptografischen Schlüsselpaar. Es gibt kein Passwort zum Anmelden (nur eins, um seine Key-Datei zu entschlüsseln, aber Passkeys sind da optional) und keine Rücksetz-SMS. Zieht man auf ein anderes Relay um, nimmt man den Schlüssel samt Adresse mit.</span><span class="en-only">Every mailbox is a cryptographic keypair. There is no login password (only one to decrypt your key file, but passkeys are optional) and no reset SMS. When you move to another relay, you take the key and the address with you.</span><span class="es-only">Cada buzón consiste en un par de claves criptográficas. No hay contraseña de inicio de sesión (solo una para descifrar tu archivo de clave, pero las passkeys son opcionales) ni SMS de restablecimiento. Si te mudas a otro relay, te llevas la clave y la dirección contigo.</span><span class="fr-only">Chaque boîte aux lettres est une paire de clés cryptographiques. Aucun mot de passe de connexion (juste un pour déchiffrer votre fichier de clé, mais les passkeys sont facultatives), aucun SMS de récupération. Quand vous migrez vers un autre relais, vous emportez la clé et l’adresse.</span><span class="pl-only">Każda skrzynka to para kluczy kryptograficznych. Nie ma hasła logowania (jedynie hasło do odszyfrowania pliku klucza, ale passkeys są opcjonalne) ani SMS-a resetującego. Przy przeprowadzce na inny relay zabierasz klucz wraz z adresem.</span></p>
+      </div>
+
+      <div class="tone-tile">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="18" cy="18" r="7" fill="#122338"/>
+          <circle cx="29" cy="18" r="8" fill="#122338"/>
+          <rect x="14" y="18" width="22" height="8" rx="4" fill="#122338"/>
+          <rect x="10" y="30" width="28" height="4" rx="2" fill="#f4b71a"/>
+          <rect x="10" y="37" width="28" height="4" rx="2" fill="#122338" opacity="0.35"/>
+        </svg>
+        <h3><span class="de-only">Optionaler Cloudspeicher</span><span class="en-only">Optional cloud storage</span><span class="es-only">Almacenamiento en la nube opcional</span><span class="fr-only">Stockage cloud optionnel</span><span class="pl-only">Opcjonalna chmura plików</span></h3>
+        <p><span class="de-only">Der Relay-Betreiber kann jedem User Speicher für Dateien zur Verfügung stellen.</span><span class="en-only">The relay operator can provide each user storage for files.</span><span class="es-only">El operador del relay puede ofrecer a cada usuario almacenamiento para archivos.</span><span class="fr-only">L’opérateur du relais peut mettre un stockage de fichiers à disposition de chaque utilisateur.</span><span class="pl-only">Operator relaisa może udostępnić każdemu użytkownikowi przestrzeń na pliki.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PORTOKREISLAUF -->
+  <section id="kreislauf" class="field-block">
+    <div class="frame">
+      <div class="grid-12">
+        <div class="col-left">
+          <h2>
+            <span class="de-only">Der Portokreislauf zwischen A, B und&nbsp;Spammer</span>
+            <span class="en-only">The postage cycle between A, B and&nbsp;spammer</span>
+            <span class="es-only">El ciclo del franqueo entre A, B y&nbsp;el&nbsp;spammer</span>
+            <span class="fr-only">Le cycle du port entre A, B et&nbsp;le&nbsp;spammeur</span>
+            <span class="pl-only">Obieg porto między A, B i&nbsp;spamerem</span>
+          </h2>
+          <p>
+            <span class="de-only">Im Zielmodell schreibt <b>Absender A</b> eine Nachricht an <b>Empfänger B</b> und legt das Porto bei, das B in seinem Preisprofil für fremde Post verlangt, etwa zwei Cent. Dieser Betrag soll direkt auf dem Guthaben von B landen. Wer fremde Post sichtet, bekommt seine Aufmerksamkeit bezahlt.</span>
+            <span class="en-only">In the target model, <b>sender A</b> writes to <b>recipient B</b> and attaches the postage listed in B’s price profile for mail from strangers, say two cents. That amount is meant to land directly on B’s balance. Sifting through mail from strangers gets paid.</span>
+            <span class="es-only">En el modelo objetivo, el <b>remitente A</b> escribe al <b>destinatario B</b> y adjunta el franqueo que B pide en su perfil de precios para correo de desconocidos, digamos dos céntimos. Ese importe debe acreditarse directamente en el saldo de B. Quien revisa correo de desconocidos cobra por su atención.</span>
+            <span class="fr-only">Dans le modèle cible, l’<b>expéditeur A</b> écrit au <b>destinataire B</b> et joint le port que B demande dans son profil tarifaire pour le courrier d’inconnus, disons deux centimes. Ce montant doit arriver directement sur le solde de B. Trier le courrier d’inconnus se paie.</span>
+            <span class="pl-only">W modelu docelowym <b>nadawca A</b> pisze do <b>odbiorcy B</b> i dołącza porto, którego B żąda w swoim profilu cenowym za korespondencję od obcych — powiedzmy dwa centy. Ta kwota ma trafić prosto na saldo B. Kto przegląda listy od nieznajomych, dostaje zapłatę za swoją uwagę.</span>
+          </p>
+          <p>
+            <span class="de-only">Antwortet B, dreht sich der Zahlungsstrom um: Nun zahlt B das Porto an A zurück. Zwischen zwei Menschen, die sich regelmäßig schreiben, wandern dieselben Centbeträge hin und her und heben sich über die Zeit auf. Echtes Gespräch kostet unter dem Strich fast nichts; das Porto wirkt wie ein Pfand, das mit der Antwort zurückkehrt.</span>
+            <span class="en-only">When B replies, the payment flips: now B pays postage back to A. Between two people who correspond regularly, the same cents travel back and forth and cancel out over time. Real conversation costs next to nothing in the end; postage works like a deposit returned by the reply.</span>
+            <span class="es-only">Cuando B responde, el flujo de pago se invierte: ahora B paga el franqueo de vuelta a A. Entre dos personas que se escriben con regularidad, los mismos céntimos van y vienen y se anulan con el tiempo. Una conversación real no cuesta prácticamente nada; el franqueo funciona como un depósito que regresa con la respuesta.</span>
+            <span class="fr-only">Quand B répond, le paiement s’inverse : c’est B qui paie le port à A. Entre deux personnes qui s’écrivent régulièrement, les mêmes centimes font des allers-retours et se compensent avec le temps. Une vraie conversation ne coûte au final presque rien ; le port fonctionne comme une consigne rendue par la réponse.</span>
+            <span class="pl-only">Gdy B odpisuje, strumień płatności się odwraca: teraz B płaci porto z powrotem A. Między dwiema osobami piszącymi do siebie regularnie te same grosze krążą tam i z powrotem i z czasem się bilansują. Prawdziwa rozmowa kosztuje w sumie niemal nic; porto działa jak kaucja zwracana wraz z odpowiedzią.</span>
+          </p>
+          <p>
+            <span class="de-only">Für <b>Spammer S</b> funktioniert dieser Rückweg nicht. Wer hunderttausend unerwünschte Briefe verschickt, zahlt hunderttausendmal Porto und bekommt keine Antwort zurück. Einseitige Massenpost bleibt auf den vollen Versandkosten sitzen.</span>
+            <span class="en-only">For <b>spammer S</b>, that return path never happens. Sending a hundred thousand unwanted letters means paying postage a hundred thousand times and getting zero replies back. One-way bulk mail eats the full cost.</span>
+            <span class="es-only">Para el <b>spammer S</b> ese camino de vuelta no existe. Quien envía cien mil cartas no deseadas paga cien mil veces el franqueo y no recibe ninguna respuesta. El correo masivo unidireccional carga con todos los costes de envío.</span>
+            <span class="fr-only">Pour le <b>spammeur S</b>, ce chemin retour n’existe jamais. Envoyer cent mille lettres indésirables, c’est payer le port cent mille fois sans recevoir une seule réponse. Le courrier de masse à sens unique supporte tous les frais d’envoi.</span>
+            <span class="pl-only">Dla <b>spamera S</b> ta droga powrotna nie istnieje. Kto wysyła sto tysięcy niechcianych listów, płaci porto sto tysięcy razy i nie dostaje żadnej odpowiedzi. Masowa korespondencja w jedną stronę zostaje z pełnymi kosztami wysyłki.</span>
+          </p>
+        </div>
+
+        <div class="col-right">
+          <svg viewBox="0 0 460 320" style="width:100%;height:auto;display:block;background:#f5f3ec;padding:1.25rem" role="img" aria-label="Portokreislauf-Diagramm">
+            <rect x="24" y="44" width="116" height="84" fill="#122338"/>
+            <text x="82" y="84" text-anchor="middle" font-size="24" font-weight="700" fill="#f5f3ec">A</text>
+            <text x="82" y="106" text-anchor="middle" font-size="12" fill="#f6df8f">lightningmail.app</text>
+
+            <rect x="320" y="44" width="116" height="84" fill="#122338"/>
+            <text x="378" y="84" text-anchor="middle" font-size="24" font-weight="700" fill="#f5f3ec">B</text>
+            <text x="378" y="106" text-anchor="middle" font-size="12" fill="#f6df8f">beispiel.de</text>
+
+            <path d="M148 66 H308" stroke="#122338" stroke-width="4"/>
+            <polygon points="306,58 318,66 306,74" fill="#122338"/>
+            <text x="230" y="52" text-anchor="middle" font-size="13" font-weight="700" fill="#122338">
+              <tspan class="de-only">A zahlt 2 ct Porto</tspan>
+              <tspan class="en-only">A pays 2 ct postage</tspan>
+              <tspan class="es-only">A paga 2 ct de franqueo</tspan>
+              <tspan class="fr-only">A paie 2 ct de port</tspan>
+              <tspan class="pl-only">A płaci 2 ct porto</tspan>
+            </text>
+
+            <path d="M312 108 H152" stroke="#122338" stroke-width="4"/>
+            <polygon points="154,100 142,108 154,116" fill="#122338"/>
+            <text x="230" y="132" text-anchor="middle" font-size="13" font-weight="700" fill="#122338">
+              <tspan class="de-only">B antwortet (+2 ct zurück)</tspan>
+              <tspan class="en-only">B replies (+2 ct back)</tspan>
+              <tspan class="es-only">B responde (+2 ct de vuelta)</tspan>
+              <tspan class="fr-only">B répond (+2 ct en retour)</tspan>
+              <tspan class="pl-only">B odpowiada (+2 ct z powrotem)</tspan>
+            </text>
+
+            <rect x="24" y="212" width="116" height="72" fill="#f4b71a"/>
+            <text x="82" y="246" text-anchor="middle" font-size="20" font-weight="700" fill="#122338">S (Spam)</text>
+            <text x="82" y="266" text-anchor="middle" font-size="12" font-weight="600" fill="#122338">10.000 Briefe</text>
+
+            <path d="M148 248 H368 V140" fill="none" stroke="#122338" stroke-width="4" stroke-dasharray="8 6"/>
+            <polygon points="360,144 368,130 376,144" fill="#122338"/>
+            <text x="255" y="236" text-anchor="middle" font-size="13" font-weight="700" fill="#122338">
+              <tspan class="de-only">Zahlt jedes Mal · 0 Antworten</tspan>
+              <tspan class="en-only">Pays every time · 0 replies</tspan>
+              <tspan class="es-only">Paga cada vez · 0 respuestas</tspan>
+              <tspan class="fr-only">Paie à chaque fois · 0 réponse</tspan>
+              <tspan class="pl-only">Płaci za każdym razem · 0 odpowiedzi</tspan>
+            </text>
+            <text x="255" y="274" text-anchor="middle" font-size="13" fill="#4a5a6e">
+              <tspan class="de-only">Unter Bekannten im Zielmodell: netto ≈ 0 ct</tspan>
+              <tspan class="en-only">Between correspondents in target model: net ≈ 0 ct</tspan>
+              <tspan class="es-only">Entre corresponsales, modelo objetivo: neto ≈ 0 ct</tspan>
+              <tspan class="fr-only">Entre correspondants, modèle cible : net ≈ 0 ct</tspan>
+              <tspan class="pl-only">Między korespondentami w modelu docelowym: netto ≈ 0 ct</tspan>
+            </text>
+          </svg>
+        </div>
+      </div>
+
+
+      <div class="status">
+        <b><span class="de-only">Status heute (v1.0):</span><span class="en-only">Status today (v1.0):</span><span class="es-only">Estado actual (v1.0):</span><span class="fr-only">État actuel (v1.0) :</span><span class="pl-only">Stan na dziś (v1.0):</span></b>
+        <span class="de-only">Der komplette Portokreislauf läuft produktiv im Code: Der Absender wird am eigenen Relay abgebucht, die Porto-Zahlung wandert per Lightning-Keysend zum Ziel-Relay (aufgelöst über Peer-Konfiguration oder <code>_bmail._tcp</code>-DNS) und wird direkt auf das Guthaben des Empfängerkontos gebucht — inklusive LUD-16-Lightning-Adresse (<code>/.well-known/lnurlp/name</code>), Ein-/Auszahlung per Bolt11 und Tageskurs-Stempel für den Steuer-Export.</span>
+        <span class="en-only">The complete postage cycle runs in production code: the sender is debited at their own relay, the postage payment travels via Lightning keysend to the destination relay (resolved via peer config or <code>_bmail._tcp</code> DNS) and is credited directly to the recipient account’s balance — including a LUD-16 Lightning Address (<code>/.well-known/lnurlp/name</code>), Bolt11 top-up/withdrawal and a daily exchange-rate stamp for tax export.</span>
+        <span class="es-only">El ciclo de franqueo completo funciona en producción: al remitente se le carga en su propio relay, el pago viaja por Lightning Keysend al relay de destino (resuelto por configuración de pares o DNS <code>_bmail._tcp</code>) y se abona directamente al saldo de la cuenta del destinatario — incluida la dirección Lightning LUD-16 (<code>/.well-known/lnurlp/name</code>), ingresos y retiros por Bolt11 y sello de tipo de cambio diario para la exportación fiscal.</span>
+        <span class="fr-only">Le cycle de port complet tourne en production : l’expéditeur est débité sur son propre relais, le paiement voyage par keysend Lightning jusqu’au relais de destination (résolu via la configuration des pairs ou le DNS <code>_bmail._tcp</code>) et est crédité directement sur le solde du compte destinataire — y compris l’adresse Lightning LUD-16 (<code>/.well-known/lnurlp/name</code>), les dépôts/retraits Bolt11 et le taux de change du jour pour l’export fiscal.</span>
+        <span class="pl-only">Pełny obieg porto działa produkcyjnie: nadawca jest obciążany na własnym relay, płatność wędruje przez Lightning keysend do relay docelowego (rozwiązywanego przez konfigurację peerów lub DNS <code>_bmail._tcp</code>) i jest księgowana bezpośrednio na saldzie konta odbiorcy — wraz z adresem Lightning LUD-16 (<code>/.well-known/lnurlp/name</code>), wpłatami/wypłatami Bolt11 i dziennym stemplem kursowym na potrzeby eksportu podatkowego.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOPPELFUNKTION -->
+  <section id="doppelt" class="frame">
+    <div class="grid-12">
+      <div class="col-head">
+        <h2>
+          <span class="de-only">Ein Schlüssel, zwei Aufgaben: Briefkasten und digitaler&nbsp;Ausweis</span>
+          <span class="en-only">One key, two jobs: mailbox and digital&nbsp;ID</span>
+          <span class="es-only">Una clave, dos tareas: buzón e identidad&nbsp;digital</span>
+          <span class="fr-only">Une clé, deux rôles : boîte aux lettres et identité&nbsp;numérique</span>
+          <span class="pl-only">Jeden klucz, dwa zadania: skrzynka i cyfrowy&nbsp;dowód</span>
+        </h2>
+      </div>
+      <div class="col-body">
+        <p>
+          <span class="de-only"><b>Warum E-Mail heute gleichzeitig unser Ausweis im Internet ist:</b> Wer sich bei einem Onlineshop, einer Bank oder einem Dienst anmeldet, tippt fast immer seine E-Mail-Adresse ein. Dahinter steckt jedoch eine Notlösung aus den Neunzigerjahren: Weil klassische E-Mail keinen eingebauten Identitätsnachweis kennt, muss der Dienst eine Bestätigungsmail mit einem Link verschicken („Klicke hier, um zu beweisen, dass dir das Postfach gehört“) und zusätzlich ein Passwort speichern. Für Dienste ist das teuer und unsicher — Bot-Skripte lösen täglich Millionen sinnloser Bestätigungsmails aus, für deren Versand der Dienst zahlt, und Passwort-Datenbanken sind das Hauptziel von Einbrüchen.</span>
+          <span class="en-only"><b>Why e-mail is also our internet ID today:</b> Whenever you sign up for an online shop, a bank or a web service, you almost always enter your e-mail address. Behind that habit lies a nineties workaround: because classic e-mail has no built-in proof of identity, the service has to send a confirmation link (“click here to prove you own this inbox”) and store a password on top. For services, this is costly and fragile — bots trigger millions of useless confirmation mails every day at the service’s expense, and password databases remain the primary target for breaches.</span>
+          <span class="es-only"><b>Por qué el correo es hoy también nuestra identidad en internet:</b> Quien se registra en una tienda online, un banco o un servicio, casi siempre escribe su dirección de correo. Detrás hay una solución provisional de los años noventa: como el correo clásico no tiene prueba de identidad integrada, el servicio debe enviar un enlace de confirmación («haz clic aquí para demostrar que el buzón es tuyo») y además guardar una contraseña. Para los servicios esto es caro e inseguro: los bots provocan a diario millones de correos de confirmación inútiles que el servicio paga, y las bases de datos de contraseñas siguen siendo el objetivo principal de los ataques.</span>
+          <span class="fr-only"><b>Pourquoi l’e-mail est aussi notre carte d’identité sur internet :</b> Quand vous vous inscrivez sur une boutique en ligne, une banque ou un service, vous saisissez presque toujours votre adresse e-mail. Derrière cette habitude se cache un système D des années 90 : comme l’e-mail classique n’a pas de preuve d’identité intégrée, le service doit envoyer un lien de confirmation (« cliquez ici pour prouver que cette boîte est la vôtre ») et stocker un mot de passe en plus. Pour les services, c’est coûteux et fragile — les bots déclenchent chaque jour des millions de confirmations inutiles à leurs frais, et les bases de mots de passe restent la cible principale des attaques.</span>
+          <span class="pl-only"><b>Dlaczego e-mail jest dziś jednocześnie naszym dowodem tożsamości w internecie:</b> Rejestrując się w sklepie online, banku czy usłudze, niemal zawsze podajesz swój adres e-mail. Za tym zwyczajem kryje się prowizorka z lat dziewięćdziesiątych: ponieważ klasyczny e-mail nie ma wbudowanego dowodu tożsamości, usługa musi wysłać maila potwierdzającego z linkiem („kliknij tutaj, aby udowodnić, że skrzynka należy do ciebie”) i dodatkowo przechowywać hasło. Dla usług to drogie i niepewne — boty wywołują codziennie miliony bezsensownych maili potwierdzających, za które płaci usługa, a bazy haseł są głównym celem włamań.</span>
+        </p>
+        <p>
+          <span class="de-only"><b>Die Doppelfunktion bei lightningmail:</b> Jede lightningmail-Adresse (wie <code>name@domain</code>) ist im Kern ein kryptografischer Schlüssel. Derselbe Schlüssel erledigt zwei Aufgaben auf einmal: Er <b>entschlüsselt deine privaten Briefe</b> im Postfach und dient gleichzeitig als <b>fälschungssicherer Login-Ausweis</b> gegenüber Webseiten und Diensten. Für die reine Anmeldung („Anmelden mit lightningmail“) spricht das Relay den offenen Web-Standard <b>OpenID Connect (OIDC)</b>: Beim Klick auf den Login-Knopf fragt dein Browser dich nach Freigabe und unterschreibt eine einmalige Zufallszahl (Challenge) direkt mit deinem Postfach-Schlüssel. Der Dienst weiß in einer Sekunde sicher, dass du der Inhaber der Adresse bist — ganz ohne Passwort, ohne Bestätigungsmail und ohne dass ein Konzern wie Google oder Apple dazwischensitzt.</span>
+          <span class="en-only"><b>The dual function in lightningmail:</b> Every lightningmail address (like <code>name@domain</code>) is, at its core, a cryptographic key. That single key performs two jobs at once: it <b>decrypts your private letters</b> in your inbox and acts as a <b>tamper-proof login credential</b> for websites and services. For pure authentication (“Sign in with lightningmail”), the relay speaks the open web standard <b>OpenID Connect (OIDC)</b>: when you click the login button, your browser asks for your consent and signs a one-time challenge directly with your mailbox key. Within a second, the service has mathematical proof that you own the address — with no password, no confirmation mail, and no tech giant like Google or Apple in the middle.</span>
+          <span class="es-only"><b>La doble función en lightningmail:</b> Cada dirección lightningmail (como <code>name@domain</code>) es en el fondo una clave criptográfica. Esa única clave cumple dos tareas a la vez: <b>descifra tus cartas privadas</b> en el buzón y sirve al mismo tiempo como <b>credencial de acceso a prueba de falsificación</b> ante webs y servicios. Para el simple inicio de sesión («Entrar con lightningmail»), el relay habla el estándar web abierto <b>OpenID Connect (OIDC)</b>: al pulsar el botón de acceso, tu navegador te pide permiso y firma un challenge de un solo uso directamente con la clave de tu buzón. En un segundo, el servicio tiene la prueba matemática de que eres el titular de la dirección — sin contraseña, sin correo de confirmación y sin que un gigante como Google o Apple se interponga.</span>
+          <span class="fr-only"><b>La double fonction dans lightningmail :</b> Chaque adresse lightningmail (comme <code>name@domain</code>) est au fond une clé cryptographique. Cette clé unique remplit deux rôles à la fois : elle <b>déchiffre vos lettres privées</b> dans votre boîte et sert en même temps de <b>justificatif de connexion infalsifiable</b> auprès des sites et services. Pour la simple authentification (« Se connecter avec lightningmail »), le relais parle le standard web ouvert <b>OpenID Connect (OIDC)</b> : au clic sur le bouton de connexion, votre navigateur demande votre accord et signe un défi à usage unique directement avec la clé de votre boîte. En une seconde, le service a la preuve mathématique que vous possédez l’adresse — sans mot de passe, sans e-mail de confirmation et sans intermédiaire comme Google ou Apple.</span>
+          <span class="pl-only"><b>Podwójna funkcja w lightningmail:</b> Każdy adres lightningmail (jak <code>name@domain</code>) jest w istocie kluczem kryptograficznym. Ten jeden klucz wykonuje dwa zadania naraz: <b>odszyfrowuje twoje prywatne listy</b> w skrzynce i jednocześnie służy jako <b>odporny na fałszerstwo identyfikator logowania</b> wobec stron i usług. Przy samym logowaniu („Zaloguj się przez lightningmail”) relay używa otwartego standardu <b>OpenID Connect (OIDC)</b>: po kliknięciu przycisku logowania przeglądarka prosi cię o zgodę i podpisuje jednorazowe wyzwanie (challenge) bezpośrednio kluczem twojej skrzynki. W ciągu sekundy usługa ma matematyczny dowód, że jesteś właścicielem adresu — bez hasła, bez maila potwierdzającego i bez pośrednictwa gigantów takich jak Google czy Apple.</span>
+        </p>
+        <p>
+          <span class="de-only"><b>Und wenn bei einer Neuregistrierung doch eine Bestätigungsmail fließen soll?</b> Dann kehrt das Porto die Kosten um: Nicht der Dienst schickt unaufgefordert eine Mail ins Blaue, sondern der neue Nutzer schickt über ein kleines Service-Gateway den ersten Registrierungsbrief mit einem leicht erhöhten <b>Porto-Vorschuss</b> (etwa 6&nbsp;Cent) an den Dienst. Der Dienst schickt seine Bestätigungsmail für das normale Standardporto (2&nbsp;Cent) aus diesem Vorschuss zurück und behält 4&nbsp;Cent für die Bereitstellung. Damit kostet Bot-Abwehr den Dienst kein Geld mehr — jede echte Anmeldung trägt sich selbst.</span>
+          <span class="en-only"><b>And when a new registration does require a confirmation mail?</b> Postage flips the economics: instead of the service firing a message into the dark, the new user sends the initial registration letter with a slightly higher <b>postage advance</b> (say, 6&nbsp;cents) to the service’s gateway. The service sends its confirmation letter back at the standard postage rate (2&nbsp;cents) out of that advance and keeps the 4-cent surplus. Bot defense stops costing the service money — every genuine sign-up pays its own way.</span>
+          <span class="es-only"><b>¿Y si en un nuevo registro hace falta un correo de confirmación?</b> Entonces el franqueo invierte los costes: no es el servicio el que lanza un mensaje al vacío, sino que el nuevo usuario envía, a través de una pequeña pasarela de servicio, la primera carta de registro con un <b>anticipo de franqueo</b> algo mayor (unos 6&nbsp;céntimos). De ese anticipo el servicio paga su carta de confirmación a la tarifa estándar (2&nbsp;céntimos) y se queda los 4&nbsp;céntimos restantes. Así, la defensa contra bots ya no le cuesta dinero al servicio: cada alta real se paga sola.</span>
+          <span class="fr-only"><b>Et quand une nouvelle inscription exige tout de même un e-mail de confirmation ?</b> Le port inverse les coûts : ce n’est plus le service qui envoie un message à l’aveugle, mais le nouvel utilisateur qui envoie, via une petite passerelle de service, sa première lettre d’inscription avec une <b>avance sur port</b> légèrement majorée (environ 6&nbsp;centimes). Le service prélève sur cette avance sa lettre de confirmation au tarif standard (2&nbsp;centimes) et garde les 4&nbsp;centimes restants. La défense anti-bots ne coûte plus rien au service — chaque inscription réelle s’autofinance.</span>
+          <span class="pl-only"><b>A co, gdy przy nowej rejestracji potrzebny jest mail potwierdzający?</b> Wtedy porto odwraca koszty: to nie usługa wysyła wiadomość w ciemno, lecz nowy użytkownik przez niewielką bramkę usługową wysyła pierwszy list rejestracyjny z nieco podwyższoną <b>zaliczką na porto</b> (około 6&nbsp;centów). Usługa wysyła swoje potwierdzenie za standardowe porto (2&nbsp;centy) z tej zaliczki, a 4&nbsp;centy zatrzymuje dla siebie. Dzięki temu obrona przed botami nic już usługę nie kosztuje — każda prawdziwa rejestracja sama się finansuje.</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="four-grid">
+      <div class="tone-tile">
+        <h3><span class="de-only">1. Briefe &amp; große Anhänge (Messaging)</span><span class="en-only">1. Letters &amp; large attachments (Messaging)</span><span class="es-only">1. Cartas y adjuntos grandes (mensajería)</span><span class="fr-only">1. Lettres et grosses pièces jointes (messagerie)</span><span class="pl-only">1. Listy i duże załączniki (komunikacja)</span></h3>
+        <p>
+          <span class="de-only">Selbst Steuerberater haben im Alltag technische Probleme mit klassischer Mailverschlüsselung — lightningmail verschlüsselt deshalb jede Nachricht und jeden Anhang ganz automatisch und immer Ende-zu-Ende. Kleine Anhänge reisen als einzelner Blob, große Dateien (bis ~250&nbsp;MB innerhalb des Postfach-Kontingents) zerlegt der Client automatisch in 1-MiB-Scheiben („Chunked Blobs“) und rechnet pro Megabyte ein kleines Byte-Porto mit dem Relay ab. Außerdem zeigt ein dezentes Häkchen (✓ zugestellt am Relay, ✓✓ vom Empfänger abgerufen) den Zustellstatus ohne Lesespionage.</span>
+          <span class="en-only">Even tax advisors struggle with the technical hurdles of classic e-mail encryption — lightningmail therefore encrypts every message and attachment completely automatically and always end-to-end. Small attachments travel as a single blob, while large files (up to ~250&nbsp;MB within mailbox quota) are automatically sliced into 1&nbsp;MiB chunks by the client and billed at a small per-megabyte byte-postage rate. Subtle checkmarks (✓ settled at relay, ✓✓ fetched by recipient) show delivery status without read-spy tracking.</span>
+          <span class="es-only">Incluso los asesores fiscales tienen problemas técnicos con el cifrado del correo clásico — por eso lightningmail cifra cada mensaje y cada adjunto de forma totalmente automática y siempre de extremo a extremo. Los adjuntos pequeños viajan como un único blob; los archivos grandes (hasta ~250&nbsp;MB dentro de la cuota del buzón) los divide el cliente automáticamente en trozos de 1&nbsp;MiB («chunked blobs») y se facturan con un pequeño franqueo por megabyte. Además, unas marcas discretas (✓ entregado en el relay, ✓✓ recogido por el destinatario) muestran el estado de entrega sin espiar la lectura.</span>
+          <span class="fr-only">Même les experts-comptables et conseillers fiscaux se heurtent aux problèmes techniques du chiffrement d’e-mail classique — lightningmail chiffre donc chaque message et chaque pièce jointe de façon totalement automatique et toujours de bout en bout. Les petites pièces voyagent en un seul blob ; les gros fichiers (jusqu’à ~250&nbsp;Mo dans la limite de la boîte) sont automatiquement découpés par le client en tranches de 1&nbsp;Mio (« blobs chunkés ») facturées à un petit port par octet et par mégaoctet. Des coches discrètes (✓ déposé au relais, ✓✓ récupéré par le destinataire) affichent l’état de livraison sans espionnage de lecture.</span>
+          <span class="pl-only">Nawet doradcy podatkowi mają na co dzień problemy techniczne z klasycznym szyfrowaniem poczty — dlatego lightningmail szyfruje każdą wiadomość i każdy załącznik całkowicie automatycznie i zawsze end-to-end. Małe załączniki podróżują jako pojedynczy blob, a duże pliki (do ~250&nbsp;MB w ramach limitu skrzynki) klient automatycznie dzieli na kawałki po 1&nbsp;MiB („chunked blobs”) i rozlicza z relay niewielkim portem bajtowym za megabajt. Dodatkowo dyskretne znaczniki (✓ dostarczone do relay, ✓✓ odebrane przez adresata) pokazują status doręczenia bez śledzenia czytania.</span>
+        </p>
+      </div>
+      <div class="tone-tile">
+        <h3><span class="de-only">2. Login ohne Passwort (OIDC &amp; Service-Connector)</span><span class="en-only">2. Passwordless login (OIDC &amp; Service Connector)</span><span class="es-only">2. Inicio de sesión sin contraseña (OIDC y Service Connector)</span><span class="fr-only">2. Connexion sans mot de passe (OIDC et Service Connector)</span><span class="pl-only">2. Logowanie bez hasła (OIDC i Service Connector)</span></h3>
+        <p>
+          <span class="de-only">Webseiten binden „Sign in with lightningmail“ über jede normale OIDC-Standardbibliothek ein — ganz ohne eigenes Plugin. Will ein Dienst zusätzlich bezahlte Registrierungsbriefe annehmen oder automatisch verschlüsselte Rechnungen und Systemmails verschicken, startet er unseren schlanken <b>Service-Connector</b> (einen Headless-Client mit lokaler JSON/Webhook-Schnittstelle).</span>
+          <span class="en-only">Websites integrate “Sign in with lightningmail” using any standard OIDC library — no custom plugin required. If a service also wants to accept paid registration letters or automatically send encrypted invoices and system alerts, it runs our lightweight <b>Service Connector</b> (a headless client exposing a local JSON/webhook API).</span>
+          <span class="es-only">Las webs integran «Entrar con lightningmail» con cualquier biblioteca OIDC estándar, sin ningún plugin propio. Si un servicio además quiere aceptar cartas de registro de pago o enviar automáticamente facturas cifradas y avisos de sistema, ejecuta nuestro ligero <b>Service Connector</b> (un cliente headless con interfaz JSON/webhook local).</span>
+          <span class="fr-only">Les sites intègrent « Se connecter avec lightningmail » avec n’importe quelle bibliothèque OIDC standard — aucun plugin maison requis. Si un service veut aussi recevoir des lettres d’inscription payantes ou envoyer automatiquement des factures chiffrées et des alertes système, il exécute notre <b>Service Connector</b> léger (un client headless exposant une API JSON/webhook locale).</span>
+          <span class="pl-only">Strony integrują „Zaloguj się przez lightningmail” za pomocą dowolnej standardowej biblioteki OIDC — bez własnej wtyczki. Jeśli usługa chce dodatkowo przyjmować płatne listy rejestracyjne albo automatycznie wysyłać szyfrowane faktury i komunikaty systemowe, uruchamia nasz lekki <b>Service Connector</b> (klient headless z lokalnym interfejsem JSON/webhook).</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="trio-strip">
+      <div class="trio-item">
+        <h3><span class="de-only">Bezahlte Newsletter</span><span class="en-only">Paid newsletters</span><span class="es-only">Boletines de pago</span><span class="fr-only">Newsletters payantes</span><span class="pl-only">Płatne newslettery</span></h3>
+        <p><span class="de-only">Bei Mailinglisten kann das Porto der Abonnenten direkt als kleines Abo je Ausgabe dienen, ohne Plattformgebühr dazwischen.</span><span class="en-only">For mailing lists, subscriber postage can act directly as a micro-subscription per issue, with no platform taking a cut in between.</span><span class="es-only">En las listas de correo, el franqueo de los suscriptores puede servir directamente como micro-suscripción por número, sin comisión de plataforma en medio.</span><span class="fr-only">Pour les listes de diffusion, le port des abonnés peut servir directement de micro-abonnement par numéro, sans plateforme qui prend une commission au passage.</span><span class="pl-only">Na listach mailingowych porto subskrybentów może pełnić rolę mikroprenumeraty za wydanie, bez platformy pobierającej prowizję pośrodku.</span></p>
+      </div>
+      <div class="trio-item">
+        <h3><span class="de-only">Usecase für Bitcoin</span><span class="en-only">A real-world use case for Bitcoin</span><span class="es-only">Un caso de uso real para Bitcoin</span><span class="fr-only">Un cas d’usage concret pour Bitcoin</span><span class="pl-only">Realne zastosowanie Bitcoina</span></h3>
+        <p><span class="de-only">Lightning-Porto macht Bitcoin zum täglichen Werkzeug für jede Nachricht und jeden Login im Netz. Selbst wenn ein Staat auf die Idee kommen sollte, das Porto für Mails zu besteuern, wäre dies eine weitere offizielle Verankerung von Bitcoin im Alltag.</span><span class="en-only">Lightning postage turns Bitcoin into an everyday utility for messages and logins across the web. Even if a state decided to tax postage on e-mails, that very act would cement Bitcoin’s official anchoring in daily economic life.</span><span class="es-only">El franqueo Lightning convierte Bitcoin en una herramienta cotidiana para cada mensaje y cada inicio de sesión en la web. Aunque un Estado decidiera gravar el franqueo de los correos, ese mismo acto consolidaría el anclaje oficial de Bitcoin en la vida económica diaria.</span><span class="fr-only">Le port Lightning fait de Bitcoin un outil quotidien pour chaque message et chaque connexion sur le web. Même si un État décidait de taxer le port des e-mails, ce seul acte cimenterait l’ancrage officiel de Bitcoin dans la vie économique quotidienne.</span><span class="pl-only">Porto Lightning zamienia Bitcoina w codzienne narzędzie do każdej wiadomości i każdego logowania w sieci. Nawet gdyby jakieś państwo wpadło na pomysł opodatkowania porto za maile, sam ten akt dodatkowo zakotwiczyłby Bitcoina w codziennym życiu gospodarczym.</span></p>
+      </div>
+      <div class="trio-item">
+        <h3><span class="de-only">Portokasse mit Steuer-Export</span><span class="en-only">Postage ledger with tax export</span><span class="es-only">Libro de franqueo con exportación fiscal</span><span class="fr-only">Registre du port avec export fiscal</span><span class="pl-only">Kasa porto z eksportem podatkowym</span></h3>
+        <p><span class="de-only">Jede Buchung erhält sofort einen Tageskurs-Stempel in Euro und lässt sich unter „💶 Umsätze“ als kryptografisch verkettete CSV-Datei exportieren.</span><span class="en-only">Every ledger entry is stamped immediately with the daily EUR exchange rate and exports under “💶 Transactions” as a cryptographically hash-chained CSV.</span><span class="es-only">Cada asiento recibe al instante un sello con el tipo de cambio del día en euros y se puede exportar en «💶 Movimientos» como archivo CSV encadenado criptográficamente.</span><span class="fr-only">Chaque écriture est immédiatement horodatée avec le taux de change EUR du jour et s’exporte sous « 💶 Transactions » en CSV chaîné cryptographiquement.</span><span class="pl-only">Każdy wpis natychmiast dostaje stempel z dziennym kursem w euro i można go wyeksportować w zakładce „💶 Transakcje” jako kryptograficznie łańcuchowany plik CSV.</span></p>
+      </div>
+    </div>
+
+    <div class="status">
+      <b><span class="de-only">Status heute (v1.0):</span><span class="en-only">Status today (v1.0):</span><span class="es-only">Estado actual (v1.0):</span><span class="fr-only">État actuel (v1.0) :</span><span class="pl-only">Stan na dziś (v1.0):</span></b>
+      <span class="de-only">Beide Funktionen sind komplett gebaut und live im Code: (1) Briefversand inkl. 1-MiB-Chunking für große Anhänge, Byte-Porto, ✓/✓✓-Empfangsbestätigung und Euro-Steuerexport sind aktiv. (2) Der OIDC-Identity-Provider („Sign in with lightningmail“ — auch ohne Vorab-Registrierung für jede HTTPS-Domain) sowie der Porto-Vorschuss (Tag <code>0x0A</code>) samt Headless <b>Service-Connector</b> (<code>client/src/connector.ts</code> &amp; Daemon) laufen produktiv.</span>
+      <span class="en-only">Both functions are completely built and live in code: (1) Mail delivery including 1&nbsp;MiB chunking for large attachments, byte-postage, ✓/✓✓ delivery receipts and EUR tax CSV export are active. (2) The OIDC Identity Provider (“Sign in with lightningmail” — including zero-registration stateless HTTPS origins) as well as the postage advance (tag <code>0x0A</code>) and the headless <b>Service Connector</b> (<code>client/src/connector.ts</code> &amp; daemon) are running in production code.</span>
+      <span class="es-only">Ambas funciones están completamente construidas y vivas en el código: (1) el envío de cartas con fragmentación de 1&nbsp;MiB para adjuntos grandes, franqueo por byte, acuses ✓/✓✓ y exportación fiscal CSV en euros están activos. (2) El proveedor de identidad OIDC («Entrar con lightningmail» — incluso sin registro previo para cualquier dominio HTTPS), el anticipo de franqueo (tag <code>0x0A</code>) y el <b>Service Connector</b> headless (<code>client/src/connector.ts</code> y demonio) funcionan en producción.</span>
+      <span class="fr-only">Les deux fonctions sont entièrement construites et actives dans le code : (1) l’envoi du courrier avec découpage en tranches de 1&nbsp;Mio pour les grosses pièces, le port à l’octet, les accusés ✓/✓✓ et l’export fiscal CSV en EUR sont opérationnels. (2) Le fournisseur d’identité OIDC (« Se connecter avec lightningmail » — y compris pour des origines HTTPS sans état et sans enregistrement préalable), l’avance sur port (étiquette <code>0x0A</code>) et le <b>Service Connector</b> headless (<code>client/src/connector.ts</code> et démon) tournent en production.</span>
+      <span class="pl-only">Obie funkcje są w pełni zbudowane i działają w kodzie: (1) wysyłka listów z podziałem na kawałki 1&nbsp;MiB dla dużych załączników, porto bajtowe, potwierdzenia ✓/✓✓ i eksport podatkowy CSV w euro są aktywne. (2) Dostawca tożsamości OIDC („Zaloguj się przez lightningmail” — także bez uprzedniej rejestracji dla dowolnej domeny HTTPS), zaliczka na porto (znacznik <code>0x0A</code>) oraz headless <b>Service Connector</b> (<code>client/src/connector.ts</code> i demon) działają produkcyjnie.</span>
+    </div>
+  </section>
+
+  <!-- ZIELE -->
+  <section id="ziele" class="field-sky">
+    <div class="frame">
+      <h2><span class="de-only">Worum es uns geht</span><span class="en-only">What we are building toward</span><span class="es-only">Hacia dónde vamos</span><span class="fr-only">Ce vers quoi nous construisons</span><span class="pl-only">Do czego dążymy</span></h2>
+      <ol class="ziele-list">
+        <li>
+          <strong><span class="de-only">Spam verteuern, Gespräche freihalten</span><span class="en-only">Make spam expensive, keep conversation free</span><span class="es-only">Encarecer el spam y mantener gratuitas las conversaciones</span><span class="fr-only">Renchérir le spam, préserver la conversation</span><span class="pl-only">Spam ma być drogi, rozmowy — wolne</span></strong>
+          <span class="de-only">Unerwünschte Massenpost fließt nur in eine Richtung und kostet den Versender Geld. Erwünschte Korrespondenz pendelt zwischen denselben Leuten hin und her und gleicht sich im Zielmodell aus.</span>
+          <span class="en-only">Unwanted bulk mail flows one way and costs the sender money. Wanted correspondence swings back and forth between the same people and evens out in the target model.</span>
+          <span class="es-only">El correo masivo no deseado fluye en una sola dirección y le cuesta dinero al remitente. La correspondencia deseada va y viene entre las mismas personas y se equilibra en el modelo objetivo.</span>
+          <span class="fr-only">Le courrier de masse indésirable circule à sens unique et coûte de l’argent à l’expéditeur. La correspondance voulue fait des allers-retours entre les mêmes personnes et s’équilibre dans le modèle cible.</span>
+          <span class="pl-only">Niechciana masowa korespondencja płynie w jedną stronę i kosztuje nadawcę pieniądze. Pożądana korespondencja krąży między tymi samymi osobami i w modelu docelowym się bilansuje.</span>
+        </li>
+        <li>
+          <strong><span class="de-only">Adresse ist Schlüssel</span><span class="en-only">Address is key</span><span class="es-only">La dirección es la clave</span><span class="fr-only">L’adresse est la clé</span><span class="pl-only">Adres to klucz</span></strong>
+            <span class="de-only">Jedes Postfach besteht aus einem kryptografischen Schlüsselpaar. Es gibt kein Passwort zum Anmelden (nur eins, um seine Key-Datei zu entschlüsseln, aber Passkeys sind da optional) und keine Rücksetz-SMS. Zieht man auf ein anderes Relay um, nimmt man den Schlüssel samt Adresse mit.</span>
+            <span class="en-only">Every mailbox is a cryptographic keypair. There is no login password (only one to decrypt your key file, and passkeys make even that optional) and no reset SMS. Move to another relay and you take the key — address included — with you.</span>
+            <span class="es-only">Cada buzón consiste en un par de claves criptográfico. No hay contraseña de acceso (solo una para descifrar tu archivo de claves, pero las passkeys son opcionales) y ningún SMS de restablecimiento. Si te mudas a otro relay, te llevas la clave junto con la dirección.</span>
+            <span class="fr-only">Chaque boîte aux lettres consiste en une paire de clés cryptographique. Il n’y a pas de mot de passe de connexion (juste un pour déchiffrer votre fichier de clés, mais les passkeys sont optionnelles) et pas de SMS de réinitialisation. En cas de migration vers un autre relais, on emporte la clé avec son adresse.</span>
+            <span class="pl-only">Każda skrzynka pocztowa to kryptograficzna para kluczy. Nie ma hasła logowania (tylko jedno do odszyfrowania pliku kluczy, ale passkey są opcjonalne) i żadnego SMS-a resetującego. Przenosząc się do innego relayu, zabierasz klucz wraz z adresem.</span>
+        </li>
+        <li>
+          <strong><span class="de-only">Passwortmanager Ade</span><span class="en-only">Goodbye, password managers</span><span class="es-only">Adiós, gestores de contraseñas</span><span class="fr-only">Adieu, gestionnaires de mots de passe</span><span class="pl-only">Żegnajcie, menedżery haseł</span></strong>
+          <span class="de-only">Weil dein Postfach-Schlüssel über OpenID Connect zugleich dein digitaler Ausweis ist, loggst du dich bei Webseiten und Diensten mit einem Klick passwortlos ein — und bei Neuanmeldungen mit Bestätigungsbrief bezahlt der Porto-Vorschuss den Rückweg gleich mit.</span>
+          <span class="en-only">Because your mailbox key doubles as your digital ID via OpenID Connect, you log into websites and services passwordlessly with a single click — and when a new sign-up requires a confirmation letter, the postage advance covers the return trip automatically.</span>
+          <span class="es-only">Como la clave de tu buzón es a la vez tu identidad digital vía OpenID Connect, inicias sesión en webs y servicios sin contraseña con un solo clic — y cuando un nuevo registro requiere carta de confirmación, el anticipo de franqueo paga automáticamente el camino de vuelta.</span>
+          <span class="fr-only">Comme la clé de votre boîte sert aussi d’identité numérique via OpenID Connect, vous vous connectez aux sites et services sans mot de passe en un clic — et lorsqu’une nouvelle inscription exige une lettre de confirmation, l’avance sur port paie automatiquement le trajet retour.</span>
+          <span class="pl-only">Ponieważ klucz twojej skrzynki przez OpenID Connect jest jednocześnie twoim cyfrowym dowodem, logujesz się na stronach i w usługach bez hasła jednym kliknięciem — a gdy nowa rejestracja wymaga listu potwierdzającego, zaliczka na porto automatycznie pokrywa drogę powrotną.</span>
+        </li>
+        <li>
+          <strong><span class="de-only">Föderation statt Plattform</span><span class="en-only">Federation instead of a platform</span><span class="es-only">Federación en vez de plataforma</span><span class="fr-only">La fédération plutôt que la plateforme</span><span class="pl-only">Federacja zamiast platformy</span></strong>
+          <span class="de-only">Relays finden sich über DNS und sprechen per HTTPS miteinander. Wer eine eigene Domain hat, kann sein eigenes Postamt aufsetzen.</span>
+          <span class="en-only">Relays find each other via DNS and talk over HTTPS. Anyone with a domain can run their own post office.</span>
+          <span class="es-only">Los relays se encuentran por DNS y se comunican por HTTPS. Quien tenga un dominio propio puede montar su propia oficina de correos.</span>
+          <span class="fr-only">Les relais se trouvent via DNS et se parlent en HTTPS. Quiconque possède un domaine peut monter son propre bureau de poste.</span>
+          <span class="pl-only">Relaye znajdują się przez DNS i rozmawiają przez HTTPS. Kto ma własną domenę, może postawić własny urząd pocztowy.</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- BAUSTEINE -->
+  <section id="bausteine" class="frame">
+    <h2><span class="de-only">Der technische Baukasten</span><span class="en-only">The technical toolbox</span><span class="es-only">El cajón de herramientas técnico</span><span class="fr-only">La boîte à outils technique</span><span class="pl-only">Techniczny zestaw klocków</span></h2>
+    <p style="color:var(--muted)">
+      <span class="de-only">Überschaubare Standardbauteile statt eigener Krypto-Experimente. Jedes Teil hat eine klar abgegrenzte Aufgabe im Relay.</span>
+      <span class="en-only">Straightforward standard components instead of custom crypto experiments. Each part has one clear job inside the relay.</span>
+      <span class="es-only">Componentes estándar manejables en lugar de experimentos criptográficos propios. Cada pieza tiene una tarea claramente delimitada en el relay.</span>
+      <span class="fr-only">Des composants standard maîtrisables plutôt que des expériences crypto maison. Chaque brique a une tâche clairement délimitée dans le relais.</span>
+      <span class="pl-only">Przejrzyste standardowe klocki zamiast własnych eksperymentów kryptograficznych. Każdy element ma w relay jedno wyraźnie określone zadanie.</span>
+    </p>
+    <ul class="baus">
+      <li>
+        <b><span class="de-only">Light-Relay &amp; Full-Relay (Go)</span><span class="en-only">Light Relay &amp; Full Relay (Go)</span><span class="es-only">Light Relay y Full Relay (Go)</span><span class="fr-only">Light Relay et Full Relay (Go)</span><span class="pl-only">Light Relay i Full Relay (Go)</span></b>
+        <span class="de-only">Ein einzelnes Go-Binary mit SQLite-Datenbank übernimmt Posteingang, Porto-Abbuchung, OIDC-Login, Geräte-Sync und Blob-Ablage. Als <b>Light-Relay</b> läuft es mit LND im Neutrino-Modus komplett ohne eigenen Bitcoin-Vollknoten (~10&nbsp;GB Speicher, ideal für Heim-NAS, Raspberry Pi oder kleine VPS); als <b>Full-Relay</b> dockt es an einen eigenen <code>bitcoind</code> an.</span>
+        <span class="en-only">A single Go binary backed by SQLite handles inbox storage, postage debiting, OIDC login, device sync and blob storage. As a <b>Light Relay</b> it runs with LND in Neutrino mode without needing its own Bitcoin full node (~10&nbsp;GB disk, ideal for home NAS, Raspberry Pi or small VPS); as a <b>Full Relay</b> it connects to a dedicated <code>bitcoind</code>.</span>
+        <span class="es-only">Un único binario de Go con base de datos SQLite se encarga de la recepción, el cargo del franqueo, el inicio de sesión OIDC, la sincronización de dispositivos y el almacenamiento de blobs. Como <b>Light Relay</b> funciona con LND en modo Neutrino, completamente sin nodo completo de Bitcoin propio (~10&nbsp;GB de almacenamiento, ideal para NAS doméstico, Raspberry Pi o un VPS pequeño); como <b>Full Relay</b> se conecta a un <code>bitcoind</code> propio.</span>
+        <span class="fr-only">Un seul binaire Go avec base SQLite assure la réception, le débit du port, la connexion OIDC, la synchro des appareils et le stockage des blobs. En mode <b>Light Relay</b>, il tourne avec LND en mode Neutrino, sans nœud complet Bitcoin propre (~10&nbsp;Go de stockage, idéal pour un NAS domestique, un Raspberry Pi ou un petit VPS) ; en mode <b>Full Relay</b>, il se branche sur un <code>bitcoind</code> dédié.</span>
+        <span class="pl-only">Pojedynczy plik binarny Go z bazą SQLite obsługuje odbiór poczty, obciążanie portem, logowanie OIDC, synchronizację urządzeń i przechowywanie blobów. Jako <b>Light Relay</b> działa z LND w trybie Neutrino całkowicie bez własnego pełnego węzła Bitcoina (~10&nbsp;GB pamięci, idealnie dla domowego NAS-a, Raspberry Pi lub małego VPS-a); jako <b>Full Relay</b> podpina się pod własny <code>bitcoind</code>.</span>
+      </li>
+      <li>
+        <b><span class="de-only">Clients für Linux, Android, Web &amp; Thunderbird</span><span class="en-only">Clients for Linux, Android, Web &amp; Thunderbird</span><span class="es-only">Clientes para Linux, Android, Web y Thunderbird</span><span class="fr-only">Clients pour Linux, Android, Web et Thunderbird</span><span class="pl-only">Klienty na Linuksa, Androida, Web i Thunderbirda</span></b>
+        <span class="de-only">Ein gemeinsamer Kryptokern bedient unsere Referenz-Clients: der native Linux-Desktop ( <a href="/lightningmail-desktop_1.0.6_amd64.deb" style="color:var(--ink);font-weight:700">.deb</a> · <a href="/lightningmail-desktop-1.0.6-x86_64.AppImage" style="color:var(--ink);font-weight:700">.AppImage</a> ) für Ubuntu/Debian ab 24.04, die Kommandozeile mit Browser-Login (<a href="/lightningmail-linux-amd64" style="color:var(--ink);font-weight:700">x86_64 Binary</a>), die <a href="/lightningmail.apk" style="color:var(--ink);font-weight:700">Android-App (.apk)</a> mit Hardware-Keystore, das <a href="/lightningmail-thunderbird.xpi" style="color:var(--ink);font-weight:700">Thunderbird-Add-on (.xpi)</a> und die Web-App. Eigene Dienste binden den Anmelde-Knopf ohne Software von uns ein: <a href="/embed" style="color:var(--ink);font-weight:700">Login-Button einbauen</a>. Wie man Clients für iOS, macOS oder Windows baut, zeigt die Unterseite <a href="/architecture#clients" style="color:var(--ink);font-weight:700">Architekturentscheidungen &amp; Client-Portierung</a>.</span>
+        <span class="en-only">A shared crypto core powers our reference clients: the native Linux desktop ( <a href="/lightningmail-desktop_1.0.6_amd64.deb" style="color:var(--ink);font-weight:700">.deb</a> · <a href="/lightningmail-desktop-1.0.6-x86_64.AppImage" style="color:var(--ink);font-weight:700">.AppImage</a> ) for Ubuntu/Debian 24.04+, the command line with browser login (<a href="/lightningmail-linux-amd64" style="color:var(--ink);font-weight:700">x86_64 binary</a>), the <a href="/lightningmail.apk" style="color:var(--ink);font-weight:700">Android app (.apk)</a> with hardware keystore, the <a href="/lightningmail-thunderbird.xpi" style="color:var(--ink);font-weight:700">Thunderbird add-on (.xpi)</a> and the web app. Third-party services embed the sign-in button with no software of ours: <a href="/embed" style="color:var(--ink);font-weight:700">embed the login button</a>. Building clients for iOS, macOS or Windows is documented under <a href="/architecture#clients" style="color:var(--ink);font-weight:700">Architecture Decisions &amp; Client Porting</a>.</span>
+        <span class="es-only">Un núcleo criptográfico común impulsa nuestros clientes de referencia: el escritorio nativo para Linux ( <a href="/lightningmail-desktop_1.0.6_amd64.deb" style="color:var(--ink);font-weight:700">.deb</a> · <a href="/lightningmail-desktop-1.0.6-x86_64.AppImage" style="color:var(--ink);font-weight:700">.AppImage</a> ) para Ubuntu/Debian 24.04+, la línea de comandos con login en el navegador (<a href="/lightningmail-linux-amd64" style="color:var(--ink);font-weight:700">binario x86_64</a>), la <a href="/lightningmail.apk" style="color:var(--ink);font-weight:700">app de Android (.apk)</a> con keystore de hardware, el <a href="/lightningmail-thunderbird.xpi" style="color:var(--ink);font-weight:700">complemento para Thunderbird (.xpi)</a> y la aplicación web. Los servicios externos integran el botón de acceso sin software nuestro: <a href="/embed" style="color:var(--ink);font-weight:700">integra el botón de acceso</a>. Cómo construir clientes para iOS, macOS o Windows se explica en <a href="/architecture#clients" style="color:var(--ink);font-weight:700">Decisiones de arquitectura y portabilidad de clientes</a>.</span>
+        <span class="fr-only">Un noyau cryptographique commun alimente nos clients de référence : le bureau natif Linux ( <a href="/lightningmail-desktop_1.0.6_amd64.deb" style="color:var(--ink);font-weight:700">.deb</a> · <a href="/lightningmail-desktop-1.0.6-x86_64.AppImage" style="color:var(--ink);font-weight:700">.AppImage</a> ) pour Ubuntu/Debian 24.04+, la ligne de commande avec connexion navigateur (<a href="/lightningmail-linux-amd64" style="color:var(--ink);font-weight:700">binaire x86_64</a>), l’<a href="/lightningmail.apk" style="color:var(--ink);font-weight:700">app Android (.apk)</a> avec keystore matériel, l’<a href="/lightningmail-thunderbird.xpi" style="color:var(--ink);font-weight:700">add-on Thunderbird (.xpi)</a> et l’appli web. Les services tiers intègrent le bouton de connexion sans logiciel de nous : <a href="/embed" style="color:var(--ink);font-weight:700">intégrer le bouton</a>. Construire des clients pour iOS, macOS ou Windows est documenté sous <a href="/architecture#clients" style="color:var(--ink);font-weight:700">Décisions d’architecture et portage des clients</a>.</span>
+        <span class="pl-only">Wspólny rdzeń kryptograficzny napędza nasze klienty referencyjne: natywny pulpit Linuksa ( <a href="/lightningmail-desktop_1.0.6_amd64.deb" style="color:var(--ink);font-weight:700">.deb</a> · <a href="/lightningmail-desktop-1.0.6-x86_64.AppImage" style="color:var(--ink);font-weight:700">.AppImage</a> ) dla Ubuntu/Debiana 24.04+, wiersz poleceń z logowaniem w przeglądarce (<a href="/lightningmail-linux-amd64" style="color:var(--ink);font-weight:700">binarium x86_64</a>), <a href="/lightningmail.apk" style="color:var(--ink);font-weight:700">aplikację na Androida (.apk)</a> ze sprzętowym keystore, <a href="/lightningmail-thunderbird.xpi" style="color:var(--ink);font-weight:700">dodatek Thunderbirda (.xpi)</a> oraz aplikację webową. Zewnętrzne serwisy osadzają przycisk logowania bez naszego oprogramowania: <a href="/embed" style="color:var(--ink);font-weight:700">osadź przycisk logowania</a>. Budowa klientów na iOS, macOS czy Windows opisana jest na stronie <a href="/architecture#clients" style="color:var(--ink);font-weight:700">Decyzje architektoniczne i portowanie klientów</a>.</span>
+        <div style="margin-top:0.85rem;background:#fff7dc;border-left:4px solid #d97706;padding:0.65rem 0.85rem;border-radius:6px;font-size:0.9rem;color:#78350f">
+          ⚠️ <b><span class="de-only">Experimentelle Software!</span><span class="en-only">Experimental software!</span><span class="es-only">¡Software experimental!</span><span class="fr-only">Logiciel expérimental !</span><span class="pl-only">Oprogramowanie eksperymentalne!</span></b>
+          <span class="de-only">Für den Verlust echter Satoshis wird keine Verantwortung übernommen. Sparsam aufladen.</span>
+          <span class="en-only">No responsibility is assumed for the loss of real satoshis. Top up sparingly.</span>
+          <span class="es-only">No se asume ninguna responsabilidad por la pérdida de satoshis reales. Recarga con moderación.</span>
+          <span class="fr-only">Aucune responsabilité n’est engagée en cas de perte de vrais satoshis. Rechargez avec modération.</span>
+          <span class="pl-only">Nie ponosimy żadnej odpowiedzialności za utratę prawdziwych satoshi. Doładowuj ostrożnie.</span>
+        </div>
+      </li>
+      <li>
+        <b>Envelope LM1 &amp; Chunked Blobs</b>
+        <span class="de-only">Verschlüsselt wird mit ECIES auf das Schlüsselpaar des Postfachs plus XChaCha20-Poly1305. Große Anhänge werden in 1-MiB-Scheiben zerlegt und mit Byte-Porto bezahlt. Das Relay sieht Umschlag und Größe, nie den Inhalt.</span>
+        <span class="en-only">Messages use ECIES on the mailbox keypair plus XChaCha20-Poly1305. Large attachments are split into 1&nbsp;MiB chunks billed via byte-postage. The relay sees envelope and size, never content.</span>
+        <span class="es-only">El cifrado usa ECIES sobre el par de claves del buzón más XChaCha20-Poly1305. Los adjuntos grandes se dividen en trozos de 1&nbsp;MiB pagados con franqueo por byte. El relay ve el sobre y el tamaño, nunca el contenido.</span>
+        <span class="fr-only">Le chiffrement repose sur ECIES avec la paire de clés de la boîte, plus XChaCha20-Poly1305. Les grosses pièces sont découpées en tranches de 1&nbsp;Mio facturées au port par octet. Le relais voit l’enveloppe et la taille, jamais le contenu.</span>
+        <span class="pl-only">Szyfrowanie używa ECIES na parze kluczy skrzynki plus XChaCha20-Poly1305. Duże załączniki są dzielone na kawałki 1&nbsp;MiB opłacane portem bajtowym. Relay widzi kopertę i rozmiar, nigdy treść.</span>
+      </li>
+      <li>
+        <b><span class="de-only">OIDC-IdP &amp; Service-Connector</span><span class="en-only">OIDC IdP &amp; Service Connector</span><span class="es-only">IdP OIDC y Service Connector</span><span class="fr-only">IdP OIDC et Service Connector</span><span class="pl-only">IdP OIDC i Service Connector</span></b>
+        <span class="de-only">Jedes Relay ist zugleich ein OpenID-Connect-Anbieter für passwortloses „Sign in with lightningmail“. Für Dienste, die auch bezahlte Registrierungsbriefe und Systemmails automatisieren wollen, stellt der Headless-Service-Connector eine einfache JSON/Webhook-Brücke bereit.</span>
+        <span class="en-only">Every relay is also an OpenID Connect provider for passwordless “Sign in with lightningmail”. For services that also want to automate paid registration letters and system mails, the headless Service Connector provides a clean JSON/webhook bridge.</span>
+        <span class="es-only">Cada relay es a la vez un proveedor OpenID Connect para el inicio de sesión sin contraseña «Entrar con lightningmail». Para los servicios que además quieren automatizar cartas de registro de pago y correos de sistema, el Service Connector headless ofrece un puente JSON/webhook sencillo.</span>
+        <span class="fr-only">Chaque relais est aussi un fournisseur OpenID Connect pour la connexion sans mot de passe « Se connecter avec lightningmail ». Pour les services qui veulent en plus automatiser les lettres d’inscription payantes et les e-mails système, le Service Connector headless fournit un pont JSON/webhook propre.</span>
+        <span class="pl-only">Każdy relay jest jednocześnie dostawcą OpenID Connect dla logowania bez hasła „Zaloguj się przez lightningmail”. Dla usług chcących automatyzować płatne listy rejestracyjne i maile systemowe headless Service Connector udostępnia prosty most JSON/webhook.</span>
+      </li>
+      <li>
+        <b><span class="de-only">Passkeys &amp; 24-Wort-Backup</span><span class="en-only">Passkeys &amp; 24-word backup</span><span class="es-only">Passkeys y copia de seguridad de 24 palabras</span><span class="fr-only">Passkeys et sauvegarde de 24 mots</span><span class="pl-only">Passkeys i kopia z 24 słów</span></b>
+        <span class="de-only">Ein Einrichtungs-Assistent erzeugt im Browser 24 BIP39-Wörter als papiernes Haupt-Backup (mit Wortquiz). Im Alltag entsperrt man das Postfach per WebAuthn-Passkey (Telefon oder YubiKey) oder per verschlüsselter <code>.lmkey</code>-Datei.</span>
+        <span class="en-only">A setup wizard generates 24 BIP39 recovery words right in the browser (verified with a word quiz). In daily use, WebAuthn passkeys (phone or YubiKey) or an encrypted <code>.lmkey</code> file unlock the mailbox.</span>
+        <span class="es-only">Un asistente de configuración genera en el navegador 24 palabras BIP39 como copia de seguridad principal en papel (con cuestionario de verificación). En el día a día, el buzón se desbloquea con una passkey WebAuthn (teléfono o YubiKey) o con un archivo <code>.lmkey</code> cifrado.</span>
+        <span class="fr-only">Un assistant de configuration génère dans le navigateur 24 mots BIP39 comme sauvegarde principale sur papier (vérifiée par un quiz). Au quotidien, la boîte se déverrouille par passkey WebAuthn (téléphone ou YubiKey) ou par un fichier <code>.lmkey</code> chiffré.</span>
+        <span class="pl-only">Kreator konfiguracji generuje w przeglądarce 24 słowa BIP39 jako papierową kopię główną (z quizem weryfikacyjnym). Na co dzień skrzynkę odblokowuje passkey WebAuthn (telefon lub YubiKey) albo zaszyfrowany plik <code>.lmkey</code>.</span>
+      </li>
+      <li>
+        <b><span class="de-only">DNS statt öffentlichem Adressbuch</span><span class="en-only">DNS instead of a public directory</span><span class="es-only">DNS en vez de un directorio público</span><span class="fr-only">Le DNS plutôt qu’un annuaire public</span><span class="pl-only">DNS zamiast publicznej książki adresowej</span></b>
+        <span class="de-only">Es braucht keine zentrale Adressdatenbank: Ein DNS-Eintrag (<code>_bmail._tcp</code>) verrät das zuständige Relay der Domain, und das Ziel-Relay liefert zur Empfängeradresse kostenlos den öffentlichen Schlüssel für die Verschlüsselung. Ein privates, verschlüsseltes Adressbuch synchronisiert sich nur zwischen den eigenen Geräten.</span>
+        <span class="en-only">No public address database is needed: a DNS record (<code>_bmail._tcp</code>) points to the domain’s relay, and the destination relay returns the recipient’s public encryption key for free. A private, encrypted address book syncs exclusively across your own devices.</span>
+        <span class="es-only">No hace falta ninguna base de datos central de direcciones: una entrada DNS (<code>_bmail._tcp</code>) revela el relay responsable del dominio, y el relay de destino entrega gratis la clave pública de cifrado del destinatario. Una libreta de direcciones privada y cifrada se sincroniza solo entre tus propios dispositivos.</span>
+        <span class="fr-only">Aucune base d’adresses centrale n’est nécessaire : une entrée DNS (<code>_bmail._tcp</code>) indique le relais responsable du domaine, et le relais destinataire fournit gratuitement la clé publique de chiffrement. Un carnet d’adresses privé et chiffré se synchronise uniquement entre vos propres appareils.</span>
+        <span class="pl-only">Nie potrzeba centralnej bazy adresów: wpis DNS (<code>_bmail._tcp</code>) wskazuje relay odpowiedzialny za domenę, a relay docelowy dostarcza bezpłatnie klucz publiczny do szyfrowania dla adresu odbiorcy. Prywatna, szyfrowana książka adresowa synchronizuje się wyłącznie między twoimi własnymi urządzeniami.</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- TIERS -->
+  <section id="tiers" class="frame">
+    <h2><span class="de-only">Wer zahlt was: fünf Rollen im&nbsp;Netz</span><span class="en-only">Who pays what: five roles on the&nbsp;net</span><span class="es-only">Quién paga qué: cinco roles en la&nbsp;red</span><span class="fr-only">Qui paie quoi : cinq rôles sur le&nbsp;réseau</span><span class="pl-only">Kto ile płaci: pięć ról w&nbsp;sieci</span></h2>
+    <table class="tiers">
+      <tbody>
+        <tr>
+          <td><span class="de-only">Gast / Reader</span><span class="en-only">Guest / reader</span><span class="es-only">Invitado / lector</span><span class="fr-only">Invité / lecteur</span><span class="pl-only">Gość / czytelnik</span></td>
+          <td><span class="de-only">Nutzt ein Postfach bei einem bestehenden Relay. Lesen ist kostenlos, eigene ausgehende Briefe zahlen das normale Porto. Dafür muss man nichts selbst installieren.</span><span class="en-only">Uses a mailbox on an existing relay. Reading is free, and outgoing letters pay the regular postage. Nothing to install.</span><span class="es-only">Usa un buzón en un relay existente. Leer es gratis; las cartas salientes propias pagan el franqueo normal. No hay que instalar nada.</span><span class="fr-only">Utilise une boîte aux lettres sur un relais existant. La lecture est gratuite ; vos lettres sortantes paient le port normal. Rien à installer.</span><span class="pl-only">Korzysta ze skrzynki na istniejącym relay. Czytanie jest darmowe, a własne wychodzące listy płacą zwykłe porto. Nie trzeba nic instalować.</span></td>
+        </tr>
+        <tr>
+          <td><span class="de-only">Briefeschreiber</span><span class="en-only">Letter writer</span><span class="es-only">Autor de cartas</span><span class="fr-only">Épistolier</span><span class="pl-only">Nadawca listów</span></td>
+          <td><span class="de-only">Schreibt andere zum Standardporto von ein paar Cent an. Antwortet das Gegenüber, fließt das Porto mit der Antwort zurück.</span><span class="en-only">Writes to others at the default postage of a few cents. When the other person replies, the postage returns with their answer.</span><span class="es-only">Escribe a otros con el franqueo estándar de unos céntimos. Si la otra parte responde, el franqueo vuelve con la respuesta.</span><span class="fr-only">Écrit aux autres au port par défaut de quelques centimes. Quand le destinataire répond, le port revient avec sa réponse.</span><span class="pl-only">Pisze do innych za standardowe porto w wysokości kilku centów. Gdy druga strona odpowie, porto wraca razem z odpowiedzią.</span></td>
+        </tr>
+        <tr>
+          <td><span class="de-only">Domain-Inhaber</span><span class="en-only">Domain holder</span><span class="es-only">Titular de dominio</span><span class="fr-only">Titulaire de domaine</span><span class="pl-only">Posiadacz domeny</span></td>
+          <td><span class="de-only">Verbindet die eigene Domain per <code>_bmail._tcp</code> mit einem Light- oder Full-Relay für Familien- oder Firmenadressen. Funktioniert wie klassische MX-Einträge, nur mit angeschlossener Portokasse und OIDC-Login.</span><span class="en-only">Connects their own domain via <code>_bmail._tcp</code> to a Light or Full Relay for family or company addresses. Works like classic MX records, with a postage ledger and OIDC login attached.</span><span class="es-only">Conecta su propio dominio mediante <code>_bmail._tcp</code> a un Light o Full Relay para direcciones familiares o de empresa. Funciona como los registros MX clásicos, solo que con libro de franqueo e inicio de sesión OIDC incluidos.</span><span class="fr-only">Connecte son propre domaine via <code>_bmail._tcp</code> à un Light ou Full Relay pour des adresses familiales ou d’entreprise. Fonctionne comme des enregistrements MX classiques, avec registre du port et connexion OIDC en prime.</span><span class="pl-only">Podłącza własną domenę przez <code>_bmail._tcp</code> do Light lub Full Relay dla adresów rodzinnych lub firmowych. Działa jak klasyczne rekordy MX, tylko z podpiętą kasą porto i logowaniem OIDC.</span></td>
+        </tr>
+        <tr>
+          <td><span class="de-only">Sign-In Dienst</span><span class="en-only">Sign-In Service</span><span class="es-only">Servicio de inicio de sesión</span><span class="fr-only">Service de connexion</span><span class="pl-only">Usługa logowania</span></td>
+          <td><span class="de-only">Bindet „Sign in with lightningmail“ per Standard-OIDC für passwortlose Logins ein — oder nutzt den Service-Connector, um bei Neuanmeldungen einen Porto-Vorschuss einzunehmen und Bestätigungsmails direkt daraus zu bezahlen.</span><span class="en-only">Integrates “Sign in with lightningmail” via standard OIDC for passwordless logins — or uses the Service Connector to collect a postage advance on new sign-ups and fund confirmation mails directly from it.</span><span class="es-only">Integra «Entrar con lightningmail» mediante OIDC estándar para accesos sin contraseña — o usa el Service Connector para cobrar un anticipo de franqueo en las nuevas altas y pagar con él directamente los correos de confirmación.</span><span class="fr-only">Intègre « Se connecter avec lightningmail » via l’OIDC standard pour des connexions sans mot de passe — ou utilise le Service Connector pour percevoir une avance sur port lors des nouvelles inscriptions et financer directement les e-mails de confirmation.</span><span class="pl-only">Integruje „Zaloguj się przez lightningmail” przez standardowy OIDC dla logowania bez hasła — albo używa Service Connector, aby przy nowych rejestracjach pobierać zaliczkę na porto i opłacać z niej maile potwierdzające.</span></td>
+        </tr>
+        <tr>
+          <td><span class="de-only">Relay-Betreiber</span><span class="en-only">Relay operator</span><span class="es-only">Operador de relay</span><span class="fr-only">Opérateur de relais</span><span class="pl-only">Operator relay</span></td>
+          <td><span class="de-only">Betreibt das Postamt (als schlankes Light-Relay mit Neutrino oder als Full-Relay mit eigenem Bitcoin-Vollknoten), leitet Briefe weiter und nimmt über das Byte-Porto Gebühren für großen Anhang-Speicher ein.</span><span class="en-only">Runs the post office (as a lightweight Neutrino Light Relay or a Full Relay with its own Bitcoin full node), forwards mail and collects byte-postage fees for large attachment storage.</span><span class="es-only">Opera la oficina de correos (como Light Relay ligero con Neutrino o como Full Relay con nodo completo de Bitcoin propio), reenvía las cartas y cobra comisiones de franqueo por byte por el almacenamiento de adjuntos grandes.</span><span class="fr-only">Exploite le bureau de poste (en Light Relay léger sous Neutrino ou en Full Relay avec son propre nœud complet Bitcoin), achemine le courrier et perçoit des frais au port par octet pour le stockage des grosses pièces jointes.</span><span class="pl-only">Prowadzi urząd pocztowy (jako lekki Light Relay z Neutrino albo Full Relay z własnym pełnym węzłem Bitcoina), przekazuje listy i pobiera opłaty bajtowe za przechowywanie dużych załączników.</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="meta-note">
+      <span class="de-only">Keine dieser Stufen ist Pflicht: Wer nur Post lesen will, braucht keinen eigenen Knoten. Wer einen Knoten betreibt, muss keine fremden Nutzer aufnehmen.</span>
+      <span class="en-only">None of these tiers is mandatory: you do not need a node just to read mail, and running a node does not force you to host strangers.</span>
+      <span class="es-only">Ninguno de estos niveles es obligatorio: quien solo quiera leer correo no necesita un nodo propio. Y quien opera un nodo no está obligado a alojar a desconocidos.</span>
+      <span class="fr-only">Aucun de ces paliers n’est obligatoire : pas besoin de nœud pour simplement lire son courrier, et exploiter un nœud n’oblige pas à héberger des inconnus.</span>
+      <span class="pl-only">Żaden z tych poziomów nie jest obowiązkowy: kto chce tylko czytać pocztę, nie potrzebuje własnego węzła. A kto prowadzi węzeł, nie musi przyjmować obcych użytkowników.</span>
+    </p>
+  </section>
+
+  <!-- STATUS -->
+  <section id="status" class="field-block">
+    <div class="frame">
+      <div class="grid-12">
+        <div class="col-head">
+          <h2>
+            <span class="de-only">Heutiger Stand auf lightningmail.app</span>
+            <span class="en-only">Current state on lightningmail.app</span>
+            <span class="es-only">Estado actual en lightningmail.app</span>
+            <span class="fr-only">État actuel sur lightningmail.app</span>
+            <span class="pl-only">Obecny stan na lightningmail.app</span>
+          </h2>
+        </div>
+        <div class="col-body">
+          <p>
+            <span class="de-only">Auf <b>lightningmail.app</b> laufen heute zwei Relays mit Regtest-BTC: Ende-zu-Ende-verschlüsselte Briefe, große Anhänge (1-MiB-Chunking mit Byte-Porto), Porto-Abbuchung und Empfänger-Gutschrift per Lightning, ✓/✓✓-Empfangsbestätigungen, ein 4-Schritt-Einrichtungsassistent mit 24 BIP39-Wörtern, Passkey-Login, OIDC-Identity-Provider („Sign in with lightningmail“), Synchronisation über mehrere Geräte, privates Adressbuch und Euro-Steuerexport mit Hashkette sind produktiv in Betrieb.</span>
+            <span class="en-only">Two relays running on regtest BTC are live today on <b>lightningmail.app</b>: end-to-end encrypted letters, large attachments (1&nbsp;MiB chunking with byte-postage), Lightning postage debiting and recipient crediting, ✓/✓✓ delivery receipts, a 4-step setup wizard with 24 BIP39 recovery words, passkey login, OIDC Identity Provider (“Sign in with lightningmail”), multi-device sync, private address book and hash-chained EUR tax export are all running in production code.</span>
+            <span class="es-only">Hoy en <b>lightningmail.app</b> funcionan dos relay con BTC de regtest: cartas cifradas de extremo a extremo, adjuntos grandes (fragmentación de 1&nbsp;MiB con franqueo por byte), cargo de franqueo y abono al destinatario por Lightning, acuses ✓/✓✓, asistente de configuración de 4 pasos con 24 palabras BIP39, inicio de sesión con passkey, proveedor de identidad OIDC («Entrar con lightningmail»), sincronización multidispositivo, libreta de direcciones privada y exportación fiscal en euros con cadena de hashes están en funcionamiento productivo.</span>
+            <span class="fr-only">Deux relais fonctionnant en BTC regtest tournent aujourd’hui sur <b>lightningmail.app</b> : lettres chiffrées de bout en bout, grosses pièces jointes (découpage de 1&nbsp;Mio avec port à l’octet), débit du port et crédit au destinataire via Lightning, accusés ✓/✓✓, assistant de configuration en 4 étapes avec 24 mots BIP39, connexion par passkey, fournisseur d’identité OIDC (« Se connecter avec lightningmail »), synchronisation multi-appareils, carnet d’adresses privé et export fiscal EUR chaîné par hachage sont en production.</span>
+            <span class="pl-only">Na <b>lightningmail.app</b> działają dziś dwa relay z regtest BTC: listy szyfrowane end-to-end, duże załączniki (podział na 1&nbsp;MiB z portem bajtowym), obciążanie portem i uznawanie odbiorcy przez Lightning, potwierdzenia ✓/✓✓, czteroetapowy kreator z 24 słowami BIP39, logowanie passkey, dostawca tożsamości OIDC („Zaloguj się przez lightningmail”), synchronizacja wielu urządzeń, prywatna książka adresowa i eksport podatkowy w euro z łańcuchem hashy działają produkcyjnie.</span>
+          </p>
+          <p>
+            <span class="de-only">Das gesamte Projekt steht unter der MIT-Lizenz. Jeder darf den Code lesen, kopieren und auf eigener Hardware betreiben. Hinter der Domain steht ein privater Haushalt, keine Firma und kein Investor. Wer mitmachen möchte, legt sich ein Testpostfach an oder setzt gleich ein eigenes Relay auf.</span>
+            <span class="en-only">The entire project is MIT-licensed. Anyone may read, fork and run the code on their own hardware. The domain is operated by a private household, not a company or a venture fund. If you want to try it out, open a test mailbox or spin up a relay of your own.</span>
+            <span class="es-only">Todo el proyecto está bajo licencia MIT. Cualquiera puede leer el código, copiarlo y ejecutarlo en su propio hardware. Detrás del dominio hay un hogar privado, no una empresa ni un inversor. Quien quiera participar, que se cree un buzón de prueba o monte directamente su propio relay.</span>
+            <span class="fr-only">L’ensemble du projet est sous licence MIT. Chacun peut lire le code, le copier et le faire tourner sur son propre matériel. Derrière le domaine se trouve un foyer privé, pas une entreprise ni un fonds d’investissement. Pour participer, ouvrez une boîte de test ou montez directement votre propre relais.</span>
+            <span class="pl-only">Cały projekt jest na licencji MIT. Każdy może czytać kod, kopiować go i uruchamiać na własnym sprzęcie. Za domeną stoi prywatne gospodarstwo domowe, nie firma ani inwestor. Kto chce dołączyć, zakłada skrzynkę testową albo od razu stawia własny relay.</span>
+          </p>
+          <div class="cta-row">
+            <a class="btn" href="/app/"><span class="de-only">Zum Webmail &amp; Anmelden</span><span class="en-only">Open Webmail &amp; Sign up</span><span class="es-only">Abrir Webmail y registrarse</span><span class="fr-only">Ouvrir le webmail et s’inscrire</span><span class="pl-only">Otwórz Webmail i zarejestruj się</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="close-stage">
+  <div class="footer-inner">
+    <div class="footer-mark" aria-hidden="true">lightningmail</div>
+    <div class="footer-meta">
+      <span><a href="https://lightningmail.app" style="color:inherit">lightningmail.app</a> · <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener" style="color:inherit">GitHub</a> · MIT <span class="de-only">lizenziert</span><span class="en-only">licensed</span><span class="es-only">con licencia</span><span class="fr-only">sous licence</span><span class="pl-only">na licencji</span></span>
+      <span><span class="de-only">Kein Tracking. Keine Cookies. Nur Porto.</span><span class="en-only">No tracking. No cookies. Just postage.</span><span class="es-only">Sin rastreo. Sin cookies. Solo franqueo.</span><span class="fr-only">Pas de traçage. Pas de cookies. Juste du port.</span><span class="pl-only">Bez śledzenia. Bez plików cookie. Tylko porto.</span></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+
+const LANGS = ['de','en','es','fr','pl'];
+const TITLES = {
+  de: 'lightningmail · E-Mail mit Lightning-Porto',
+  en: 'lightningmail · e-mail with Lightning postage',
+  es: 'lightningmail · correo electrónico con franqueo Lightning',
+  fr: 'lightningmail · l’e-mail avec port Lightning',
+  pl: 'lightningmail · e-mail z portem Lightning'
+};
+const langSel = document.getElementById('langSel');
+function setLang(l) {
+  if (!LANGS.includes(l)) l = 'de';
+  document.documentElement.lang = l;
+  langSel.value = l;
+  document.title = TITLES[l];
+  try { localStorage.setItem('lm_lang', l); } catch {}
+}
+langSel.addEventListener('change', function() { setLang(langSel.value); });
+try {
+  const saved = localStorage.getItem('lm_lang');
+  if (LANGS.includes(saved)) setLang(saved);
+} catch {}
+
+// 60-Tage-Countdown bis zum Mainnet-Deployment (18. Januar 2027, 12:00 UTC)
+const MAINNET_TS = Date.UTC(2027, 0, 18, 12, 0, 0);
+function tickCountdown() {
+  const el = document.getElementById('mainnet-cd');
+  if (!el) return;
+  const diff = Math.max(0, Math.floor((MAINNET_TS - Date.now()) / 1000));
+  const d = Math.floor(diff / 86400);
+  const h = String(Math.floor((diff % 86400) / 3600)).padStart(2, '0');
+  const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
+  const s = String(diff % 60).padStart(2, '0');
+  el.textContent = `${d}d : ${h}h : ${m}m : ${s}s`;
+}
+tickCountdown();
+setInterval(tickCountdown, 1000);
+
+// Warnung vor jedem App-Download
+const DL_WARN = {
+  de: '⚠️ Experimentelle Software!\nFür den Verlust echter Satoshis wird keine Verantwortung übernommen. Sparsam aufladen.\n\nDownload jetzt starten?',
+  en: '⚠️ Experimental software!\nNo responsibility is assumed for the loss of real satoshis. Top up sparingly.\n\nStart download now?',
+  es: '⚠️ ¡Software experimental!\nNo se asume ninguna responsabilidad por la pérdida de satoshis reales. Recarga con moderación.\n\n¿Iniciar descarga ahora?',
+  fr: '⚠️ Logiciel expérimental !\nAucune responsabilité n’est engagée en cas de perte de vrais satoshis. Rechargez avec modération.\n\nLancer le téléchargement maintenant ?',
+  pl: '⚠️ Oprogramowanie eksperymentalne!\nNie ponosimy żadnej odpowiedzialności za utratę prawdziwych satoshi. Doładowuj ostrożnie.\n\nRozpocząć pobieranie?'
+};
+document.querySelectorAll('a[href$=".apk"], a[href$="-amd64"], a[href$=".xpi"]').forEach(function(a) {
+  a.addEventListener('click', function(ev) {
+    const l = document.documentElement.lang || 'de';
+    if (!confirm(DL_WARN[l] || DL_WARN.de)) ev.preventDefault();
+  });
+});
+</script>
+</body>
+</html>

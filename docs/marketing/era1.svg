@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#0d1017"/>
+  <text x="120" y="170" font-family="DejaVu Sans" font-size="40" fill="#8b93a7">Kapitel 1 · 1971–1992</text>
+  <text x="120" y="270" font-family="DejaVu Sans" font-size="80" font-weight="bold" fill="#ede8dc">Das offene Netz</text>
+  <line x1="120" y1="320" x2="1800" y2="320" stroke="#f7931a" stroke-width="3" stroke-opacity="0.5"/>
+  <g font-family="DejaVu Sans">
+    <text x="120" y="430" font-size="52" font-weight="bold" fill="#f7931a">1971</text>
+    <text x="320" y="430" font-size="40" fill="#ede8dc">Die erste E-Mail. Ray Tomlinson erfindet das @ —</text>
+    <text x="320" y="482" font-size="40" fill="#ede8dc">jeder kann jeden erreichen. Kein Türsteher, kein Konto.</text>
+    <text x="120" y="600" font-size="52" font-weight="bold" fill="#f7931a">1980</text>
+    <text x="320" y="600" font-size="40" fill="#ede8dc">Usenet: die offene Diskussionskultur. Mail-Clients</text>
+    <text x="320" y="652" font-size="40" fill="#ede8dc">haben News eingebaut — Thunderbird kann es bis heute.</text>
+    <text x="120" y="770" font-size="52" font-weight="bold" fill="#f7931a">1985</text>
+    <text x="320" y="770" font-size="40" fill="#ede8dc">„Ender's Game": Autorität durch Inhalt, nicht durch Ausweis.</text>
+    <text x="120" y="890" font-size="52" font-weight="bold" fill="#f7931a">1992</text>
+    <text x="320" y="890" font-size="40" fill="#ede8dc">Cypherpunks: „Wir schreiben Code." Krypto wird Werkzeug.</text>
+  </g>
+  <text x="1800" y="1010" text-anchor="end" font-family="DejaVu Sans" font-size="26" fill="#5c6474">lightningmail · Historie 1/4</text>
+</svg>

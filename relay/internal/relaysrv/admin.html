@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>⚡ Relay-Admin</title>
+<style>
+  body{font:15px/1.55 system-ui,ui-sans-serif;background:#0d1117;color:#e6edf3;margin:0;padding:28px 16px}
+  main{max-width:1080px;margin:0 auto}
+  h1{font-size:1.35rem;margin:0 0 4px}h2{font-size:1.05rem;margin:2em 0 .6em}
+  .sub{color:#8b949e;font-size:.88rem;margin-bottom:18px}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px 20px;margin:14px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+  .kpi{background:#161b22;border:1px solid #30363d;border-left:4px solid #f7931a;border-radius:10px;padding:12px 14px}
+  .kpi b{display:block;font-size:1.25rem}
+  .kpi span{color:#8b949e;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}
+  table{width:100%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;font-size:.88rem}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #21262d;white-space:nowrap}
+  th{background:#1c2128;color:#8b949e;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;user-select:none}
+  tr:hover td{background:#1c2128}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid #30363d;background:#21262d;color:#e6edf3;cursor:pointer}
+  button:hover{background:#30363d}
+  button.del{border-color:#f8514966;color:#f85149;padding:4px 10px;font-size:.8rem}
+  button.pri{background:#f7931a;border-color:#f7931a;color:#0d1117;font-weight:700}
+  input{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;width:100%;box-sizing:border-box}
+  code,kbd{background:#21262d;border-radius:5px;padding:2px 6px;font-size:.85em}
+  .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+  .err{color:#f85149}.ok{color:#3fb950}.dim{color:#8b949e}
+  #msg{min-height:1.2em}
+  .held{color:#d29922}
+  @media (max-width:720px){th,td{padding:6px 6px;font-size:.78rem}}
+</style>
+</head>
+<body>
+<main>
+  <h1>⚡ <span id="relayname">Relay-Admin</span></h1>
+  <div class="sub">Nur im lokalen Netz · Zugang per <code>lncli signmessage</code> mit dem Node-Key des LND-Wallets</div>
+
+  <div class="card" id="login">
+    <b>Anmelden</b>
+    <div class="row" style="margin-top:10px">
+      <button class="pri" id="b-challenge">1 · Challenge holen</button>
+      <code id="cmd" class="dim">—</code>
+      <button id="b-copy" style="display:none">kopieren</button>
+    </div>
+    <div class="row"><input id="sig" placeholder="2 · Signatur aus lncli hier einfuegen (einzeilig, beginnt oft mit z)"></div>
+    <div class="row"><button id="b-login">3 · Anmelden</button></div>
+    <div id="msg"></div>
+  </div>
+
+  <div id="panel" style="display:none">
+    <div class="grid" id="kpis"></div>
+
+    <h2>Konten <span class="dim" style="font-weight:400">(Spalte klicken zum Sortieren · Loschen entfernt Konto, Maile, Schluessel-ACLs und Datentraeger-Dateien)</span></h2>
+    <table id="acct">
+      <thead><tr>
+        <th data-k="name">Name</th><th data-k="created_at">Angelegt</th>
+        <th data-k="drive_bytes">Drive</th><th data-k="mail_bytes">Mail-Anhaenge</th>
+        <th data-k="quota_bytes">Quota</th><th data-k="msgs">Briefe</th>
+        <th data-k="held" title="Timelock-Post (Etappe TL) noch im Tresor">Tresor</th>
+        <th data-k="state_bytes">Sync-State</th><th data-k="balance_msat">Guthaben</th>
+        <th data-k="last_tx">Letzte Buchung</th><th></th>
+      </tr></thead><tbody></tbody>
+    </table>
+
+    <h2>Traffic — letzte 14 Tage</h2>
+    <table id="days"><thead><tr><th>Datum</th><th>Neue Briefe</th><th>sats ein</th><th>sats aus</th></tr></thead><tbody></tbody></table>
+
+    <div class="row" style="margin-top:18px">
+      <button id="b-reload">Aktualisieren</button>
+      <button id="b-out">Abmelden</button>
+      <span class="dim" id="stamp"></span>
+    </div>
+  </div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let TOK=sessionStorage.getItem('lmadmin_tok')||'', nonce='', ov=null, sortKey='drive_bytes', sortDir=-1;
+const api=(p,body)=>fetch(p,body?{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOK},body:JSON.stringify(body)}:{headers:{'Authorization':'Bearer '+TOK}});
+const msg=(t,c)=>{$('msg').innerHTML='<span class="'+(c||'')+'">'+t+'</span>'};
+const fmtB=n=>n>=1073741824?(n/1073741824).toFixed(2)+' GiB':n>=1048576?(n/1048576).toFixed(1)+' MiB':n>=1024?(n/1024).toFixed(0)+' KiB':n+' B';
+const fmtD=s=>s?new Date(s*1000).toLocaleDateString():'—';
+const fmtDT=s=>s?new Date(s*1000).toLocaleString():'—';
+
+$('b-challenge').onclick=async()=>{
+  const r=await (await api('/v1/admin/challenge')).json();
+  if(!r.nonce)return msg('Challenge fehlgeschlagen','err');
+  nonce=r.nonce;$('cmd').textContent=r.command;$('b-copy').style.display='';
+  msg('Fuehre den Befehl auf dem Relay-Host aus und fuere die Signatur hier ein.');
+};
+$('b-copy').onclick=()=>{navigator.clipboard.writeText($('cmd').textContent);msg('kopiert','ok')};
+$('b-login').onclick=async()=>{
+  const r=await api('/v1/admin/login',{nonce,signature:$('sig').value});
+  const j=await r.json();
+  if(!r.ok)return msg(j.error||('HTTP '+r.status),'err');
+  TOK=j.token;sessionStorage.setItem('lmadmin_tok',TOK);
+  msg('angemeldet als Node '+j.node_pubkey.slice(0,10)+'…','ok');
+  $('login').style.display='none';$('panel').style.display='';load();
+};
+async function load(){
+  const r=await api('/v1/admin/overview');
+  if(r.status===401){TOK='';sessionStorage.removeItem('lmadmin_tok');$('login').style.display='';$('panel').style.display='none';return}
+  ov=await r.json();render();
+}
+function render(){
+  $('relayname').textContent='Relay-Admin — '+ov.relay_name+(ov.network?' ('+ov.network+')':'');
+  const t=ov.totals||{};
+  $('kpis').innerHTML=[
+    ['Konten',t.accounts||0],['Drive gesamt',fmtB(t.drive_bytes||0)],
+    ['Mail-Anhaenge',fmtB(t.mail_bytes||0)],['Briefe',ov.mailbox_total],
+    ['im Tresor',ov.accounts.reduce((a,x)=>a+x.held,0)],
+    ['Spool wartend',ov.spool_pending],['Guthaben ges.',((t.balance_msat||0)/1000).toLocaleString()+' sats'],
+  ].map(k=>'<div class="kpi"><b>'+k[1]+'</b><span>'+k[0]+'</span></div>').join('');
+  const ac=[...ov.accounts].sort((a,b)=>typeof a[sortKey]==='string'?sortDir*a[sortKey].localeCompare(b[sortKey]):sortDir*(a[sortKey]-b[sortKey]));
+  $('acct').querySelector('tbody').innerHTML=ac.map(a=>
+    '<tr><td><b>'+a.name+'</b></td><td>'+fmtD(a.created_at)+'</td>'+
+    '<td class="num">'+fmtB(a.drive_bytes)+'</td><td class="num">'+fmtB(a.mail_bytes)+'</td>'+
+    '<td class="num dim">'+fmtB(a.quota_bytes)+'</td><td class="num">'+a.msgs+'</td>'+
+    '<td class="num'+(a.held?' held':'')+'">'+a.held+'</td><td class="num">'+fmtB(a.state_bytes)+'</td>'+
+    '<td class="num">'+(a.balance_msat/1000).toLocaleString()+'</td><td>'+fmtDT(a.last_tx)+'</td>'+
+    '<td><button class="del" data-n="'+a.name+'">loeschen</button></td></tr>').join('');
+  document.querySelectorAll('.del').forEach(b=>b.onclick=()=>del(b.dataset.n));
+  $('days').querySelector('tbody').innerHTML=(ov.days||[]).map(d=>
+    '<tr><td>'+d.day+'</td><td class="num">'+d.new_msgs+'</td><td class="num">'+d.sats_in.toLocaleString()+'</td><td class="num">'+d.sats_out.toLocaleString()+'</td></tr>').join('')||'<tr><td colspan=4 class=dim>keine Aktivitaet</td></tr>';
+  $('stamp').textContent='Stand '+new Date(ov.generated*1000).toLocaleString();
+}
+document.querySelectorAll('#acct th[data-k]').forEach(th=>th.onclick=()=>{
+  const k=th.dataset.k; if(sortKey===k)sortDir=-sortDir; else {sortKey=k;sortDir=k==='name'?1:-1} render();
+});
+async function del(name){
+  if(!confirm('Konto „'+name+'“ endgueltig loeschen?\nAlle Briefe, Schluessel-Zugriffe, Passkeys und Datentraeger-Dateien dieses Kontos verschwinden.'))return;
+  if(!confirm('Wirklich: '+name+'? Das ist unumkehrbar.'))return;
+  const r=await api('/v1/admin/delete',{name});const j=await r.json();
+  alert(r.ok?('geloöscht — '+j.files_removed+' verwaiste Datei(en) entfernt'):(j.error||('HTTP '+r.status)));
+  load();
+}
+$('b-reload').onclick=load;
+$('b-out').onclick=()=>{TOK='';sessionStorage.removeItem('lmadmin_tok');$('login').style.display='';$('panel').style.display='none'};
+if(TOK){$('login').style.display='none';$('panel').style.display='';load();}
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+// wie qa-embed, aber tauscht den Code direkt am Relay und dumpft {id_token, nonce, issuer, client_id}
+import { newPrivKey, pubFromPriv, authSign, toHex, schnorr, sha256 } from "../src/crypto";
+const ISS = "https://relay-a.lightningmail.app", RP = "https://lightningmail.app";
+const b64u = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const priv = newPrivKey(), pub = toHex(pubFromPriv(priv)), name = "embd" + Date.now().toString(36);
+await (await fetch(ISS + "/v1/account", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, pubkey: pub }) })).json();
+let r = await fetch(ISS + "/v1/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: name, pubkey_hex: pub, sig: toHex(authSign(priv, name)) }) });
+const bearer = ((await r.json()) as any).token;
+const rnd = (n: number) => { const b = new Uint8Array(n); crypto.getRandomValues(b); return b; };
+const verifier = b64u(rnd(48));
+const cc = b64u(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
+const state = b64u(rnd(9)), nonce = b64u(rnd(12));
+r = await fetch(ISS + "/oidc/auth?" + new URLSearchParams({ response_type: "code", client_id: RP, redirect_uri: RP + "/embed-demo", scope: "openid email", state, nonce, code_challenge: cc, code_challenge_method: "S256" }), { redirect: "manual" });
+const sid = new URL(r.headers.get("location")!).searchParams.get("sid")!;
+r = await fetch(ISS + "/oidc/auth/login", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearer}` }, body: JSON.stringify({ sid }) });
+const lj = await r.json() as any;
+const ch = Uint8Array.from(atob(lj.challenge_b64), c => c.charCodeAt(0));
+r = await fetch(ISS + "/oidc/auth/sign", { method: "POST", headers: { "Content-Type": "application-Type" as any, Authorization: `Bearer ${bearer}` }, body: JSON.stringify({ sid, sig: toHex(schnorr.sign(new Uint8Array(sha256(ch)), priv)) }) });
+const sj = await r.json() as any;
+const code = new URL(sj.redirect).searchParams.get("code")!;
+r = await fetch(ISS + "/oidc/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: RP + "/embed-demo", client_id: RP, code_verifier: verifier }) });
+const tok = await r.json() as any;
+console.log(JSON.stringify({ id_token: tok.id_token, nonce, issuer: ISS, client_id: RP, email: tok.id_token ? JSON.parse(Buffer.from(tok.id_token.split(".")[1], "base64url").toString()).email : null }));

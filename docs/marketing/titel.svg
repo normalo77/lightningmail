@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#0d1017"/>
+  <circle cx="960" cy="540" r="700" fill="none" stroke="#f7931a" stroke-opacity="0.06" stroke-width="2"/>
+  <circle cx="960" cy="540" r="480" fill="none" stroke="#f7931a" stroke-opacity="0.09" stroke-width="2"/>
+  <path d="M42 0 L8 70 H30 L20 120 L62 50 H36 Z" fill="#f7931a" transform="translate(915,210) scale(1.25)"/>
+  <text x="960" y="520" text-anchor="middle" font-family="DejaVu Sans" font-size="96" font-weight="bold" fill="#ede8dc">lightningmail</text>
+  <text x="960" y="620" text-anchor="middle" font-family="DejaVu Sans" font-size="44" fill="#f7931a">Die Briefmarke, die endlich auszahlt.</text>
+  <text x="960" y="760" text-anchor="middle" font-family="DejaVu Sans" font-size="30" fill="#8b93a7">Porto gegen Spam · Identität per Schlüssel · Ende-zu-Ende</text>
+  <text x="960" y="950" text-anchor="middle" font-family="DejaVu Sans" font-size="26" fill="#5c6474">MIT-Lizenz · Lightning Network · 2026</text>
+</svg>

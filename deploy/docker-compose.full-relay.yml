@@ -1,0 +1,70 @@
+# Full relay (CONCEPT §27, Etappe O): relayd + LND + own bitcoind
+# (full node ~700 GB disk, maximum independence).
+# Setup: ./install-relay.sh --mode full --domain example.org   (also writes .env)
+# Start: docker compose -f docker-compose.full-relay.yml up -d
+name: bmail-full-relay
+
+services:
+  bitcoind:
+    image: lncm/bitcoind:v28.1
+    restart: unless-stopped
+    command:
+      - --server=1
+      - --txindex=1
+      - --blockfilterindex=1      # BIP157/158 filters for LND
+      - --peerblockfilters=1
+      - --zmqpubrawblock=tcp://0.0.0.0:28332
+      - --zmqpubrawtx=tcp://0.0.0.0:28333
+      # RPC only in the isolated compose network; credentials from .env (install-relay.sh)
+      - --rpcuser=${BITCOIN_RPC_USER:-bmail}
+      - --rpcpassword=${BITCO…ASS}
+      - --rpcbind=0.0.0.0
+      - --rpcallowip=0.0.0.0/0
+    volumes:
+      - bitcoin-data:/data
+
+  lnd:
+    image: lightninglabs/lnd:v0.21.8-beta
+    hostname: lnd            # the TLS cert SAN must match the lncli host "lnd"
+    restart: unless-stopped
+    depends_on:
+      - bitcoind
+    command:
+      - --bitcoin.active
+      - --bitcoin.mainnet
+      - --bitcoin.node=bitcoind
+      - --bitcoind.rpchost=bitcoind:8332
+      - --bitcoind.rpcuser=${BITCOIN_RPC_USER:-bmail}
+      - --bitcoind.rpcpass=${BITCOIN_RPC_PASS:?.env mit BITCOIN_RPC_PASS fehlt (install-relay.sh)}
+      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      - --restlisten=0.0.0.0:8080
+      - --rpclisten=0.0.0.0:10009
+      - --listen=0.0.0.0:9735
+      - --tlsextraip=0.0.0.0
+      - --accept-keysend     # bmail postage arrives as keysend TLV (CONCEPT §12/§13)
+    volumes:
+      - lnd-data:/root/.lnd
+    ports:
+      - "9735:9735"          # Lightning-P2P
+
+  relayd:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.relayd
+    restart: unless-stopped
+    depends_on:
+      - lnd
+    command: ["/usr/local/bin/relayd", "-config", "/data/relay.yaml"]
+    volumes:
+      - relay-data:/var/lib/bmail
+      - lnd-data:/lnd:ro     # tls.cert + admin.macaroon (read-only)
+      - ./relay.yaml:/data/relay.yaml:ro
+      - ./ui:/var/lib/bmail/ui:ro
+    ports:
+      - "8443:8443"          # WARNING: relayd speaks HTTP — terminate TLS in front of it!
+
+volumes:
+  bitcoin-data:
+  lnd-data:
+  relay-data:

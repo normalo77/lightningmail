@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M0-Testmail</title>
+<style>
+  body { font-family: Georgia, 'Liberation Serif', 'Times New Roman', serif; color:#222; margin:0; padding:18px 22px; font-size:15px; }
+  h2 { font-family: Helvetica, Arial, sans-serif; color:#1a7f37; margin-top:0; }
+  code, pre { font-family: 'Liberation Mono', monospace; background:#f2f2f2; padding:1px 4px; }
+  .rot { color:#c0392b; } .blau { color:#2471a3; } .gruen { color:#1e8449; }
+  blockquote { border-left:4px solid #ccc; margin:10px 0; padding:4px 12px; color:#555; font-style:italic; }
+  img { image-rendering: pixelated; background:#fafafa; }
+  .fehler { border:1px solid #ddd; padding:2px; }
+</style>
+</head>
+<body>
+  <h2>M0-Testmail</h2>
+  <p><b>Fett</b>, <i>kursiv</i>, <span class="rot">rot</span>, <span class="blau">blau</span>,
+     <span class="gruen">gruen</span> und <code>monospace-code</code> in einer Serif-Zeile.</p>
+  <p>Bild 1: eingebettet als data-URI:</p>
+  <img src="{{IMG_DATAURI}}" width="80" height="80" alt="data-uri">
+  <p>Bild 2: ueber eigenes Schema <code>lm-mail://</code> aus dem RAM:</p>
+  <img src="lm-mail://blob/demo1" width="80" height="80" alt="lm-mail scheme">
+  <p>Bild 3: liefert 404, darf das Layout nicht zerstoeren:</p>
+  <img class="fehler" src="lm-mail://blob/fehlt" width="80" height="80" alt="missing">
+  <ul>
+    <li>List Punkt <b>eins</b></li>
+    <li>List Punkt <i>zwei</i></li>
+    <li>List Punkt <span class="rot">drei</span></li>
+  </ul>
+  <blockquote>Zitat mit serifed Fliesstext, damit man die Schriftart sieht.</blockquote>
+  <p><a href="https://lightningmail.app">Link zu lightningmail.app</a></p>
+  <pre>LM-RELAY 0.2.1
+STATUS: ok  (monospace-Block)</pre>
+</body>
+</html>
