@@ -64,7 +64,7 @@ export interface ComposeOpts {
 // full path: blob uploads, profile, encrypt, sign, POST /v1/send
 export async function composeAndSend(
   base: string, token: string, priv: Uint8Array, opts: ComposeOpts
-): Promise<{ msg_id: string }> {
+): Promise<{ msg_id: string; status?: string; receipt?: { amount_sats: number }; tip_sats?: number }> {
   const blobRefs: Uint8Array[] = [];
   const attList: { sha256: string; name: string; size: number; chunked?: boolean; chunks?: number }[] = [];
   const auth = { Authorization: `Bearer ${token}` };

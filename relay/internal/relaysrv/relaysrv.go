@@ -5,6 +5,7 @@
 package relaysrv
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -49,6 +50,9 @@ type Server struct {
 	// in-memory, single process; externalize for multi-instance relays).
 	waMu       sync.Mutex
 	waSessions map[string]waSessionEntry
+
+	// Etappe R test seam: nil = s.ln.SendKeysend (lnclient shells out to lncli).
+	keysendFn func(ctx context.Context, dest string, amt int64, recs map[uint64][]byte) (string, error)
 
 	// transport signing key (TLV 34349337) + DNS discovery cache (§4.2)
 	tkeyMu sync.Mutex
@@ -116,6 +120,8 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/v1/state", s.auth(s.handleState))
 	mux.HandleFunc("/v1/relay/blob/", s.relayBlob)
 	mux.HandleFunc("/v1/receipts", s.auth(s.handleReceipts))
+	// Etappe R: Versand-Spool — Outbox-Status eigener pending/dead Sends
+	mux.HandleFunc("/v1/outbox", s.auth(s.handleOutbox))
 	mux.HandleFunc("/v1/relay/receipt", s.relayReceipt)
 	// Etappe G2 (§25): hash-chained statements — account + operator
 	mux.HandleFunc("/v1/statement", s.auth(s.handleStatement))
@@ -148,6 +154,10 @@ func (s *Server) routes() *http.ServeMux {
 		if rate, ok := s.rateFeed.Current(); ok {
 			resp["rate_meur_per_btc"] = rate.MEurPerBtc
 		}
+		// Etappe R: Spool-Fuellstand fuer Monitoring
+		if n, err := s.ledger.SpoolPendingCount(); err == nil {
+			resp["spool"] = map[string]any{"pending": n}
+		}
 		json.NewEncoder(w).Encode(resp)
 	})
 
@@ -170,6 +180,14 @@ func (s *Server) ListenAndServe() error {
 				continue
 			}
 			s.mirrorReceipts(items)
+		}
+	}()
+
+	// Etappe R: send-spool retry ticker — exakt das 6b-Muster (60s, dropped
+	// ticks = singleflight); TickSpool ist exportiert fuer Unit-Tests.
+	go func() {
+		for range time.Tick(60 * time.Second) {
+			s.TickSpool(time.Now())
 		}
 	}()
 
@@ -413,48 +431,31 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now().Unix()
-	ts := make([]byte, 8)
-	ts[0] = byte(now >> 56)
-	ts[1] = byte(now >> 48)
-	ts[2] = byte(now >> 40)
-	ts[3] = byte(now >> 32)
-	ts[4] = byte(now >> 24)
-	ts[5] = byte(now >> 16)
-	ts[6] = byte(now >> 8)
-	ts[7] = byte(now)
 
-	// TLV 34349337 (spec §2): BIP340 sig of the relay transport key over
-	// sha256(envelope binary) — previously 64 zero bytes (placeholder).
-	transportPriv, err := s.relayTransportKey()
+	// Etappe R: delivery runs deliver() — same path the spool ticker retries on.
+	// Transport-key/sign errors that used to refund+500 end up in the spool now;
+	// they self-heal via retry or land as dead letter with postage refund.
+	preimage, err := s.deliver(r.Context(), envBin, destNode, postageAmt+tipAmt)
 	if err != nil {
-		s.ledger.ApplyDeltaMeta(account, sendMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
-		http.Error(w, fmt.Sprintf(`{"error":"transport key: %v"}`, err), 500)
-		return
-	}
-	transportSig, err := crypto.Sign(transportPriv, envBin)
-	if err != nil {
-		s.ledger.ApplyDeltaMeta(account, sendMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
-		http.Error(w, `{"error":"transport sign"}`, 500)
-		return
-	}
-
-	transportPub := crypto.PublicBytes(transportPriv)
-	customRecords := map[uint64][]byte{
-		34349334: envBin,
-		34349337: transportSig,
-		34349339: transportPub[:],
-		34349343: ts,
-	}
-
-	preimage, err := s.ln.SendKeysend(r.Context(), destNode, postageAmt+tipAmt, customRecords)
-	if err != nil {
-		s.ledger.ApplyDeltaMeta(account, sendMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
-		http.Error(w, fmt.Sprintf(`{"error":"keysend: %v"}`, err), 502)
+		// Empfaenger-Relay down: Mail nicht als 502 verlieren, sondern persistent
+		// 'pending' speichern — Porto bleibt abgebucht bis Zustellung/Dead Letter.
+		if sErr := s.enqueueSpool(account, targetHint, destNode, env, envBin, postageAmt+tipAmt, now); sErr != nil {
+			s.ledger.ApplyDeltaMeta(account, sendMsat, ledger.KindPostageOut, "refund:"+hex.EncodeToString(env.MsgID[:]), "btc", s.ratePtr())
+			http.Error(w, fmt.Sprintf(`{"error":"keysend: %v (spool: %v)"}`, err, sErr), 502)
+			return
+		}
+		w.WriteHeader(202)
+		json.NewEncoder(w).Encode(map[string]any{
+			"msg_id": hex.EncodeToString(env.MsgID[:]),
+			"status": "pending",
+		})
+		log.Printf("send: %s -> peer %s down (%v) — gespoolt: %s", account, destName, err, hex.EncodeToString(env.MsgID[:])[:16])
 		return
 	}
 
 	resp := map[string]any{
 		"msg_id": hex.EncodeToString(env.MsgID[:]),
+		"status": "settled",
 		"receipt": map[string]any{
 			"amount_sats":  postageAmt,
 			"preimage_b64": base64.StdEncoding.EncodeToString([]byte(preimage)),

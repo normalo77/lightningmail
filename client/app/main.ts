@@ -47,6 +47,7 @@ let SELF_RELAY = false; // the UI runs on its own relayd (Etappe O, self-hosted)
 let msgs: MsgRow[] = [];
 let tipSats = 0, myForeign = 0, myWelcome = 0, portoBase = ''; // §30.4 enclosure + testnet/mainnet marker
 let receipts: Record<string, number> = {}; // msg_id(hex) -> ✓✓ timestamp (Etappe 6b)
+let outbox: Record<string, { status: string; since: number }> = {}; // Etappe R: msg_id -> pending/dead send
 let sel = -1, folder: 'in' | 'spam' | 'out' | 'dra' | 'new' | 'ab' | 'ums' | 'drv' = 'in';
 let pemCache = '';
 // Auto-login: a successful login remembers key+account+relay in device storage.
@@ -352,6 +353,15 @@ async function fetchReceipts() {
   } catch { /* receipts are a convenience, not an error case */ }
 }
 
+// Etappe R: pending/dead eigene Sends (GET /v1/outbox) — ein Fetch pro
+// Gesendet-Rendering, keine Polling-Expansion.
+async function fetchOutbox() {
+  try {
+    const r = await api('/v1/outbox');
+    if (r.ok) { outbox = {}; for (const x of ((await r.json()) as any[])) outbox[x.msg_id] = x; }
+  } catch { /* outbox is a convenience, not an error case */ }
+}
+
 async function refresh() {
   await refreshBalance();
   await fetchReceipts();
@@ -402,9 +412,13 @@ function render() {
 
 function renderSent() {
   const l = sentList();
-  const tick = (id: string) => receipts[id]
-    ? `<span style="color:var(--accent)" title="Empfänger hat abgerufen ${new Date(receipts[id] * 1000).toLocaleString('de')}">✓✓</span>`
-    : `<span title="zugestellt (Porto am Empfänger-Relay settled) — auf Empfänger-Abruf wartend">✓</span>`;
+  const tick = (id: string) => outbox[id]
+    ? (outbox[id].status === 'pending'
+      ? `<span style="background:#f2c14baa;color:#000;border-radius:8px;padding:1px 6px" title="Empfänger-Relay nicht erreichbar — dein Relay liefert mit Backoff nach">⏳ unterwegs seit ${new Date(outbox[id].since * 1000).toLocaleString('de')}</span>`
+      : `<span style="background:#c0392bcc;color:#fff;border-radius:8px;padding:1px 6px" title="Nach Retention aufgegeben — Porto zurückerstattet">✗ unzustellbar, Porto zurückerstattet</span>`)
+    : (receipts[id]
+      ? `<span style="color:var(--accent)" title="Empfänger hat abgerufen ${new Date(receipts[id] * 1000).toLocaleString('de')}">✓✓</span>`
+      : `<span title="zugestellt (Porto am Empfänger-Relay settled) — auf Empfänger-Abruf wartend">✓</span>`);
   $('list').innerHTML = l.map((s, i) => `<div class="row ${i === sel ? 'sel' : ''}" data-si="${i}">
     <div class="subj">${esc(s.subject)}</div>
     <div class="meta">→ ${esc(s.to)} · ${new Date(s.ts * 1000).toLocaleString('de')} · ${(s.bytes / 1024).toFixed(0)} kB ${tick(s.msg_id)}</div></div>`).join('') ||
@@ -412,11 +426,15 @@ function renderSent() {
   document.querySelectorAll('#list .row').forEach(el => el.addEventListener('click', () => {
     sel = +el.getAttribute('data-si')!; const s = sentList()[sel];
     $('detail').innerHTML = `<div class="card"><div class="subj" style="font-size:17px">${esc(s.subject)}</div>
-      <div class="meta">An ${esc(s.to)} · ${new Date(s.ts * 1000).toLocaleString('de')}<br>msg_id ${esc(s.msg_id.slice(0, 16))}… · Porto bezahlt</div>
+      <div class="meta">An ${esc(s.to)} · ${new Date(s.ts * 1000).toLocaleString('de')}<br>msg_id ${esc(s.msg_id.slice(0, 16))}… · ${outbox[s.msg_id]?.status === 'dead' ? 'unzustellbar — Porto zurückerstattet' : 'Porto bezahlt'}</div>
       ${s.body ? `<pre style="white-space:pre-wrap;font:inherit;margin:14px 0">${esc(s.body)}</pre>` : ''}
-      <p class="meta">${receipts[s.msg_id]
-        ? `✓✓ vom Empfänger abgerufen: ${new Date(receipts[s.msg_id] * 1000).toLocaleString('de')}`
-        : '✓ zugestellt (am Empfänger-Relay) — warte auf Abruf durch den Empfänger'}</p>
+      <p class="meta">${outbox[s.msg_id]
+        ? (outbox[s.msg_id].status === 'pending'
+          ? `⏳ unterwegs seit ${new Date(outbox[s.msg_id].since * 1000).toLocaleString('de')} — dein Relay versucht die Zustellung weiter`
+          : `✗ unzustellbar — nach Retention aufgegeben, Porto zurückerstattet`)
+        : (receipts[s.msg_id]
+          ? `✓✓ vom Empfänger abgerufen: ${new Date(receipts[s.msg_id] * 1000).toLocaleString('de')}`
+          : '✓ zugestellt (am Empfänger-Relay) — warte auf Abruf durch den Empfänger')}</p>
       <p class="meta">Synchronisiert verschlüsselt über dein Relay zwischen all deinen Geräten (Stern-Sync).</p></div>`;
   }));
 }
@@ -856,7 +874,9 @@ async function renderCompose() {
       sentPush({ ts: Math.floor(Date.now() / 1000), to: ($('c-to') as HTMLInputElement).value, subject: ($('c-subj') as HTMLInputElement).value, msg_id: String(out.msg_id || ''), bytes: total, body: ($('c-body') as HTMLTextAreaElement).value.slice(0, 2000) });
       if (draftId && sync) { sync.delDraft(draftId); draftId = ''; }
       tipSats = 0; updateTipChip(); // shortcut: the enclosure is deliberately not persisted in the draft
-      $('c-msg').textContent = '✓ gesendet (' + (out.msg_id || '').slice(0, 10) + '…)';
+      $('c-msg').textContent = out.status === 'pending'
+        ? '✓ wird nachgeliefert (Empfänger vorübergehend nicht erreichbar)'
+        : '✓ gesendet (' + (out.msg_id || '').slice(0, 10) + '…)';
       await refreshBalance();
     } catch (e: any) {
       const m0 = String(e.message || e);
@@ -1429,7 +1449,7 @@ async function passkeyRegister() {
 }
 $('nav-in').onclick = () => { folder = 'in'; sel = -1; mark(); render(); };
 $('nav-spam').onclick = () => { folder = 'spam'; sel = -1; mark(); render(); };
-if ($('nav-sent')) $('nav-sent').onclick = () => { folder = 'out'; sel = -1; mark(); fetchReceipts().then(() => render()); };
+if ($('nav-sent')) $('nav-sent').onclick = () => { folder = 'out'; sel = -1; mark(); Promise.all([fetchReceipts(), fetchOutbox()]).then(() => render()); };
 if ($('nav-dra')) $('nav-dra').onclick = () => { folder = 'dra'; sel = -1; mark(); render(); };
 $('nav-new').onclick = () => { folder = 'new'; draftId = ''; mark(); render(); };
 $('nav-ab').onclick = () => { folder = 'ab'; sel = -1; abEdit = ''; mark(); render(); };
