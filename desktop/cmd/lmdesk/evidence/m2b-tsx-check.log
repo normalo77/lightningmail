@@ -1,0 +1,13 @@
+PASS auth 030e0044a02e -> 200
+PASS auth 0268201e64de -> 200
+PASS B1: Mail 41f4c6a443… liegt in betas Inbox (seq 1)
+PASS B1: Envelope traegt genau 1 Blob-Ref (Manifest), ist 1
+PASS B1: Payload-Attachment chunked, 3 Scheiben (3)
+PASS B1: Envelope-Ref == Manifest-sha
+PASS B1: beta laedt 3 MiB bytegleich (sha256 b4eb465c1845…)
+PASS B1: Absender-Pubkey == alpha
+PASS B4: Reply-Subject 'Re: M2B — 3MB Anhang' in alphas Inbox (seq 2)
+PASS B2: Zweitgeraet sieht 3 Entwurf/Ue (betreff M2B-Entwurf*)
+PASS B3: read[41f4c6a443…] = 1 gesetzt (Server-Version 6)
+INFO: sent-Eintraege auf beta: 2
+M2B_CHECK_DONE exit=0

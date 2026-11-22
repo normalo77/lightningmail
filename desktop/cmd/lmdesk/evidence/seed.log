@@ -1,12 +1,8 @@
-# seed-inbox.go run on CT114, 2026-11-21 21:47 — console output as captured
-# (tail -6 of the run; the two earliest lines were cut by tail and are NOT
-# reproduced here). Account + send times independently verifiable via the
-# received_at values in lmdesk.log / the list rows of the screenshots:
-#   Seed 1 received 21:47:04, Seed 2 21:47:06, Seed 3 21:47:08.
-# Account: desk-m1b-07359ad6@alpha (throwaway), key /root/lm/desktop/scripts/seed.key
-seed 2026-11-21 21:47:06 gesendet: "Seed 2 — HTML bunt" (1597 bytes envelope, msg a37b1ec4e1ad…)
-seed 2026-11-21 21:47:08 bild.png generiert: 1867639 bytes
-seed 2026-11-21 21:47:08 chunked upload: 2 scheiben, manifest 4cdd05fabfc1…
-seed 2026-11-21 21:47:08 gesendet: "Seed 3 — Inline-Bild" (737 bytes envelope, msg 6d019ceea202…)
-seed 2026-11-21 21:47:08 balance=9964372 msat, inbox=3 mails, config=/root/.config/lightningmail/config.json
-SEED_OK name=desk-m1b-07359ad6 relay=http://127.0.0.1:18443 balance_msat=9964372 inbox=3
+seed 2026/11/22 03:13:43 konto desk-m1b-6b569c1e@alpha angelegt (regtest-faucet), key /root/lm/desktop/scripts/seed.key
+seed 2026/11/22 03:13:43 gesendet: "Seed 1 — reiner Text" (487 bytes envelope, msg 3ce993163996…)
+seed 2026/11/22 03:13:45 gesendet: "Seed 2 — HTML bunt" (1597 bytes envelope, msg b51d2301e5b7…)
+seed 2026/11/22 03:13:47 bild.png generiert: 1867639 bytes
+seed 2026/11/22 03:13:47 chunked upload: 2 scheiben, manifest 4cdd05fabfc1…
+seed 2026/11/22 03:13:48 gesendet: "Seed 3 — Inline-Bild" (737 bytes envelope, msg 4f54ebcaad58…)
+seed 2026/11/22 03:13:48 balance=9964372 msat, inbox=3 mails, config=/root/.config/lightningmail/config.json
+SEED_OK name=desk-m1b-6b569c1e relay=http://127.0.0.1:18443 balance_msat=9964372 inbox=3

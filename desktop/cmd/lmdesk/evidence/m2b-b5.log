@@ -1,0 +1,10 @@
+lmdesk 2026/11/22 02:58:35 hygiene: mlockall: cannot allocate memory (key pages may be swappable)
+lmdesk 2026/11/22 02:58:35 Keyfile ist gewrappt — Passphrase-Dialog wird angezeigt
+lmdesk 2026/11/22 02:58:35 start: account=030e0044a02e relay=http://127.0.0.1:19443 tor_socks=""
+lmdesk 2026/11/22 02:58:35 login: Prompt für Keyfile cmd/lmdesk/evidence/m2b-beta.lmkey
+lmdesk 2026/11/22 02:58:48 login: Keyfile entsperrt
+Overriding existing handler for signal 10. Set JSC_SIGNAL_FOR_GC if you want WebKit to use a different signal
+lmdesk 2026/11/22 02:58:48 reader: ephemeral NetworkSession aktiv (keine Disk-Artefakte)
+lmdesk 2026/11/22 02:58:48 scheme lm-mail registriert (WebView-eigener WebContext)
+lmdesk 2026/11/22 02:58:48 UI steht (1200x760), sync-loop gestartet
+lmdesk 2026/11/22 02:58:48 neu: seq=1 msg=41f4c6a4433a… subj="M2B — 3MB Anhang"

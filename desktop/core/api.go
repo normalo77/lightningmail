@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -292,17 +293,84 @@ func (c *Client) UploadBlob(ctx context.Context, data []byte) (string, error) {
 	return ur.SHA256Hex, nil
 }
 
-// Profile looks up GET /v1/profile/{name} -> 33B compressed pubkey hex.
-func (c *Client) Profile(ctx context.Context, name string) (string, error) {
+// Profile looks up GET /v1/profile/{name} -> 33B compressed pubkey hex + postage_sats.
+func (c *Client) Profile(ctx context.Context, name string) (*ProfileResult, error) {
 	raw, err := c.do(ctx, "GET", "/v1/profile/"+name, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	var pr struct {
-		Pubkey string `json:"pubkey"`
-	}
+	var pr ProfileResult
 	if err := json.Unmarshal(raw, &pr); err != nil || pr.Pubkey == "" {
-		return "", fmt.Errorf("profile decode: %v", err)
+		return nil, fmt.Errorf("profile decode: %v", err)
 	}
-	return pr.Pubkey, nil
+	return &pr, nil
+}
+
+// ProfileResult is GET /v1/profile/{name} response.
+type ProfileResult struct {
+	Pubkey      string `json:"pubkey"`
+	PostageSats int64  `json:"postage_sats"`
+}
+
+// PushState writes the sealed state doc via PUT /v1/state with optimistic
+// concurrency control (state.ts push:145-158). On 409 it pulls, merges and
+// retries up to maxTries before returning error.
+func (c *Client) PushState(ctx context.Context, expectVersion int64, stateB64 string) (int64, error) {
+	const maxTries = 3
+	body := fmt.Sprintf(`{"expect_version":%d,"state_b64":"%s"}`, expectVersion, stateB64)
+	for attempt := 1; attempt <= maxTries; attempt++ {
+		raw, err := c.do(ctx, "PUT", "/v1/state", []byte(body))
+		if err != nil {
+			// 409 conflict: pull, merge and retry (caller merges)
+			if strings.Contains(err.Error(), "409") {
+				if attempt == maxTries {
+					return 0, fmt.Errorf("PushState conflict after %d tries", maxTries)
+				}
+				continue
+			}
+			return 0, err
+		}
+		var sr struct {
+			Version int64 `json:"version"`
+		}
+		if err := json.Unmarshal(raw, &sr); err != nil {
+			return 0, fmt.Errorf("PushState decode: %w", err)
+		}
+		return sr.Version, nil
+	}
+	return 0, fmt.Errorf("PushState: max retries exceeded")
+}
+
+// SendRaw posts a raw envelope to /v1/send?to=name. Returns 202-accepted
+// with msg_id+status, or non-202 errors mapped to German user messages.
+// 402 -> "Guthaben unzureichend", other -> generic with status code.
+func (c *Client) SendRaw(ctx context.Context, to string, envBin []byte) (msgID, status string, err error) {
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		c.Base+"/v1/send?to="+url.QueryEscape(to), bytes.NewReader(envBin))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Authorization", bearerPrefix+c.getToken())
+	req.Header.Set("Content-Type", "application/octet-stream")
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("send: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	switch resp.StatusCode {
+	case 202:
+		var sr struct {
+			MsgID  string `json:"msg_id"`
+			Status string `json:"status"`
+		}
+		if err := json.Unmarshal(raw, &sr); err == nil {
+			return sr.MsgID, sr.Status, nil
+		}
+		return "", "pending", nil
+	case 402:
+		return "", "", fmt.Errorf("Guthaben unzureichend")
+	default:
+		return "", "", fmt.Errorf("send: %d %s", resp.StatusCode, truncate(raw, 160))
+	}
 }

@@ -118,6 +118,12 @@ func (a *App) newReader() *webkit.WebView {
 			case uri == "about:blank" || strings.HasPrefix(uri, "lm-mail://"):
 				// initial LoadHtml frame / own scheme — Spike-Erkenntnis 4
 				return false
+			case (strings.HasPrefix(uri, "lm-action://")):
+				// M2: injected buttons were replaced by native action-bar
+				// widgets — links from mail HTML are simply blocked here.
+				d.Ignore()
+				log.Printf("decide-policy: lm-action ignoriert uri=%s", uri)
+				return true
 			case (strings.HasPrefix(uri, "https://") || strings.HasPrefix(uri, "mailto:")) && na.IsUserGesture():
 				// external link click -> system handler (xdg-open equivalent)
 				d.Ignore()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -57,6 +58,14 @@ type App struct {
 	demoStarted     bool
 	domCheckDone    atomic.Bool
 	quit            chan struct{}
+
+	// M2: write path
+	loginResult chan string // passphrase or "" (empty = failed/cancelled)
+	pushTimer   *time.Timer // debounced state push (read-sync 5s)
+	pushPending bool
+	folderMode  string // "inbox" | "sent" | "drafts"
+	replyBtn    *gtk.Button
+	deleteBtn   *gtk.Button
 }
 
 type rowWidgets struct {
@@ -75,6 +84,8 @@ func newApp(cfg *core.Config, priv *btcec.PrivateKey) *App {
 		cache:       core.NewCache(),
 		currentShas: map[string]string{},
 		quit:        make(chan struct{}),
+		loginResult: make(chan string, 1),
+		folderMode:  "inbox",
 	}
 }
 
@@ -99,11 +110,12 @@ func (a *App) rowSetup(itemPtr uintptr) {
 	box.Append(&subj.Widget)
 	box.Append(&meta.Widget)
 	item.SetChild(&box.Widget)
+	item.SetActivatable(true) // default is FALSE -> clicks would only select
 	a.rows[item.GoPointer()] = &rowWidgets{subj: subj, meta: meta}
 }
 
-// rowBind reads the msg_id (GtkStringObject) and looks the mail up in Go —
-// the Ponytail pattern from the review: 10k mails render with ~25 widgets.
+// rowBind reads the item string (msgID, or "d:<id>"/"s:<msgID>" in folder
+// mode) and looks it up in Go — the Ponytail pattern from the review.
 func (a *App) rowBind(itemPtr uintptr) {
 	item := gtk.ListItemNewFromInternalPtr(itemPtr)
 	row, ok := a.rows[item.GoPointer()]
@@ -111,28 +123,55 @@ func (a *App) rowBind(itemPtr uintptr) {
 		return
 	}
 	so := gtk.StringObjectNewFromInternalPtr(item.GetItem().GoPointer())
-	msgID := so.GetString()
-	row.msgID = msgID
+	key := so.GetString()
+	row.msgID = key
 
 	a.mu.Lock()
-	m := a.byID[msgID]
-	_, read := a.doc.Read[msgID]
+	subj, meta, read := "", "", false
+	switch {
+	case strings.HasPrefix(key, "d:"):
+		for _, d := range a.doc.LiveDrafts() {
+			if "d:"+d.ID == key {
+				subj = d.Subject
+				if subj == "" {
+					subj = "(ohne Betreff)"
+				}
+				meta = "Entwurf · An: " + d.To + " · " + core.FormatDateDE(d.Ts)
+			}
+		}
+	case strings.HasPrefix(key, "s:"):
+		sid := key[2:]
+		for _, s := range a.doc.Sent {
+			if s.MsgID == sid {
+				subj = s.Subject
+				if subj == "" {
+					subj = "(ohne Betreff)"
+				}
+				meta = "An: " + s.To + " · " + core.FormatDateDE(s.Ts) + " ✓"
+			}
+		}
+	default:
+		m := a.byID[key]
+		if m != nil {
+			subj = m.Subject
+			if subj == "" {
+				subj = "(ohne Betreff)"
+			}
+			if m.Signup {
+				subj = "[🔑 Registrierung] " + subj
+			}
+			meta = metaLine(m)
+		}
+		_, read = a.doc.Read[key]
+	}
 	a.mu.Unlock()
 
-	if m == nil {
-		row.subj.SetText("(gelöscht)")
-		row.meta.SetText("")
-		return
-	}
-	subj := m.Subject
 	if subj == "" {
-		subj = "(ohne Betreff)"
-	}
-	if m.Signup {
-		subj = "[🔑 Registrierung] " + subj
+		subj = "(gelöscht)"
+		meta = ""
 	}
 	row.subj.SetText(subj)
-	row.meta.SetText(metaLine(m))
+	row.meta.SetText(meta)
 
 	// unread = bold ("heading"), read = normal + dim (PWA list convention)
 	if read {
@@ -166,10 +205,68 @@ func (a *App) refreshRows() {
 	}
 }
 
-// openMail shows position pos in the reader and marks it read LOCALLY.
-// M1: read state is display-only — the StateDoc push (server save) comes
-// with the M2 write path, there is no PUT /v1/state in this binary.
+// rowSelected opens the newly selected list row (GTK main thread, called
+// from the selection-changed trampoline).
+func (a *App) rowSelected() {
+	pos := a.sel.GetSelected()
+	if pos == 0xFFFFFFFF { // GTK_INVALID_LIST_POSITION
+		return
+	}
+	a.mu.Lock()
+	cur := ""
+	if a.folderMode != "sent" && a.folderMode != "drafts" && int(pos) < len(a.mails) {
+		cur = a.mails[pos].MsgID
+	}
+	seen := cur != "" && cur == a.currentMsgID
+	a.mu.Unlock()
+	if seen {
+		return
+	}
+	a.lastInteraction = time.Now()
+	a.openMail(pos)
+}
+
+// openMail shows position pos of the current folder. Inbox mails render in
+// the reader and mark read LOCALLY; M2 pushes the read flag debounced (5s)
+// and enables the native Antworten/Löschen action bar. Draft rows reopen the
+// compose dialog; sent rows show a plain-text echo.
 func (a *App) openMail(pos uint) {
+	a.mu.Lock()
+	mode := a.folderMode
+	a.lastInteraction = time.Now()
+	var draft *core.Draft
+	var sent *core.SentItem
+	switch mode {
+	case "drafts":
+		dl := a.doc.LiveDrafts()
+		if int(pos) < len(dl) {
+			d := dl[pos]
+			draft = &d
+		}
+	case "sent":
+		sl := a.doc.LiveSent()
+		if int(pos) < len(sl) {
+			s := sl[pos]
+			sent = &s
+		}
+	}
+	a.mu.Unlock()
+
+	switch {
+	case draft != nil:
+		showComposeDialog(a.win, a, &composeSeed{
+			To: draft.To, Subject: draft.Subject, Body: draft.Body, DraftID: draft.ID})
+		return
+	case sent != nil:
+		html := "<html><body style='font-family:sans-serif;padding:16px'>" +
+			"<h3>" + escHTML(sent.Subject) + "</h3><p>" + escHTML(sent.Body) + "</p></body></html>"
+		a.reader.LoadHtml(html, nil)
+		a.setReaderActions(false)
+		return
+	case mode != "inbox":
+		return
+	}
+
 	a.mu.Lock()
 	if int(pos) >= len(a.mails) {
 		a.mu.Unlock()
@@ -178,28 +275,43 @@ func (a *App) openMail(pos uint) {
 	m := a.mails[pos]
 	switched := a.currentMsgID != m.MsgID
 	a.currentMsgID = m.MsgID
-	a.lastInteraction = time.Now() // opening a mail counts as interaction
 	shas := map[string]string{}
 	for _, at := range m.Attachments {
 		shas[at.SHA256] = core.MimeByName(at.Name)
 	}
 	a.currentShas = shas
 	_, wasRead := a.doc.Read[m.MsgID]
-	a.doc.Read[m.MsgID] = 1
+	a.doc.MarkRead(m.MsgID)
 	htmlStr := core.BuildReaderHTML(m)
 	a.mu.Unlock()
 
+	a.setReaderActions(true)
 	if !wasRead {
-		log.Printf("markRead local msg=%s… (Anzeige-Umschaltung; Server-Save = M2)", m.MsgID[:12])
+		log.Printf("markRead msg=%s… (push scheduled)", m.MsgID[:12])
 		a.refreshRows()
+		a.schedulePush() // M2: debounced server push
 	}
-	// zero the decrypted bytes of the PREVIOUS mail on a switch (Rotliste
-	// §3.4); re-opening the same mail keeps its cache (scheme-cache-hit)
+	// zero the decrypted bytes of the PREVIOUS mail on a switch
 	if switched {
 		a.cache.Clear()
 	}
 	a.reader.LoadHtml(htmlStr, nil)
 	log.Printf("openMail seq=%d msg=%s… subj=%q attachments=%d", m.Seq, m.MsgID[:12], m.Subject, len(m.Attachments))
+}
+
+// setReaderActions enables/disables the native reply/delete bar (main thread).
+func (a *App) setReaderActions(on bool) {
+	if a.replyBtn != nil {
+		a.replyBtn.SetSensitive(on)
+	}
+	if a.deleteBtn != nil {
+		a.deleteBtn.SetSensitive(on)
+	}
+}
+
+func escHTML(s string) string {
+	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\"", "&quot;")
+	return r.Replace(s)
 }
 
 // findMailPos locates a mail by subject prefix (demo mode helper).

@@ -1,0 +1,10 @@
+$ cd /root/lm/desktop && bash scripts/tunnel.sh check && go run ./scripts/send-b1
+TUNNEL_OK
+b1 2026-11-22 02:20:46 alpha-Konto: 0268201e64de@alpha
+b1 2026-11-22 02:20:46 beta-Konto: 030e0044a02e@beta
+b1 2026-11-22 02:20:46 anhang zufall.bin: 3145728 bytes, sha256=b4eb465c18455eb3bf5365b54f280589d66e2fc7c25769d251f1db71544c558e
+b1 2026-11-22 02:20:46 send ok: msg=41f4c6a4433aa07f5b869a6fdc6a785681e70e5dbb9b729c4ec66a1dbed77cb1 status=settled
+b1 2026-11-22 02:20:47 zugestellt: beta inbox 1 mails, seq=1
+B1_OK msg=41f4c6a4433aa07f5b869a6fdc6a785681e70e5dbb9b729c4ec66a1dbed77cb1 sha=b4eb465c18455eb3bf5365b54f280589d66e2fc7c25769d251f1db71544c558e
+
+# Gegencheck auf CT113 (npx tsx test/m2b-check.mts): siehe m2b-tsx-check.log — alle B1-PASS.

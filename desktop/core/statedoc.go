@@ -1,8 +1,10 @@
 package core
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"time"
 	"unicode/utf16"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -269,4 +271,111 @@ func sortStableDesc(s []SentItem) {
 			s[j], s[j-1] = s[j-1], s[j]
 		}
 	}
+}
+
+// SealDoc is the EXACT complement of StateSync.seal (state.ts:105-110):
+// self-ECIES with own pubkey, AAD = empty, wire = eph(33B) || sealed.
+// Returns the standard base64 string ready for state_b64 in PUT /v1/state.
+func SealDoc(priv *btcec.PrivateKey, doc StateDoc) (string, error) {
+	own := priv.PubKey()
+	b, err := json.Marshal(doc)
+	if err != nil {
+		return "", fmt.Errorf("seal marshal: %w", err)
+	}
+	eph, sealed, err := crypto.EncryptForRecipient(own, b, []byte{})
+	if err != nil {
+		return "", fmt.Errorf("seal encrypt: %w", err)
+	}
+	out := make([]byte, 33+len(sealed))
+	copy(out, eph[:])
+	copy(out[33:], sealed)
+	return base64.StdEncoding.EncodeToString(out), nil
+}
+
+// reStamp returns max(now, prev) + 1 (state.ts re-stamp rule).
+func reStamp(prev int64) int64 {
+	now := time.Now().Unix()
+	if now > prev {
+		return now + 1
+	}
+	return prev + 1
+}
+
+// MarkRead sets doc.read[msgID]=1 (M1 only local; M2: schedule push).
+func (d *StateDoc) MarkRead(msgID string) {
+	d.Read[msgID] = 1
+}
+
+// MarkDeleted sets doc.deleted[msgID]=1.
+func (d *StateDoc) MarkDeleted(msgID string) {
+	d.Deleted[msgID] = 1
+}
+
+// SaveDraft upserts a draft (state.ts saveDraft:173-175): it re-stamps,
+// replaces any same-id draft, keeps last 30 sorted asc by ts.
+func (d *StateDoc) SaveDraft(dr Draft) {
+	prev := int64(0)
+	for _, x := range d.Drafts {
+		if x.ID == dr.ID && x.Ts > prev {
+			prev = x.Ts
+		}
+	}
+	dr.Ts = reStamp(prev)
+	// filter out old same-id, append new
+	filtered := make([]Draft, 0, len(d.Drafts)+1)
+	for _, x := range d.Drafts {
+		if x.ID != dr.ID {
+			filtered = append(filtered, x)
+		}
+	}
+	filtered = append(filtered, dr)
+	sortStableAsc(filtered)
+	if len(filtered) > 30 {
+		filtered = filtered[len(filtered)-30:]
+	}
+	d.Drafts = filtered
+}
+
+// DelDraft tombstoned the draft (gone:1) — state.ts delDraft.
+func (d *StateDoc) DelDraft(id string) {
+	d.SaveDraft(Draft{ID: id, To: "", Subject: "", Body: "", Gone: 1})
+}
+
+// LiveDrafts returns non-gone drafts (state.ts liveDrafts).
+func (d *StateDoc) LiveDrafts() []Draft {
+	var out []Draft
+	for _, x := range d.Drafts {
+		if x.Gone == 0 {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+// AddSent prepends a SentItem, dedups by MsgID, keeps first 150 desc by ts.
+// body truncated to 2000 chars (state.ts addSent:179-183).
+func (d *StateDoc) AddSent(s SentItem) {
+	if len(s.Body) > 2000 {
+		s.Body = s.Body[:2000]
+	}
+	filtered := make([]SentItem, 0, len(d.Sent)+1)
+	for _, x := range d.Sent {
+		if x.MsgID != s.MsgID {
+			filtered = append(filtered, x)
+		}
+	}
+	filtered = append([]SentItem{s}, filtered...)
+	sortStableDesc(filtered)
+	if len(filtered) > 150 {
+		filtered = filtered[:150]
+	}
+	d.Sent = filtered
+}
+
+// LiveSent returns sent items sorted desc by ts.
+func (d *StateDoc) LiveSent() []SentItem {
+	out := make([]SentItem, len(d.Sent))
+	copy(out, d.Sent)
+	sortStableDesc(out)
+	return out
 }

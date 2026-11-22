@@ -1,0 +1,17 @@
+{
+  "alpha": {
+    "name": "0268201e64de",
+    "relay": "http://127.0.0.1:18443",
+    "keyfile": "cmd/lmdesk/evidence/m2b-alpha.key"
+  },
+  "att_sha256": "b4eb465c18455eb3bf5365b54f280589d66e2fc7c25769d251f1db71544c558e",
+  "att_size": 3145728,
+  "beta": {
+    "name": "030e0044a02e",
+    "relay": "http://127.0.0.1:19443",
+    "keyfile": "cmd/lmdesk/evidence/m2b-beta.key"
+  },
+  "msg_id": "41f4c6a4433aa07f5b869a6fdc6a785681e70e5dbb9b729c4ec66a1dbed77cb1",
+  "status": "settled",
+  "subject": "M2B — 3MB Anhang"
+}

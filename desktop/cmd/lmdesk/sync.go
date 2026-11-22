@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/bnema/puregotk/v4/glib"
@@ -185,8 +186,7 @@ func (a *App) runDemo() {
 	log.Printf("demo-modus: steuere Seed-Mails fuer Evidenz an")
 	step := func(prefix string) {
 		if pos, ok := a.findMailPos(prefix); ok {
-			a.sel.SetSelected(pos)
-			a.openMail(pos)
+			a.sel.SetSelected(pos) // selection-changed -> rowSelected -> openMail
 		} else {
 			log.Printf("demo: Mail %q nicht gefunden", prefix)
 		}
@@ -195,4 +195,174 @@ func (a *App) runDemo() {
 	glib.TimeoutAdd(1000, &one, 0)
 	two := glib.SourceFunc(func(_ uintptr) bool { step("Seed 3"); return false })
 	glib.TimeoutAdd(13000, &two, 0)
+}
+
+// --- M2: state push (debounced 5s) ---
+
+func (a *App) schedulePush() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.pushTimer != nil {
+		a.pushTimer.Stop()
+	}
+	a.pushTimer = time.AfterFunc(5*time.Second, func() {
+		a.doPush()
+	})
+}
+
+func (a *App) doPush() {
+	a.mu.Lock()
+	ver := a.stateVersion
+	a.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Build sealed doc
+	a.mu.Lock()
+	b64, err := core.SealDoc(a.priv, a.doc)
+	a.mu.Unlock()
+	if err != nil {
+		log.Printf("push: seal error: %v", err)
+		return
+	}
+
+	// Try up to 3 times with merge on 409
+	for attempt := 1; attempt <= 3; attempt++ {
+		newVer, err := a.api.PushState(ctx, ver, b64)
+		if err == nil {
+			a.mu.Lock()
+			a.stateVersion = newVer
+			a.mu.Unlock()
+			log.Printf("push ok: version %d -> %d", ver, newVer)
+			return
+		}
+		if strings.Contains(err.Error(), "409") {
+			log.Printf("push conflict (attempt %d), pulling & merging…", attempt)
+			// pull fresh state
+			a.mu.Lock()
+			a.mu.Unlock()
+			rv, blob, err2 := a.api.State(ctx)
+			if err2 != nil {
+				log.Printf("push pull error: %v", err2)
+				continue
+			}
+			remote, err2 := core.OpenStateDoc(a.priv, blob)
+			if err2 != nil || remote == nil {
+				log.Printf("push open error: %v", err2)
+				continue
+			}
+			a.mu.Lock()
+			a.doc = core.MergeDocs(a.doc, *remote)
+			a.stateVersion = rv
+			ver = rv
+			b64, _ = core.SealDoc(a.priv, a.doc)
+			a.mu.Unlock()
+			continue
+		}
+		log.Printf("push error: %v", err)
+		return
+	}
+	log.Printf("push: max retries exceeded")
+}
+
+// --- M2: folder switching (sent/drafts) ---
+
+func (a *App) switchFolder(mode string) {
+	a.mu.Lock()
+	a.folderMode = mode
+	a.currentMsgID = ""
+	a.currentShas = map[string]string{}
+	a.mu.Unlock()
+	a.setReaderActions(false)
+	a.refreshFolderList()
+}
+
+func (a *App) refreshFolderList() {
+	a.mu.Lock()
+	mode := a.folderMode
+	var ids []string
+	switch mode {
+	case "sent":
+		for _, s := range a.doc.LiveSent() {
+			ids = append(ids, "s:"+s.MsgID)
+		}
+	case "drafts":
+		for _, d := range a.doc.LiveDrafts() {
+			ids = append(ids, "d:"+d.ID)
+		}
+	default:
+		for _, m := range a.mails {
+			if _, del := a.doc.Deleted[m.MsgID]; !del {
+				ids = append(ids, m.MsgID)
+			}
+		}
+	}
+	a.mu.Unlock()
+
+	if a.listModel != nil {
+		a.listModel.Splice(0, a.listModel.GetNItems(), ids)
+	}
+	a.setStatus(fmt.Sprintf("%s · %d Einträge", a.folderLabel(), len(ids)))
+}
+
+func (a *App) folderLabel() string {
+	switch a.folderMode {
+	case "sent":
+		return "Gesendet"
+	case "drafts":
+		return "Entwürfe"
+	default:
+		return "Posteingang"
+	}
+}
+
+// --- M2: reply/delete actions ---
+
+func (a *App) handleReply() {
+	a.mu.Lock()
+	msgID := a.currentMsgID
+	m := a.byID[msgID]
+	// reply target is the bare sender short-name (pubkey hex prefix): the
+	// relay peer-loop resolves foreign accounts by name. shortcut: the
+	// envelope carries no from-address, a reverse lookup needs server work.
+	var to, subj string
+	if m != nil {
+		to = m.SenderShort
+		subj = m.Subject
+		if !strings.HasPrefix(subj, "Re:") {
+			subj = "Re: " + subj
+		}
+	}
+	a.mu.Unlock()
+	if m == nil || a.win == nil {
+		return
+	}
+	showComposeDialog(a.win, a, &composeSeed{To: to, Subject: subj})
+}
+
+func (a *App) handleDelete() {
+	a.mu.Lock()
+	msgID := a.currentMsgID
+	if msgID == "" {
+		a.mu.Unlock()
+		return
+	}
+	a.doc.MarkDeleted(msgID)
+	for i, m := range a.mails {
+		if m.MsgID == msgID {
+			a.mails = append(a.mails[:i], a.mails[i+1:]...)
+			break
+		}
+	}
+	delete(a.byID, msgID)
+	a.currentMsgID = ""
+	a.currentShas = map[string]string{}
+	a.mu.Unlock()
+	a.schedulePush()
+	a.setReaderActions(false)
+	a.refreshFolderList()
+	a.reader.LoadHtml("<html><body></body></html>", nil)
+	a.toast("Gelöscht — wird mit dem Server synchronisiert")
+	log.Printf("deleted msg=%s…", msgID[:12])
 }

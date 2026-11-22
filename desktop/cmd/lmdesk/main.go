@@ -10,15 +10,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bnema/purego"
 	"github.com/bnema/puregotk/v4/adw"
 	"github.com/bnema/puregotk/v4/gio"
+	"github.com/bnema/puregotk/v4/glib"
+	"github.com/bnema/puregotk/v4/gobject"
 	"github.com/bnema/puregotk/v4/gtk"
 	"github.com/bnema/puregotk/v4/pango"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/lightningmail/desktop/core"
-	"github.com/lightningmail/lm1/crypto"
+	lm1crypto "github.com/lightningmail/lm1/crypto"
 )
 
 const appID = "app.lightningmail.Desktop"
+
+// selOpenCB: GtkListSelectionModel "selection-changed" trampoline (kept
+// package-level — C holds the pointer forever, Rotliste #1).
+var selOpenCB = purego.NewCallback(func(_ uintptr, _ uint, n uint) {
+	if ui != nil && n > 0 {
+		ui.rowSelected()
+	}
+})
 
 // ui is the single App instance. C keeps our callback trampolines for the
 // process lifetime; everything is bound exactly ONCE in activate (Rotliste
@@ -28,7 +40,7 @@ var ui *App
 func main() {
 	log.SetOutput(os.Stderr)
 	log.SetPrefix("lmdesk ")
-	for _, issue := range core.Harden() { // M-SEC.1 hygiene, best effort — never aborts
+	for _, issue := range core.Harden() {
 		log.Printf("hygiene: %v", issue)
 	}
 	warnContainerNoUserNS()
@@ -38,22 +50,33 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 	pass := os.Getenv("BMAIL_KEYPASS")
-	if pass == "" { // GUI M1 has no dialog window yet — fail with a clear hint.
-		if b, err := os.ReadFile(cfg.Keyfile); err == nil {
-			wrapped := crypto.IsWrapped(string(b))
+
+	// M2: keyfile may be wrapped -> login dialog when no env passphrase
+	var priv *btcec.PrivateKey
+	loadDirect := false
+	if pass == "" {
+		b, err := os.ReadFile(cfg.Keyfile)
+		if err == nil {
+			wrapped := lm1crypto.IsWrapped(string(b))
 			clear(b)
 			if wrapped {
-				log.Fatal("keyfile ist gewrappt — BMAIL_KEYPASS setzen; gefuehrter Prompt folgt mit dem M2-Login-Dialog.")
+				log.Printf("Keyfile ist gewrappt — Passphrase-Dialog wird angezeigt")
+			} else {
+				loadDirect = true
 			}
+		} else {
+			loadDirect = true // can't read file, let LoadKeyFile handle the error
 		}
 	}
-	priv, err := core.LoadKeyFile(cfg.Keyfile, pass) // zeroes its read buffer (M-SEC.1)
-	if err != nil {
-		log.Fatalf("keyfile parse: %v", err)
+	if pass != "" || loadDirect {
+		priv, err = core.LoadKeyFile(cfg.Keyfile, pass)
+		if err != nil {
+			log.Fatalf("keyfile parse: %v", err)
+		}
 	}
 	log.Printf("start: account=%s relay=%s tor_socks=%q", cfg.Name, cfg.Relay, cfg.TorSocks)
 
-	ui = newApp(cfg, priv)
+	ui = newApp(cfg, priv) // priv may be nil for wrapped key -> login later
 	id := appID
 	app := adw.NewApplication(&id, gio.GApplicationDefaultFlagsValue)
 	defer app.Unref()
@@ -77,16 +100,58 @@ func warnContainerNoUserNS() {
 // navItems mirrors the PWA nav order; only Posteingang is functional in M1.
 var navItems = []struct{ label, note string }{
 	{"📥 Posteingang", ""},
-	{"📤 Gesendet", "M2"},
-	{"📝 Entwürfe", "M2"},
+	{"📤 Gesendet", "sent"},
+	{"📝 Entwürfe", "drafts"},
 	{"📇 Adressbuch", "M3"},
 	{"🗂 Laufwerk", "M3"},
 	{"💶 Umsätze", "M3"},
-	{"⚙ Einstellungen", "M2"},
+	{"⚙ Einstellungen", "M3"},
 }
 
 func (a *App) activate(app *adw.Application) {
-	// No defer win.Unref() — Rotliste #5: the window outlives activate().
+	// Login dialog when priv is nil (keyfile wrapped, no BMAIL_KEYPASS env).
+	// The wait MUST NOT block activate() — the GTK main loop has to render
+	// and process the dialog itself (M2b bugfix).
+	if a.priv == nil {
+		// We need a window to present the dialog — build a minimal one first.
+		shell := adw.NewApplicationWindow(&app.Application)
+		a.win = shell
+		t := "lightningmail"
+		shell.SetTitle(&t)
+		shell.SetDefaultSize(400, 200)
+		shell.Present()
+
+		showLoginDialog(shell, a.cfg.Keyfile, a)
+		go func() {
+			select {
+			case pass := <-a.loginResult:
+				if pass == "" {
+					log.Printf("login: abgebrochen — Exit")
+					os.Exit(1)
+				}
+				priv, err := core.LoadKeyFile(a.cfg.Keyfile, pass)
+				if err != nil {
+					log.Printf("keyfile parse nach Login: %v", err)
+					os.Exit(1)
+				}
+				a.priv = priv
+				a.api = core.NewClient(a.cfg, priv)
+				f := glib.SourceOnceFunc(func(_ uintptr) {
+					shell.Destroy()
+					a.buildUI(app)
+				})
+				glib.IdleAddOnce(&f, 0)
+			case <-time.After(5 * time.Minute):
+				log.Printf("login: Timeout")
+				os.Exit(1)
+			}
+		}()
+		return
+	}
+	a.buildUI(app)
+}
+
+func (a *App) buildUI(app *adw.Application) {
 	win := adw.NewApplicationWindow(&app.Application)
 	a.win = win
 	t := "lightningmail"
@@ -99,6 +164,17 @@ func (a *App) activate(app *adw.Application) {
 	hdr.SetTitleWidget(&wt.Widget)
 	a.balanceLabel = newLabel("Guthaben: …", "dim-label", "caption")
 	hdr.PackEnd(&a.balanceLabel.Widget)
+
+	// M2: [+] compose button
+	composeBtn := gtk.NewButton()
+	composeBtn.SetLabel("✏️ Schreiben")
+	composeBtn.AddCssClass("suggested-action")
+	composeCb := func(_ gtk.Button) {
+		showComposeDialog(win, a, nil)
+	}
+	composeBtn.ConnectClicked(&composeCb)
+	hdr.PackStart(&composeBtn.Widget)
+
 	toolbar.AddTopBar(&hdr.Widget)
 
 	a.statusLabel = newLabel("verbinde…", "dim-label", "caption")
@@ -109,7 +185,7 @@ func (a *App) activate(app *adw.Application) {
 	a.statusLabel.SetMarginBottom(4)
 	toolbar.AddBottomBar(&a.statusLabel.Widget)
 
-	// --- sidebar (PWA nav order; five honest placeholders) ---
+	// --- sidebar (PWA nav order; M2: sent+drafts active) ---
 	side := gtk.NewListBox()
 	side.SetSelectionMode(gtk.SelectionNoneValue)
 	side.AddCssClass("navigation-sidebar")
@@ -119,18 +195,28 @@ func (a *App) activate(app *adw.Application) {
 		b := gtk.NewButton()
 		b.SetLabel(it.label)
 		b.SetHasFrame(false)
-		if it.note == "" {
-			b.AddCssClass("accent") // the one functional entry (M1)
-		} else {
-			label := it.label
-			note := it.note
-			cb := func(_ gtk.Button) {
+		note := it.note
+		label := it.label
+		if note == "" || note == "sent" || note == "drafts" {
+			b.AddCssClass("accent")
+		}
+		switch note {
+		case "":
+			// Posteingang: already functional from M1, no extra handler needed
+		case "sent":
+			cb := func(_ gtk.Button) { a.switchFolder("sent") }
+			b.ConnectClicked(&cb)
+		case "drafts":
+			cb := func(_ gtk.Button) { a.switchFolder("drafts") }
+			b.ConnectClicked(&cb)
+		default:
+			_cb := func(_ gtk.Button) {
 				msg := label + ": folgt in Etappe " + note
 				log.Printf("nav placeholder: %s", msg)
 				a.toast(msg)
 				a.setStatus(msg)
 			}
-			b.ConnectClicked(&cb)
+			b.ConnectClicked(&_cb)
 		}
 		side.Append(&b.Widget)
 	}
@@ -153,6 +239,10 @@ func (a *App) activate(app *adw.Application) {
 		a.openMail(pos)
 	}
 	a.listView.ConnectActivate(&activateCb)
+	// The ListView 'activate' signal never fires in this GTK build (tested
+	// single/double click + Enter via xdotool, GTK 4.x trixie) — opening on
+	// selection gives the same mail-client UX; selection verifiably works.
+	gobject.SignalConnect(a.sel.GoPointer(), "selection-changed", selOpenCB)
 	listScroll := gtk.NewScrolledWindow()
 	listScroll.SetChild(&a.listView.Widget)
 	listScroll.SetSizeRequest(360, -1)
@@ -168,9 +258,31 @@ func (a *App) activate(app *adw.Application) {
 	a.reader.SetVexpand(true)
 	a.reader.SetHexpand(true)
 
+	// M2: native action bar ABOVE the reader — always visible, no scrolling
+	actions := gtk.NewBox(gtk.OrientationHorizontalValue, 8)
+	actions.SetMarginStart(10)
+	actions.SetMarginTop(6)
+	actions.SetMarginBottom(2)
+	a.replyBtn = gtk.NewButton()
+	a.replyBtn.SetLabel("↩ Antworten")
+	a.deleteBtn = gtk.NewButton()
+	a.deleteBtn.SetLabel("🗑 Löschen")
+	a.deleteBtn.AddCssClass("destructive-action")
+	a.replyBtn.SetSensitive(false)
+	a.deleteBtn.SetSensitive(false)
+	rcb := func(_ gtk.Button) { a.handleReply() }
+	dcb := func(_ gtk.Button) { a.handleDelete() }
+	a.replyBtn.ConnectClicked(&rcb)
+	a.deleteBtn.ConnectClicked(&dcb)
+	actions.Append(&a.replyBtn.Widget)
+	actions.Append(&a.deleteBtn.Widget)
+	right := gtk.NewBox(gtk.OrientationVerticalValue, 0)
+	right.Append(&actions.Widget)
+	right.Append(&a.reader.Widget)
+
 	paned := gtk.NewPaned(gtk.OrientationHorizontalValue)
 	paned.SetStartChild(&left.Widget)
-	paned.SetEndChild(&a.reader.Widget)
+	paned.SetEndChild(&right.Widget)
 	paned.SetPosition(580)
 	paned.SetResizeStartChild(false)
 	paned.SetResizeEndChild(true)

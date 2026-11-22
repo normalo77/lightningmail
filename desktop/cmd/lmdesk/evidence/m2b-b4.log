@@ -1,0 +1,17 @@
+lmdesk 2026/11/22 02:44:42 hygiene: mlockall: cannot allocate memory (key pages may be swappable)
+lmdesk 2026/11/22 02:44:42 start: account=030e0044a02e relay=http://127.0.0.1:19443 tor_socks=""
+Overriding existing handler for signal 10. Set JSC_SIGNAL_FOR_GC if you want WebKit to use a different signal
+lmdesk 2026/11/22 02:44:42 reader: ephemeral NetworkSession aktiv (keine Disk-Artefakte)
+lmdesk 2026/11/22 02:44:42 scheme lm-mail registriert (WebView-eigener WebContext)
+lmdesk 2026/11/22 02:44:42 UI steht (1200x760), sync-loop gestartet
+lmdesk 2026/11/22 02:44:42 neu: seq=1 msg=41f4c6a4433a… subj="M2B — 3MB Anhang"
+lmdesk 2026/11/22 02:44:51 sel-changed pos=0 n=1
+lmdesk 2026/11/22 02:44:51 openMail seq=1 msg=41f4c6a4433a… subj="M2B — 3MB Anhang" attachments=1
+lmdesk 2026/11/22 02:44:51 openMail seq=1 msg=41f4c6a4433a… subj="M2B — 3MB Anhang" attachments=1
+lmdesk 2026/11/22 02:44:52 load-changed event=0
+lmdesk 2026/11/22 02:44:52 load-changed event=2
+lmdesk 2026/11/22 02:44:52 load-changed event=3
+lmdesk 2026/11/22 02:44:59 send ok: msg=b7ee56754e97… status=settled
+lmdesk 2026/11/22 02:45:04 push ok: version 4 -> 5
+lmdesk 2026/11/22 02:45:08 entwurf gespeichert id=a3bdcdcda969f6fc subj="M2B-Entwurf Test"
+lmdesk 2026/11/22 02:45:13 push ok: version 5 -> 6
