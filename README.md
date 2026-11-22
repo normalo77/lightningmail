@@ -48,6 +48,17 @@ docker compose -f deploy/docker-compose.light-relay.yml up -d relayd
 - **Von außen aufschalten:** in jeder lightningmail-App beim Login „⚙️ Eigenes Relay (URL)…" wählen und die eigene Adresse eintippen — die App wechselt dorthin, die Android-App merkt sich das Heim-Relay dauerhaft.
 - **Post von anderen Relays empfangen:** ein DNS-TXT-Eintrag `_bmail._tcp.relay.example.org` = `v=bmail1; relay=https://relay.example.org:8443; node=<NODE_PUBKEY>` genügt — dann findet jedes lightningmail-Relay `name@relay.example.org`.
 - Hinweis: relayd spricht HTTP; für Produktivbetrieb TLS-Terminierung (Caddy/nginx) davorsetzen, dann ist die Adresse `https://relay.example.org/app/`.
+- **Tor-Betriebsstufen (Etappe T, optional):** Hidden Service vor dem Relay + `onion=` im DNS-TXT, Relay-zu-Relay-Traffic dann über SOCKS5 — Schritt für Schritt in [`deploy/tor/README.md`](deploy/tor/README.md). Stufe 3 (Teilnahme als Tor-or-Relay mit Bandbreiten-Deckel) liegt als fertige torrc-Vorlage bei; ein Exit-Relay ist in keiner Stufe vorgesehen.
+
+### Nativer Desktop-Client `lmdesk` (Etappe M — Entwickler-Vorab)
+
+Der GTK4-Desktop-Client (Modul [`desktop/`](desktop/): Posteingang, Verfassen, Adressbuch, Laufwerk, Einstellungen inkl. Umsätze und Tor-Schalter) ist komplett gebaut und gegen die PWA interoperabel, wird aber noch nicht öffentlich distributionsiert. Bauen & Paketieren (Debian trixie, GTK4/libadwaita/WebKitGTK als Systembibliotheken):
+
+```bash
+cd desktop && CGO_ENABLED=0 go build -o bin/lmdesk ./cmd/lmdesk   # Config: ~/.config/lightningmail/config.json
+bash ../deploy/package/build-deb.sh        # dünnes .deb  -> out/
+bash ../deploy/package/build-appimage.sh   # dünnes AppImage -> out/
+```
 
 ### Aus dem Quellcode bauen & testen
 
@@ -89,3 +100,15 @@ mkdir -p deploy/ui && cp -r client/app/dist/. deploy/ui/ && docker compose -f de
 The relay then serves the whole web app itself at `https://relay.example.org:8443/app/` — clients need **zero settings** there (login via `.lmkey` file, 24 words or passkey as usual). Users coming from another relay pick the third entry in the relay dropdown (UI label in German: „⚙️ Eigenes Relay (URL)…"); the Android app remembers that home relay across starts. One `_bmail._tcp.relay.example.org` TXT record makes `name@relay.example.org` reachable from every other lightningmail relay.
 
 See [https://lightningmail.app/architecture](https://lightningmail.app/architecture) and [`docs/spec.md`](docs/spec.md) for the 10 core architecture decisions and the 4-step guide to building native clients for iOS, macOS or Windows.
+
+**Tor operation tiers (Etappe T, optional):** put a hidden service in front of the relay, add `onion=` to the DNS TXT record and relay-to-relay traffic runs over SOCKS5 — step-by-step in [`deploy/tor/README.md`](deploy/tor/README.md) (German). Tier 3 (participating as a bandwidth-capped Tor or-relay) ships as a ready torrc template; an exit relay is out of scope in every tier.
+
+### Native desktop client `lmdesk` (Etappe M — pre-release for builders)
+
+The GTK4 desktop client (module [`desktop/`](desktop/): inbox, compose, address book, drive, settings including the statement list and a Tor switch) is fully built and binary-interoperable with the PWA; the packages are not publicly distributed yet. Build & package (Debian trixie; GTK4/libadwaita/WebKitGTK stay system libraries):
+
+```bash
+cd desktop && CGO_ENABLED=0 go build -o bin/lmdesk ./cmd/lmdesk   # config: ~/.config/lightningmail/config.json
+bash ../deploy/package/build-deb.sh         # thin .deb    -> out/
+bash ../deploy/package/build-appimage.sh    # thin AppImage -> out/
+```
