@@ -18,3 +18,6 @@ site/lightningmail-thunderbird.xpi
 docs/marketing/video.mp4
 test/interop-home/
 client/app/tls/
+client/test/m2b-*.key
+client/test/m2b-accounts.json
+client/test/m2b-tsx-*.log
