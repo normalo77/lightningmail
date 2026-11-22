@@ -5,6 +5,8 @@ import base64, datetime, hashlib, hmac, http.client, json, mimetypes, os, posixp
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, unquote
 
+import embed_rp  # Embed-Kit: Referenz-OIDC-RP (site/embed_rp.py)
+
 SITE = "/root/lightningmail/site"
 DIST = "/root/lightningmail/client/app/dist"
 RELAYS = {"/relay-a": 8443, "/relay-b": 9443}
@@ -526,12 +528,31 @@ a{{color:#122338;font-weight:600}}
         finally:
             conn.close()
 
+    def _api_embed_verify(self):
+        """bmail-login.js Callback: code+verifier gegen das Relay tauschen,
+        ES256-Claims pruefen. Kein Secret, kein State auf dem Server."""
+        try:
+            ln = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(min(ln, 65536)) or b"{}")
+            out = embed_rp.embed_verify(body)
+        except Exception as e:
+            return self._json({"error": str(e)[:300]}, 400)
+        return self._json(out)
+
     def _route(self):
         p = urlparse(self.path).path
         if p == "/stats.json":
             return self._json(get_stats())
         if p in ("/stats", "/stats/"):
             return self._stats_html()
+        if p in ("/embed", "/embed/", "/embed.html"):
+            record_hit(self, "/embed")
+            return self._static(SITE, "embed.html")
+        if p in ("/embed-demo", "/embed-demo/", "/embed-demo.html"):
+            record_hit(self, "/embed-demo")
+            return self._static(SITE, "embed-demo.html")
+        if p == "/api/embed/verify" and self.command == "POST":
+            return self._api_embed_verify()
         if p == "/api/forum" and self.command == "GET":
             return self._api_forum()
         if p == "/api/forum/post" and self.command == "POST":

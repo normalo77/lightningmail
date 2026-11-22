@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>⚡ lightningmail · Login-Button Live-Demo</title>
+<style>
+  body{font:16px/1.6 system-ui,ui-sans-serif;background:#0d1117;color:#e6edf3;margin:0;padding:40px 16px}
+  main{max-width:680px;margin:0 auto}
+  a{color:#79c0ff}
+  h1{font-size:1.5rem}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;margin:20px 0}
+  code,pre{background:#21262d;border-radius:6px;padding:2px 6px;font-size:.85em}
+  pre{padding:14px;overflow:auto}
+  select,input,button{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid #30363d;background:#21262d;color:#e6edf3}
+  #out{white-space:pre-wrap;word-break:break-all}
+  .ok{color:#3fb950}.err{color:#f85149}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+<main>
+  <h1>„Sign in with lightningmail“ — Live-Demo</h1>
+  <p>Diese Seite behandelt euch wie jeden fremden Dienst: ein Knopf, ein
+  Fetch auf das eigene Backend (<code>/api/embed/verify</code>), geprüfte Claims.
+  Der Quellcode dieser Seite ist die kanonische Referenzimplementierung.</p>
+
+  <div class="card">
+    <div class="row">
+      <label for="issuer">Relay (Issuer)</label>
+      <select id="issuer">
+        <option value="https://relay-a.lightningmail.app">relay-a · Demo-Relay (Regtest)</option>
+        <option value="https://relay-b.lightningmail.app">relay-b · Demo-Relay (Regtest)</option>
+      </select>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button id="go">⚡ Anmelden (Popup)</button>
+      <button id="goRedirect">Anmelden (Seite wechseln)</button>
+    </div>
+    <p style="margin-top:16px"><span id="out">Noch nicht angemeldet.</span></p>
+  </div>
+
+  <div class="card">
+    <h2>Der ganze Einbau in fremden Seiten</h2>
+<pre>&lt;script src="https://lightningmail.app/bmail-login.js" defer&gt;&lt;/script&gt;
+&lt;bmail-login issuer="https://relay.lightningmail.app"&gt;&lt;/bmail-login&gt;
+&lt;script&gt;
+  addEventListener("bmail-login", e =&gt; {
+    // e.detail.claims nur zeigen - entscheiden darf nur euer Backend!
+    POST_an_emeinen_server(e.detail);
+  });
+&lt;/script&gt;</pre>
+<p>Serverseite: <a href="/embed">/embed</a> (Rezepte für PHP, Express, NextAuth,
+Django, WordPress-Plugin). Diese Demo führt denselben Flow gegen
+<code>/api/embed/verify</code> aus.</p>
+  </div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const SS = "bmail-…h-";
+const clean = () => location.origin + location.pathname;
+
+function b64uBytes(b){return btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+
+async function startFlow(issuer, popup) {
+  const rand = (n) => { const b = new Uint8Array(n); crypto.getRandomValues(b); return b; };
+  const verifier = b64uBytes(rand(48));
+  const challenge = b64uBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
+  const state = b64uBytes(rand(9)), nonce = b64uBytes(rand(12));
+  sessionStorage.setItem(SS + state, JSON.stringify({ verifier, nonce, issuer }));
+  const q = new URLSearchParams({ response_type: "code", client_id: location.origin,
+    redirect_uri: clean(), scope: "openid email", state, nonce,
+    code_challenge: challenge, code_challenge_method: "S256" });
+  const url = issuer + "/oidc/auth?" + q;
+  if (popup) window.open(url, "bmail_demo_login", "width=480,height=640");
+  else location.href = url;
+}
+
+async function verifyHere(code, state) {
+  const saved = JSON.parse(sessionStorage.getItem(SS + state) || "null");
+  if (!saved) throw new Error("state unbekannt (Session abgelaufen?)");
+  sessionStorage.removeItem(SS + state);
+  const r = await fetch("/api/embed/verify", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, verifier: saved.verifier, nonce: saved.nonce,
+      client_id: location.origin, redirect_uri: clean(), issuer: saved.issuer }) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j.claims;
+}
+
+(async function callbackBranch() {
+  const q = new URLSearchParams(location.search);
+  const code = q.get("code"), state = q.get("state");
+  if (!code) return;
+  history.replaceState(null, "", clean());
+  try {
+    const claims = await verifyHere(code, state);
+    const msg = { bmail_login: { ok: true, claims } };
+    if (window.opener) {
+      window.opener.postMessage(msg, location.origin);
+      const line = `Anmeldung OK: ${claims.email} (Relay-Signatur ES256 + BIP340 geprueft)`;
+      try { window.opener.postMessage({ bmail_demo_text: line }, location.origin); } catch (e) {}
+      window.close();
+    }
+    sessionStorage.setItem("bmail_demo_claims", JSON.stringify(claims));
+    if (!window.opener) render(claims);
+  } catch (e) {
+    if (window.opener) window.opener.postMessage({ bmail_login: { ok: false, error: String(e.message || e) } }, location.origin);
+    if (!window.opener) $("#out").innerHTML = '<span class="err">Fehler: ' + e.message + "</span>";
+  }
+})();
+
+function render(claims) {
+  $("#out").innerHTML = '<span class="ok">Angemeldet:</span>\n' + JSON.stringify(claims, null, 2);
+}
+
+addEventListener("message", (e) => {
+  if (e.origin !== location.origin) return;
+  if (e.data && e.data.bmail_login && e.data.bmail_login.ok) { render(e.data.bmail_login.claims); sessionStorage.setItem("bmail_demo_claims", JSON.stringify(e.data.bmail_login.claims)); }
+  if (e.data && e.data.bmail_login && !e.data.bmail_login.ok) $("#out").innerHTML = '<span class="err">Fehler: ' + e.data.bmail_login.error + "</span>";
+});
+
+const cached = sessionStorage.getItem("bmail_demo_claims");
+if (cached) render(JSON.parse(cached));
+$("#go").onclick = () => startFlow($("#issuer").value, true);
+$("#goRedirect").onclick = () => startFlow($("#issuer").value, false);
+</script>
+</body>
+</html>

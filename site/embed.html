@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>⚡ lightningmail · Login-Button einbauen</title>
+<style>
+  body{font:16px/1.65 system-ui,ui-sans-serif;background:#0d1117;color:#e6edf3;margin:0;padding:40px 16px}
+  main{max-width:760px;margin:0 auto}
+  h1{font-size:1.6rem}h2{font-size:1.15rem;margin-top:2em}
+  a{color:#79c0ff}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px 24px;margin:18px 0}
+  pre{background:#21262d;border-radius:8px;padding:14px;overflow:auto;font-size:.83rem}
+  code:not(pre code){background:#21262d;border-radius:5px;padding:1px 6px;font-size:.85em}
+  .lang{color:#8b949e}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:-6px}
+  .tabs button{font:inherit;padding:7px 14px;border-radius:8px 8px 0 0;border:1px solid #30363d;border-bottom:0;background:#161b22;color:#8b949e;cursor:pointer}
+  .tabs button.on{background:#21262d;color:#e6edf3}
+  .recipe{display:none}.recipe.on{display:block}
+  .warn{border-left:3px solid #d29922;padding-left:12px;color:#e3b341}
+  .de-only{display:inline}.en-only,.es-only,.fr-only,.pl-only{display:none}
+  html[lang=en] .de-only,html[lang=en] .en-only{display:inline}html[lang=en] .es-only,html[lang=en] .fr-only,html[lang=en] .pl-only{display:none}
+  html[lang=es] .de-only,html[lang=es] .es-only{display:inline}html[lang=es] .en-only,html[lang=es] .fr-only,html[lang=es] .pl-only{display:none}
+  html[lang=fr] .de-only,html[lang=fr] .fr-only{display:inline}html[lang=fr] .en-only,html[lang=fr] .es-only,html[lang=fr] .pl-only{display:none}
+  html[lang=pl] .de-only,html[lang=pl] .pl-only{display:inline}html[lang=pl] .en-only,html[lang=pl] .es-only,html[lang=pl] .fr-only{display:none}
+  select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid #30363d;background:#21262d;color:#e6edf3}
+</style>
+</head>
+<body>
+<main>
+  <p style="text-align:right"><select id="langSel" aria-label="Sprache">
+    <option value="de">Deutsch</option><option value="en">English</option><option value="es">Español</option><option value="fr">Français</option><option value="pl">Polski</option>
+  </select></p>
+
+  <h1>
+    <span class="de-only">„Mit lightningmail anmelden“ auf Eurer Seite</span>
+    <span class="en-only">“Sign in with lightningmail” on your site</span>
+    <span class="es-only">«Entrar con lightningmail» en vuestro sitio</span>
+    <span class="fr-only">« Se connecter avec lightningmail » sur votre site</span>
+    <span class="pl-only">„Zaloguj się przez lightningmail“ na waszej stronie</span>
+  </h1>
+
+  <div class="card">
+    <p><span class="de-only">Ein Knopf, keine Software von uns auf Eurem Server. Der Nutzer klickt, meldet sich in seinem Mail-Programm, und Ihr bekommt per OpenID Connect seine bestätigte Adresse <em>name@domain</em> plus seinen Postfach-Schlüssel. Ohne Passwort, ohne Bestätigungs-E-Mail, ohne Registrierung bei uns.</span>
+    <span class="en-only">One button, no software of ours on your server. The user clicks, signs in inside their mail app, and you receive — via OpenID Connect — their verified address <em>name@domain</em> plus their mailbox key. No password, no confirmation email, no registration with us.</span>
+    <span class="es-only">Un botón, sin software nuestro en vuestro servidor. El usuario hace clic, se autentica en su app de correo y vosotros recibís —vía OpenID Connect— su dirección verificada <em>nombre@dominio</em> y su clave de buzón. Sin contraseña, sin correo de confirmación, sin registro con nosotros.</span>
+    <span class="fr-only">Un bouton, aucun logiciel de nous sur votre serveur. L'utilisateur clique, se connecte dans son appli courriel, et vous recevez — via OpenID Connect — son adresse vérifiée <em>nom@domaine</em> et sa clé de boîte. Sans mot de passe, sans courriel de confirmation, sans inscription chez nous.</span>
+    <span class="pl-only">Jeden przycisk, żadnego naszego oprogramowania na waszym serwerze. Użytkownik klika, loguje się w swojej aplikacji pocztowej, a wy dostajecie — przez OpenID Connect — jego potwierdzony adres <em>nazwa@domena</em> i klucz skrzynki. Bez hasła, bez maila potwierdzającego, bez rejestracji u nas.</span></p>
+    <p><span class="de-only">Alles, was ein Dienst tun muss: den Button einbinden und das Ergebnis serverseitig prüfen lassen — gegen das Relay, nicht gegen uns. Prüft selbst nach: die <a href="/embed-demo">Live-Demo</a> ist exakt dieser Code.</span>
+    <span class="en-only">Everything a service must do: embed the button and let the result be verified server-side — against the relay, not against us. See it yourself: the <a href="/embed-demo">live demo</a> is exactly this code.</span>
+    <span class="es-only">Todo lo que un servicio debe hacer: integrar el botón y hacer comprobar el resultado en el servidor — contra el relay, no contra nosotros. Comprobadlo: la <a href="/embed-demo">demo en vivo</a> es exactamente este código.</span>
+    <span class="fr-only">Tout ce qu'un service doit faire : intégrer le bouton et faire vérifier le résultat côté serveur — contre le relais, pas contre nous. Voyez vous-même : la <a href="/embed-demo">démo en direct</a> est exactement ce code.</span>
+    <span class="pl-only">Wszystko, co serwis musi zrobić: osadzić przycisk i pozwolić sprawdzać wynik po stronie serwera — przeciwko relayowi, nie przeciwko nam. Zobacz sam: <a href="/embed-demo">demo na żywo</a> to dokładnie ten kod.</span></p>
+  </div>
+
+  <h2><span class="de-only">Schritt 1 · Button</span><span class="en-only">Step 1 · Button</span><span class="es-only">Paso 1 · Botón</span><span class="fr-only">Étape 1 · Bouton</span><span class="pl-only">Krok 1 · Przycisk</span></h2>
+  <pre>&lt;script src="https://lightningmail.app/bmail-login.js" defer&gt;&lt;/script&gt;
+&lt;bmail-login issuer="https://relay.lightningmail.app"
+             redirect="https://example.org/login/bmail"
+             label="Mit lightningmail anmelden"&gt;&lt;/bmail-login&gt;</pre>
+  <p><span class="de-only"><code>issuer</code> = Adresse des Relays, auf dem Eure Nutzer ein Postfach haben (das eigene Relay? einfach dessen Adresse). <code>redirect</code> = eine Eurer https-Seiten, auf die der Code zurückkommt. Es gibt kein Client-Geheimnis: Euer https-Origin ist selbst die Kennung. <code>bmail-login.js</code> ist eine Datei, 5&nbsp;kB, MIT-Lizenz, keine Abhängigkeiten.</span>
+  <span class="en-only"><code>issuer</code> = address of the relay where your users hold mailboxes (your own relay? just its address). <code>redirect</code> = one of your https pages the code returns to. There is no client secret: your own https origin IS the identifier. <code>bmail-login.js</code> is one file, 5&nbsp;kB, MIT-licensed, no dependencies.</span>
+  <span class="es-only"><code>issuer</code> = dirección del relay donde vuestros usuarios tienen buzón (¿vuestro propio relay? simplemente su dirección). <code>redirect</code> = una de vuestras páginas https a la que vuelve el código. No hay secreto de cliente: vuestro origin https ES la credencial. <code>bmail-login.js</code> es un archivo, 5&nbsp;kB, licencia MIT, sin dependencias.</span>
+  <span class="fr-only"><code>issuer</code> = adresse du relais où vos utilisateurs ont leur boîte (votre propre relais ? simplement son adresse). <code>redirect</code> = une de vos pages https où le code revient. Pas de secret client : votre origine https EST l'identifiant. <code>bmail-login.js</code> tient en un fichier, 5&nbsp;kB, licence MIT, sans dépendance.</span>
+  <span class="pl-only"><code>issuer</code> = adres relayu, na którym użytkownicy mają skrzynki (własny relay? po prostu jego adres). <code>redirect</code> = jedna z waszych stron https, na którą wraca kod. Nie ma sekretu klienta: wasz origin https JEST identyfikatorem. <code>bmail-login.js</code> to jeden plik, 5&nbsp;kB, licencja MIT, zero zależności.</span></p>
+
+  <h2><span class="de-only">Schritt 2 · Callback prüfen (Server)</span><span class="en-only">Step 2 · Verify the callback (server)</span><span class="es-only">Paso 2 · Comprobar el callback (servidor)</span><span class="fr-only">Étape 2 · Vérifier le callback (serveur)</span><span class="pl-only">Krok 2 · Sprawdź callback (serwer)</span></h2>
+  <div class="tabs">
+    <button class="on" data-r="php">PHP</button><button data-r="node">Express</button>
+    <button data-r="next">NextAuth</button><button data-r="django">Django</button>
+  </div>
+  <pre class="recipe on" id="r-php">&lt;?php // login/bmail.php — empfaengt ?code=... vom Button-Flow
+session_start();
+$issuer = 'https://relay.lightningmail.app';
+$verifier = $_SESSION['lm_bmail_verifier'] ?? null; // vor dem Redirect gespeichert
+$nonce    = $_SESSION['lm_bmail_nonce'] ?? null;
+$code     = $_GET['code'] ?? '';
+
+$ch = curl_init("$issuer/oidc/token");
+curl_setopt_array($ch, [CURLOPT_POST =&gt; true, CURLOPT_RETURNTRANSFER =&gt; true,
+  CURLOPT_HTTPHEADER =&gt; ['Content-Type: application/x-www-form-urlencoded'],
+  CURLOPT_POSTFIELDS =&gt; http_build_query([
+    'grant_type' =&gt; 'authorization_code', 'code' =&gt; $code,
+    'client_id' =&gt; 'https://'.$_SERVER['HTTP_HOST'],
+    'redirect_uri' =&gt; 'https://'.$_SERVER['HTTP_HOST'].'/login/bmail.php',
+    'code_verifier' =&gt; $verifier])]);
+$tok = json_decode(curl_exec($ch), true);
+
+// id_token: header.payload.signature, Signatur mit JWKS (ES256) pruefen.
+// Fertige Bibliotheken tun das: web-token/jwt + jwkset, oder firebase/php-jwt.
+$jwt = new \Firebase\JWT\JWT();
+$key = call_user_func(function () use ($issuer) {          // JWKS-Cache: 5 min
+  $jwks = json_decode(file_get_contents("$issuer/oidc/jwks"), true);
+  return \Firebase\JWT\JWK::parseKeySet($jwks); });
+$claims = (array) $jwt::decode($tok['id_token'], $key, ['ES256']);
+assert($claims['iss'] === $issuer && $claims['nonce'] === $nonce &amp;&amp; $claims['email_verified'] === true);
+
+$_SESSION['user_email'] = $claims['email'];   // = name@domain — fertig.
+// $claims['bmail'] traegt zusaetzlich den Postfach-Pubkey (BIP340-signiert).</pre>
+  <pre class="recipe" id="r-node">// Express — Route f&uuml;r ?code=..., PKCE-Werte aus dem Session-Store
+import { Issuer } from 'openid-client';
+
+const relay = await Issuer.discover('https://relay.lightningmail.app');
+// stateless public client: client_id ist Euer https-Origin, kein Secret
+const client = new relay.Client({ client_id: 'https://example.org' });
+
+const tokenSet = await client.callback('https://example.org/login/bmail',
+  req.query, { code_verifier: req.session.lmVerifier, state: req.session.lmState });
+const claims = tokenSet.claims();
+if (claims.email_verified) req.login(claims.email); // name@domain als Identitaet</pre>
+  <pre class="recipe" id="r-next">// next-auth v4 — providers-Eintrag, sonst nichts
+providers: [
+  {
+    id: 'lightningmail', name: 'lightningmail', type: 'oauth',
+    version: '2.0',
+    checks: ['pkce', 'state'],
+    clientId: 'https://deine-app.example.org',      // = Eure Origin, kein Secret
+    authorization: 'https://relay.lightningmail.app/oidc/auth?prompt=consent',
+    token: 'https://relay.lightningmail.app/oidc/token',
+    userinfo: 'https://relay.lightningmail.app/oidc/userinfo',
+    issuer: 'https://relay.lightningmail.app',
+    jwks_uri: 'https://relay.lightningmail.app/oidc/jwks',
+    profile: (p) =&gt; ({ id: p.email, email: p.email, bmail: p.bmail }),
+  },
+],</pre>
+  <pre class="recipe" id="r-django"># Social-Auth — eine Provider-Zeile + Discovery-URL
+# settings.py
+SOCIAL_AUTH_OPENID_CONNECT_RELAY = {
+  'RELAY': {
+    'SERVER_URL': 'https://relay.lightningmail.app',   #/.well-known wird entdeckt
+    'AUTHORIZATION_URL': '/oidc/auth',
+    'ACCESS_TOKEN_URL': '/oidc/token',
+    'USERINFO_URL': '/oidc/userinfo',
+    'CLIENT_ID': 'https://deine-app.example.org',
+  }
+}
+INSTALLED_APPS += ['social_django']
+AUTHENTICATION_BACKENDS += ['social_core.backends.open_id_connect.OpenIdConnectAuth']</pre>
+  <p class="warn"><span class="de-only">Wichtig: Prüfen muss der Server, nicht das Browser-JavaScript. Das Browser-Event <code>bmail-login</code> ist Komfort — Identität ist erst, was die obige Route bestätigt hat. Wer eine Bibliothek statt eigener Prüfung nutzt, bekommt dasselbe geschenkt: Es ist Standard-OIDC.</span>
+  <span class="en-only">Important: the server must verify, not the browser script. The <code>bmail-login</code> browser event is convenience — identity is only what the route above confirmed. Using a library instead of hand-rolled checks gives you the same for free: this is standard OIDC.</span>
+  <span class="es-only">Importante: comprueba el servidor, no el script del navegador. El evento <code>bmail-login</code> es comodidad — identidad es solo lo que la ruta de arriba confirmó. Quien usa una librería en vez de comprobar a mano recibe lo mismo gratis: es OIDC estándar.</span>
+  <span class="fr-only">Important : le serveur vérifie, pas le script du navigateur. L'événement <code>bmail-login</code> est du confort — l'identité n'est que ce que la route ci-dessus a confirmé. Une bibliothèque à la place du fait-maison donne la même chose gratuitement : c'est de l'OIDC standard.</span>
+  <span class="pl-only">Ważne: sprawdza serwer, nie skrypt w przeglądarce. Zdarzenie <code>bmail-login</code> to wygoda — tożsamością jest dopiero to, co potwierdziła powyższa trasa. Biblioteka zamiast własnego sprawdzania daje to samo za darmo: to standardowy OIDC.</span></p>
+
+  <h2><span class="de-only">WordPress ·.Plugin</span><span class="en-only">WordPress · plugin</span><span class="es-only">WordPress · plugin</span><span class="fr-only">WordPress · extension</span><span class="pl-only">WordPress · wtyczka</span></h2>
+  <p><span class="de-only">Fertig zum Installieren: <a href="/lightningmail-login.zip">lightningmail-login.zip</a> (Plugins → Hochladen). Nach dem Aktivieren erscheint der Button unter Login-Formular und Registrierungsseite; in den Einstellungen stehen Relay-Adresse und Anzeigename. Der Plugin-Code prüft das ID-Token serverseitig gegen das Relay-JWKS, PHP-only, keine fremden Bibliotheken. <em>Status: Flow gegen das Demo-Relay getestet; Aktivierung auf einer echten WP-Instanz euch überlassen, Meldung bitte an forum.</em></span>
+  <span class="en-only">Ready to install: <a href="/lightningmail-login.zip">lightningmail-login.zip</a> (Plugins → Add new → Upload). After activation the button appears under the login form and the registration page; settings hold relay address and display name. The plugin verifies the ID token server-side against the relay JWKS, PHP-only, no third-party libraries. <em>Status: flow tested against the demo relay; activation on a live WP instance is on you — please report via the forum.</em></span>
+  <span class="es-only">Listo para instalar: <a href="/lightningmail-login.zip">lightningmail-login.zip</a> (Plugins → Añadir nuevo → Subir). Al activarlo, el botón aparece bajo el formulario de acceso y la página de registro; los ajustes guardan dirección del relay y nombre visible. El plugin comprueba el id_token en el servidor contra el JWKS del relay, solo PHP, sin librerías ajenas. <em>Estado: flujo probado contra el relay de demo; la activación en un WP real queda en vuestros manos — feedback por favor en el foro.</em></span>
+  <span class="fr-only">Prêt à installer : <a href="/lightningmail-login.zip">lightningmail-login.zip</a> (Extensions → Ajouter → Téléverser). Une fois activée, le bouton s'affiche sous le formulaire de connexion et la page d'inscription ; les réglages contiennent l'adresse du relais et le nom affiché. L'extension vérifie l'id_token côté serveur contre le JWKS du relais, en PHP seul, sans bibliothèque tierce. <em>État : flux testé contre le relais de démo ; l'activation sur un vrai WP vous revient — retour merci via le forum.</em></span>
+  <span class="pl-only">Gotowe do instalacji: <a href="/lightningmail-login.zip">lightningmail-login.zip</a> (Wtyczki → Dodaj nową → Wyślij). Po włączeniu przycisk pojawia się pod formularzem logowania i na stronie rejestracji; w ustawieniach adres relayu i nazwa wyświetlana. Wtyczka sprawdza id_token po stronie serwera wobec JWKS relayu, czysty PHP, bez bibliotek zewnętrznych. <em>Stan: flow przetestowany przeciw relayowi demo; aktywacja na żywym WP po waszej stronie — dajcie znać na forum.</em></span></p>
+
+  <h2><span class="de-only">Und danach?</span><span class="en-only">And then?</span><span class="es-only">¿Y después?</span><span class="fr-only">Et après ?</span><span class="pl-only">A potem?</span></h2>
+  <p><span class="de-only">Ein Login ist keine Bestätigungs-Mail: Wenn Ihr dem Nutzer Briefe schreiben wollt (Rechnungen, Reset-links, Newsletter), braucht Euer Dienst ein eigenes Postfach — das macht der <a href="/architecture#login">Service-Connector</a> in drei Schritten. Und ja: Er antwortet dann mit Porto aus dem Vorschuss, den die Anmeldung selbst mitbringt.</span>
+  <span class="en-only">A login is not a confirmation email: if your service wants to write letters to the user (invoices, reset links, newsletters), it needs its own mailbox — the <a href="/architecture#login">Service Connector</a> does that in three steps. And yes: it then replies with postage drawn from the advance the sign-up itself brings along.</span>
+  <span class="es-only">Un registro no es un correo de confirmación: si el servicio quiere escribir cartas al usuario (facturas, enlaces de recuperación, boletines), necesita su propio buzón — el <a href="/architecture#login">Service Connector</a> lo hace en tres pasos. Y sí: responde entonces con franqueo del anticipo que el propio registro trae consigo.</span>
+  <span class="fr-only">Une connexion n'est pas un courriel de confirmation : si votre service veut écrire à l'utilisateur (factures, liens de réinitialisation, infolettres), il lui faut sa propre boîte — le <a href="/architecture#login">Service Connector</a> le fait en trois étapes. Et oui : il répond alors avec du port pris sur l'avance que l'inscription elle-même apporte.</span>
+  <span class="pl-only">Logowanie to nie mail potwierdzający: jeśli serwis chce pisać do użytkownika listy (faktury, linki resetujące, newslettery), potrzebuje własnej skrzynki — robi to <a href="/architecture#login">Service Connector</a> w trzech krokach. I tak: odpowiada potem frankaturą ze zaliczki, którą sama rejestracja przynosi.</span></p>
+
+  <p class="lang"><span class="de-only">Quellcode des Kits: <code>bmail-login.js</code> (diese Domain, MIT). Referenz-RP-Endpunkt im Python: <a href="/embed-demo">/embed-demo</a> + <code>/api/embed/verify</code>.</span>
+  <span class="en-only">Kit source: <code>bmail-login.js</code> (this domain, MIT). Reference RP in Python: <a href="/embed-demo">/embed-demo</a> + <code>/api/embed/verify</code>.</span>
+  <span class="es-only">Código del kit: <code>bmail-login.js</code> (este dominio, MIT). RP de referencia en Python: <a href="/embed-demo">/embed-demo</a> + <code>/api/embed/verify</code>.</span>
+  <span class="fr-only">Code source du kit : <code>bmail-login.js</code> (ce domaine, MIT). PR de référence en Python : <a href="/embed-demo">/embed-demo</a> + <code>/api/embed/verify</code>.</span>
+  <span class="pl-only">Kod zestawu: <code>bmail-login.js</code> (ta domena, MIT). Odniesieniowy RP w Pythonie: <a href="/embed-demo">/embed-demo</a> + <code>/api/embed/verify</code>.</span></p>
+</main>
+<script>
+const sel=document.getElementById('langSel');
+sel.value=localStorage.getItem('lm_lang')||'de';document.documentElement.lang=sel.value;
+sel.onchange=()=>{document.documentElement.lang=sel.value;localStorage.setItem('lm_lang',sel.value)};
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.recipe').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');document.getElementById('r-'+b.dataset.r).classList.add('on');});
+</script>
+</body>
+</html>
