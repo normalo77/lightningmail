@@ -8,7 +8,7 @@ import (
 
 // A6: LRU semantics — 64 entries max, oldest evicted first, Get refreshes.
 func TestCacheLRU(t *testing.T) {
-	c := NewCache()
+	c := NewCache(nil)
 	for i := 0; i < 70; i++ {
 		c.Put(fmt.Sprintf("sha%02d", i), []byte(fmt.Sprintf("data%02d", i)))
 	}
@@ -35,7 +35,7 @@ func TestCacheLRU(t *testing.T) {
 		t.Error("untouched sha07 should be gone")
 	}
 	// byte cap: one 31 MiB blob fits, a second evicts the first
-	big := NewCache()
+	big := NewCache(nil)
 	big.Put("a", bytes.Repeat([]byte{1}, 31<<20))
 	big.Put("b", bytes.Repeat([]byte{2}, 31<<20))
 	if _, ok := big.Get("a"); ok {

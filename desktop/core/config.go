@@ -23,6 +23,11 @@ type Config struct {
 	// TorSocks: Etappe T — SOCKS5 endpoint "host:port" for Tor routing.
 	// Empty = direct connection (M1 default).
 	TorSocks string `json:"tor_socks"`
+	// CacheMB (M3 settings): RAM cache ceiling for decrypted blobs.
+	// 0 or empty = default 32 MiB.
+	CacheMB int `json:"cache_mb,omitempty"`
+
+	path string // set by LoadConfig/Save — where this config lives on disk
 }
 
 // DefaultConfigPath is the canonical config location.
@@ -53,7 +58,33 @@ func LoadConfig(path string) (*Config, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	cfg.path = path
 	return &cfg, nil
+}
+
+// Save writes the config back to where LoadConfig read it (0600: the file
+// names the keyfile path). Called by the M3 settings page.
+func (c *Config) Save() error {
+	path := c.path
+	if path == "" {
+		var err error
+		if path, err = DefaultConfigPath(); err != nil {
+			return err
+		}
+		c.path = path
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	raw, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, raw, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // Validate checks the required fields and normalizes Keyfile ("~" -> $HOME).
@@ -86,7 +117,21 @@ func LoadKeyFile(path, passphrase string) (*btcec.PrivateKey, error) {
 
 // Harden switches off core dumps and pins memory best effort (M-SEC.1).
 // Never aborts: each failure comes back as a log line instead.
-func Harden() (issues []string) {
+func Harden() []string {
+	return harden(true)
+}
+
+// HardenGUI is Harden WITHOUT mlockall: WebKit/JSC reserves ~1 TB of virtual
+// address space (Gigacage); with MCL_FUTURE active those reservations turn
+// into mlock failures and the JSC init traps (CT114 postmortem 22.11. —
+// it only ever worked while memlock was small enough for mlockall to fail
+// anyway). Key zeroing and the core-dump ban stay; CLI-only builds keep
+// full Harden().
+func HardenGUI() []string {
+	return harden(false)
+}
+
+func harden(mlock bool) (issues []string) {
 	if err := syscall.Setrlimit(syscall.RLIMIT_CORE, &syscall.Rlimit{Cur: 0, Max: 0}); err != nil {
 		issues = append(issues, fmt.Sprintf("RLIMIT_CORE: %v", err))
 	} else {
@@ -95,8 +140,10 @@ func Harden() (issues []string) {
 			issues = append(issues, fmt.Sprintf("RLIMIT_CORE still nonzero after set (%v)", err))
 		}
 	}
-	if err := syscall.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE); err != nil {
-		issues = append(issues, fmt.Sprintf("mlockall: %v (key pages may be swappable)", err))
+	if mlock {
+		if err := syscall.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE); err != nil {
+			issues = append(issues, fmt.Sprintf("mlockall: %v (key pages may be swappable)", err))
+		}
 	}
 	return issues
 }

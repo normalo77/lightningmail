@@ -269,7 +269,17 @@ func (c *Client) RegisterAccount(ctx context.Context, pubkeyHex string) error {
 
 // UploadBlob posts raw bytes to /v1/blob and returns the sha256 hex.
 func (c *Client) UploadBlob(ctx context.Context, data []byte) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", c.Base+"/v1/blob", bytes.NewReader(data))
+	return c.uploadBlobPath(ctx, data, "/v1/blob")
+}
+
+// UploadBlobKind stores a drive-kind blob (Etappe J: survives the retention
+// sweep) — POST /v1/blob?kind=drive.
+func (c *Client) UploadBlobKind(ctx context.Context, data []byte, kind string) (string, error) {
+	return c.uploadBlobPath(ctx, data, "/v1/blob?kind="+kind)
+}
+
+func (c *Client) uploadBlobPath(ctx context.Context, data []byte, path string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", c.Base+path, bytes.NewReader(data))
 	if err != nil {
 		return "", err
 	}
@@ -291,6 +301,34 @@ func (c *Client) UploadBlob(ctx context.Context, data []byte) (string, error) {
 		return "", fmt.Errorf("blob upload: bad response %s", truncate(raw, 120))
 	}
 	return ur.SHA256Hex, nil
+}
+
+// DeleteDriveBlob releases one own drive ref: DELETE /v1/blob {sha}. The
+// relay answers 403 when the blob holds no drive ref (mail refs are kept).
+func (c *Client) DeleteDriveBlob(ctx context.Context, sha string) error {
+	body, _ := json.Marshal(map[string]string{"sha": sha})
+	_, err := c.do(ctx, "DELETE", "/v1/blob", body)
+	return err
+}
+
+// DriveUsage fetches GET /v1/drive/usage.
+func (c *Client) DriveUsage(ctx context.Context) (*DriveUsage, error) {
+	raw, err := c.do(ctx, "GET", "/v1/drive/usage", nil)
+	if err != nil {
+		return nil, err
+	}
+	var u DriveUsage
+	if err := json.Unmarshal(raw, &u); err != nil {
+		return nil, fmt.Errorf("drive usage decode: %w", err)
+	}
+	return &u, nil
+}
+
+// BuyTier purchases a storage tier: POST /v1/drive/buy {"tier":i}.
+func (c *Client) BuyTier(ctx context.Context, tier int) error {
+	body := fmt.Sprintf(`{"tier":%d}`, tier)
+	_, err := c.do(ctx, "POST", "/v1/drive/buy", []byte(body))
+	return err
 }
 
 // Profile looks up GET /v1/profile/{name} -> 33B compressed pubkey hex + postage_sats.

@@ -22,9 +22,18 @@ type cacheEntry struct {
 	data []byte
 }
 
-// NewCache returns an empty cache (64 entries / 32 MiB).
-func NewCache() *Cache {
-	return &Cache{maxEnt: 64, maxBytes: 32 << 20, ll: list.New(), items: map[string]*list.Element{}}
+// NewCache returns an empty cache. cfg.CacheMB sizes the byte ceiling
+// (0/absent = 32 MiB); entry count scales with it (min 64).
+func NewCache(cfg *Config) *Cache {
+	mb := 32
+	if cfg != nil && cfg.CacheMB > 0 {
+		mb = cfg.CacheMB
+	}
+	ent := 64
+	if mb*2 > ent {
+		ent = mb * 2 // ~8 MiB average slice assumption
+	}
+	return &Cache{maxEnt: ent, maxBytes: mb << 20, ll: list.New(), items: map[string]*list.Element{}}
 }
 
 // Get returns a blob (ok=false on miss) and marks it as recently used.

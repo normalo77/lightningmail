@@ -379,3 +379,79 @@ func (d *StateDoc) LiveSent() []SentItem {
 	sortStableDesc(out)
 	return out
 }
+
+// --- M3: contacts + drive entries (state.ts saveContact/saveFile:186-203) ---
+// The GUI always passes the FULL record (editor prefills from prev), so the
+// TS partial-spread merge reduces to "copy fields over, drop gone, restamp".
+
+// SaveContact upserts a live contact: resurrects tombstoned ids (gone is
+// stripped) and re-stamps ts = max(now, prev)+1.
+func (d *StateDoc) SaveContact(c Contact) {
+	prev := d.Contacts[c.ID]
+	c.Gone = 0
+	c.Ts = reStamp(prev.Ts)
+	d.Contacts[c.ID] = c
+}
+
+// DelContact tombstones a contact.
+func (d *StateDoc) DelContact(id string) {
+	d.Contacts[id] = Contact{ID: id, Ts: reStamp(d.Contacts[id].Ts), Gone: 1}
+}
+
+// LiveContacts returns non-gone contacts sorted by display name.
+func (d *StateDoc) LiveContacts() []Contact {
+	out := make([]Contact, 0, len(d.Contacts))
+	for _, c := range d.Contacts {
+		if c.Gone == 0 {
+			out = append(out, c)
+		}
+	}
+	sortContactsByName(out)
+	return out
+}
+
+func sortContactsByName(c []Contact) {
+	for i := 1; i < len(c); i++ {
+		for j := i; j > 0 && ContactDisplay(c[j]) < ContactDisplay(c[j-1]); j-- {
+			c[j], c[j-1] = c[j-1], c[j]
+		}
+	}
+}
+
+// ContactDisplay is the PWA picker label: name, given, then pubkey prefix.
+func ContactDisplay(c Contact) string {
+	if c.Name != "" {
+		return c.Name
+	}
+	if c.Given != "" {
+		return c.Given
+	}
+	if len(c.Pubkey) >= 12 {
+		return c.Pubkey[:12] + "…"
+	}
+	return c.ID
+}
+
+// SaveFile upserts a live drive entry (same resurrect + restamp rule).
+func (d *StateDoc) SaveFile(f DriveEntry) {
+	prev := d.Files[f.ID]
+	f.Gone = 0
+	f.Ts = reStamp(prev.Ts)
+	d.Files[f.ID] = f
+}
+
+// DelFile tombstones a drive entry.
+func (d *StateDoc) DelFile(id string) {
+	d.Files[id] = DriveEntry{ID: id, Ts: reStamp(d.Files[id].Ts), Gone: 1}
+}
+
+// LiveFiles returns non-gone drive entries.
+func (d *StateDoc) LiveFiles() []DriveEntry {
+	out := make([]DriveEntry, 0, len(d.Files))
+	for _, f := range d.Files {
+		if f.Gone == 0 {
+			out = append(out, f)
+		}
+	}
+	return out
+}
