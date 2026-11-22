@@ -1,0 +1,45 @@
+# torrc-or-relay.example — Etappe T, Stufe 3 "Node" (CONCEPT §33)
+#
+# Zusätzliche Teilnahme als normales Tor-Relay: dieser Knoten leitet
+# verschlüsselte Circuit-Fragmente fremde Tor-Traffic weiter (.middle relay),
+# mit Bandbreiten-Deckel. EXIT BLEIBT AUSGESCHLOSSEN — niemals fremdes
+# Klartext-Traffic durch das eigene Heimnetz ins Internet.
+#
+# Kombination mit Stufe 2: beide Blöcke in dasselbe /etc/tor/torrc, dabei
+# die "SocksPort 0"-Zeile unten weglassen (der Hidden-Service-Block bringt
+# SOCKSPort 9050 für relayd mit).
+#
+# Vorher: 9001/TCP im Router/Firewall auf diese Maschine weiterleiten
+# (1:1, keine Port-Überschreibung nötig) und ggf. die öffentliche IPv4
+# in der Tor-Config bekanntgeben — siehe Kommentar bei ORPort.
+
+Nickname bmail-relay-01           # Name in der Tor-Messe (kein Raum für Leerzeichen)
+
+# Standard-ORPort. Ohne Weiterleitung/erreichebare Firewall startet Tor
+# den Relay-Modus nicht (Selbst-Test schlägt fehl).
+ORPort 9001
+
+# Öffentliche IPv4 festsetzen, wenn die Erkennung scheitert (hinter NAT
+# mit Port-Forwarding, several public IPs, ...):
+# Address deine.oe.f.fentliche.ip
+
+ContactEmail abuse@example.org    # damit Tor/Netzbetreiber dich erreichen
+
+# --- Exit: absolut ausgeschlossen ---
+ExitRelay 0
+IPv4Policy reject *:*             # doppelte Sicherung: keine Exit-Policy, auch nicht teilweise
+# IPv6Policy reject *:*           # analog, falls IPv6 aktiv
+
+# --- Eigenes Verhalten ---
+SocksPort 0                       # reine Node: kein lokaler SOCKS-Client.
+                                  # MIT Stufe 2 kombinieren -> diese Zeile
+                                  # loeschen (torrc-hidden-service.example
+                                  # setzt SOCKSPort 9050 fuer relayd).
+
+# --- Bandbreiten-Deckel (nur weitergeleiteter Traffic, nicht der eigene
+# Hidden-Service-/Peer-Traffic) ---
+RelayBandwidthRate 2 MBit         # gleitender Durchschnitt
+RelayBandwidthBurst 4 MBit        # kurzfristiger Peak
+# shortcut: konservative Heimnetz-Defaults (nicht am regtest-Stack gemessen,
+# da dieser nur Stufe 2 faehrt); an die eigene Leitung anpassen, Tor drosselt
+# dann gleichmaessig statt die ganze Leitung zuzukleben.

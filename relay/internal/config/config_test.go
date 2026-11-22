@@ -121,7 +121,16 @@ func TestURLSchemeRules(t *testing.T) {
 	if err := validURL("http://evil.example"); err == nil {
 		t.Fatal("plain http to remote host accepted")
 	}
-	if err := validURL("https://x.onion"); err != nil {
+	// Etappe T: onion urls are allowed (only dialable via tor.socks5) but
+	// must be well-formed v3 — dead v2 shapes like "x.onion" are rejected.
+	if err := validURL("https://x.onion"); err == nil {
+		t.Fatal("malformed onion accepted")
+	}
+	v3 := "zkjevp5ldo5x72q7lnhrhxh2rwq3hxwjx5q6c2jfqvy5hck3zsdgsvqd.onion"
+	if err := validURL("http://" + v3); err != nil {
+		t.Fatal(err)
+	}
+	if err := validURL("https://" + v3); err != nil {
 		t.Fatal(err)
 	}
 }

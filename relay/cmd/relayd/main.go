@@ -15,9 +15,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lightningmail/relay/internal/config"
 	"github.com/lightningmail/lm1/crypto"
 	"github.com/lightningmail/lm1/envelope"
+	"github.com/lightningmail/relay/internal/config"
 	"github.com/lightningmail/relay/internal/ledger"
 	"github.com/lightningmail/relay/internal/lnclient"
 	"github.com/lightningmail/relay/internal/postage"
@@ -293,7 +293,9 @@ func mirrorOneBlob(cfg *config.Config, l *ledger.Ledger, ref [32]byte, acctID in
 		}
 		req, _ := http.NewRequest("GET", p.URL+"/v1/relay/blob/"+hexSha, nil)
 		req.Header.Set("X-Relay-Secret", p.Token)
-		resp, err := http.DefaultClient.Do(req)
+		// Etappe T: shared client — routes through tor.socks5 when set,
+		// which is what makes *.onion peer URLs dialable at all.
+		resp, err := cfg.PeerHTTP(30 * time.Second).Do(req)
 		if err != nil || resp.StatusCode != 200 {
 			if resp != nil {
 				resp.Body.Close()

@@ -84,7 +84,7 @@ func (s *Server) mirrorReceipts(items []ledger.ReceiptOut) {
 		req, _ := http.NewRequest("POST", p.URL+"/v1/relay/receipt", bytes.NewReader(body))
 		req.Header.Set("X-Relay-Secret", p.Token)
 		req.Header.Set("Content-Type", "application/json")
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := s.cfg.PeerHTTP(10 * time.Second).Do(req)
 		if err != nil || resp.StatusCode != 200 {
 			if resp != nil {
 				resp.Body.Close()

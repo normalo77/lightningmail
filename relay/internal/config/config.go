@@ -135,6 +135,17 @@ type Config struct {
 	// same-origin, with no CORS at all. Empty = UI is not served (hosting
 	// case: there the site frontend takes over).
 	UIDir string `yaml:"ui_dir"`
+	// Tor (Etappe T): operational onion layer. Socks5 = local Tor SOCKS5
+	// endpoint ("127.0.0.1:9050"); when set, relay-to-relay traffic prefers
+	// onion URLs from peers/DNS-TXT and *.onion dialing works. Empty = off
+	// (everything stays plain https, byte-for-byte the old behavior).
+	Tor Tor `yaml:"tor"`
+}
+
+// Tor (Etappe T): see above. Kept tiny on purpose — no exit, no protocol
+// changes, just a SOCKS5 dial for peer calls.
+type Tor struct {
+	Socks5 string `yaml:"socks5"`
 }
 
 const DefaultBlobMaxBytes = 10 * 1024 * 1024 // 10 MiB (PRECODING §B)
@@ -393,12 +404,25 @@ func validURL(s string) error {
 	if err != nil {
 		return fmt.Errorf("unparseable url: %v", err)
 	}
+	host := u.Hostname()
+	// Etappe T: a .onion peer is only reachable through the configured
+	// SOCKS5 dialer and can never name a LAN address, so plain http is fine
+	// behind the hidden service (relayd itself speaks http, TLS terminates
+	// at the operator's edge like it does for https relays).
+	if strings.HasSuffix(host, ".onion") {
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return fmt.Errorf("onion url must be http(s), got %q", u.Scheme)
+		}
+		if !ValidOnionHost(host) {
+			return fmt.Errorf("malformed onion host %q", host)
+		}
+		return nil
+	}
 	switch u.Scheme {
 	case "https":
 	case "http":
 		// shortcut: http only for local dev (docker regtest); tighten to
 		// https-only when relayd serves real traffic (Etappe 3/mTLS).
-		host := u.Hostname()
 		if host != "localhost" && !strings.HasPrefix(host, "127.") && host != "::1" {
 			return fmt.Errorf("http url only allowed for localhost, got %q", host)
 		}

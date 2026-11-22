@@ -1,6 +1,7 @@
 // Dynamic relay discovery (CONCEPT §4.2): _bmail._tcp.<domain> TXT record
-// "v=bmail1; relay=https://…; node=<66-hex>" — configured peers win,
-// DNS results are cached for 5 minutes.
+// "v=bmail1; relay=https://…; node=<66-hex>[; onion=<v3-host>]" — configured
+// peers win, DNS results are cached for 5 minutes. Etappe T: with a tor.socks5
+// endpoint set, a valid onion field is preferred over the https URL.
 package relaysrv
 
 import (
@@ -13,11 +14,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lightningmail/relay/internal/config"
 	"github.com/lightningmail/lm1/crypto"
+	"github.com/lightningmail/relay/internal/config"
 )
 
 const dnsCacheTTL = 5 * time.Minute
+
+// isOnionURL reports whether a relay URL points at a .onion host.
+func isOnionURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && strings.HasSuffix(strings.ToLower(u.Hostname()), ".onion")
+}
 
 type dnsEntry struct {
 	relay, node string
@@ -60,19 +67,24 @@ func (s *Server) resolveDomainRelay(ctx context.Context, domain string) (string,
 	}
 	var lastErr error
 	for _, txt := range txts {
-		relay, node, err := parseBmailTXT(txt)
+		relay, node, onion, err := parseBmailTXTFull(txt, s.cfg.Tor.Socks5 != "")
 		if err != nil {
 			lastErr = err
 			continue
 		}
-		if err := verifyPublicRelayURL(ctx, relay); err != nil {
-			lastErr = err
-			continue
-		}
+		chosen := s.cfg.PeerURL(relay, onion)
+		if !isOnionURL(chosen) {
+			// plain https target: SSRF check as before Etappe T
+			if err := verifyPublicRelayURL(ctx, chosen); err != nil {
+				lastErr = err
+				continue
+			}
+		} // onion: unresolvable locally by design — only dialable through
+		// the configured SOCKS5, never a private LAN address.
 		s.dnsMu.Lock()
-		s.dns[domain] = dnsEntry{relay: relay, node: node, at: time.Now()}
+		s.dns[domain] = dnsEntry{relay: chosen, node: node, at: time.Now()}
 		s.dnsMu.Unlock()
-		return relay, node, nil
+		return chosen, node, nil
 	}
 	if lastErr == nil {
 		lastErr = errors.New("no _bmail._tcp TXT record")
@@ -80,8 +92,15 @@ func (s *Server) resolveDomainRelay(ctx context.Context, domain string) (string,
 	return "", "", fmt.Errorf("dns: %s: %w", domain, lastErr)
 }
 
-// parseBmailTXT parses "v=bmail1; relay=https://…; node=<33B compressed hex>".
+// parseBmailTXT parses "v=bmail1; relay=https://…; node=<33B compressed hex>"
+// and the OPTIONAL Etappe T field onion=<v3-onion host or URL>. An invalid
+// onion value is ignored (kept as "") — it must never break https discovery.
 func parseBmailTXT(txt string) (relay, node string, err error) {
+	relay, node, _, err = parseBmailTXTFull(txt, false)
+	return relay, node, err
+}
+
+func parseBmailTXTFull(txt string, torEnabled bool) (relay, node, onion string, err error) {
 	kv := map[string]string{}
 	for _, part := range strings.Split(txt, ";") {
 		k, v, ok := strings.Cut(part, "=")
@@ -90,28 +109,43 @@ func parseBmailTXT(txt string) (relay, node string, err error) {
 		}
 	}
 	if kv["v"] != config.DiscoverySchema { // "bmail1"
-		return "", "", fmt.Errorf("unsupported version %q", kv["v"])
+		return "", "", "", fmt.Errorf("unsupported version %q", kv["v"])
 	}
 	relay, node = kv["relay"], kv["node"]
-	// Public DNS records may only use https:// to public hosts
-	// (local dev relays live in relay.yaml under peers, never in public DNS -> SSRF protection).
-	u, uerr := url.Parse(relay)
-	if uerr != nil || u.Scheme != "https" || u.Hostname() == "" || strings.EqualFold(u.Hostname(), "localhost") {
-		return "", "", fmt.Errorf("bad relay url %q (https on public host required)", relay)
+	onion = kv["onion"]
+	if onion != "" && !config.ValidOnionHost(onion) {
+		onion = "" // junk onion field: https-only, exactly like before T
 	}
-	if ip := net.ParseIP(u.Hostname()); ip != nil {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
-			return "", "", fmt.Errorf("ssrf blocked: private/loopback IP in relay url %q", relay)
+	if onion != "" && !torEnabled {
+		onion = "" // no SOCKS endpoint configured: nothing can dial it
+	}
+	// Public DNS records must use https:// on public hosts (local dev relays
+	// live in relay.yaml under peers, never in public DNS -> SSRF protection).
+	// Exception (Etappe T): a valid onion alongside is a legitimate Tor-only
+	// advertisement — but ONLY when a socks5 dialer exists AND the https
+	// target is itself public or onion.
+	u, uerr := url.Parse(relay)
+	if uerr != nil || u.Hostname() == "" || strings.EqualFold(u.Hostname(), "localhost") {
+		return "", "", "", fmt.Errorf("bad relay url %q (https on public host required)", relay)
+	}
+	if onion == "" {
+		if u.Scheme != "https" {
+			return "", "", "", fmt.Errorf("bad relay url %q (https on public host required)", relay)
+		}
+		if ip := net.ParseIP(u.Hostname()); ip != nil {
+			if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+				return "", "", "", fmt.Errorf("ssrf blocked: private/loopback IP in relay url %q", relay)
+			}
 		}
 	}
 	raw, err := hex.DecodeString(node)
 	if err != nil || len(raw) != 33 {
-		return "", "", fmt.Errorf("bad node pubkey %q", node)
+		return "", "", "", fmt.Errorf("bad node pubkey %q", node)
 	}
 	if _, err := crypto.ParsePubKey(raw); err != nil {
-		return "", "", fmt.Errorf("bad node pubkey: %w", err)
+		return "", "", "", fmt.Errorf("bad node pubkey: %w", err)
 	}
-	return relay, node, nil
+	return relay, node, onion, nil
 }
 
 // verifyPublicRelayURL checks after DNS resolution that the target hostname

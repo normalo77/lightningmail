@@ -122,7 +122,7 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 		// (federation lookup §4.2), so a user on relay A can also write to
 		// accounts on relay B. Fallback: all peers in order.
 		if r.Header.Get("X-Relay-Hop") == "" {
-			cl := &http.Client{Timeout: 5 * time.Second}
+			cl := s.cfg.PeerHTTP(5 * time.Second)
 			fetch := func(relayURL, relayName string) bool {
 				if relayURL == "" {
 					return false
