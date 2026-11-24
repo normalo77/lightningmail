@@ -1,0 +1,50 @@
+# lmbridge configuration example (Etappe B3, CONCEPT §14).
+# Copy to deploy/bridge.yaml for the docker compose --profile bridge sidecar;
+# the paths below already match the container layout of deploy/docker-compose.*-relay.yml.
+# Secrets live in files (mounted at /secrets, read-only) — never inline, never in git.
+
+# LM relay this bridge belongs to. Inside the compose network use
+# http://relayd:8443 so bridge↔relay traffic never leaves the host.
+relay_url: http://relayd:8443
+# The LM account the bridge acts as (mailbox owner).
+account: alice@lm.example.org
+
+# LM private key (LMKEY file). A wrapped key is unlocked once at startup via
+# key_pass_file (auto-unlock — no interactive login afterwards).
+key_file: /secrets/lm.key
+key_pass_file: /secrets/key.pass # omit for a bare (unwrapped) PEM key file
+
+# Classic SMTP submission for mail clients. AUTH is mandatory; plaintext AUTH
+# is only offered while tls_cert/tls_key are unset → keep the port on LAN/VPN.
+smtp_listen: 0.0.0.0:1025
+
+# LM-IMAP mirror of the relay inbox. Optional: omit both to run SMTP-only.
+imap_listen: 0.0.0.0:1143
+# SQLite UID/flag cache; must be writable, required when imap_listen is set.
+state_dir: /var/lib/lmbridge
+# Relay poll cadence of the IMAP syncer (default 15s, minimum 1s).
+poll_interval: 15s
+
+# Optional TLS for both listeners. With certs set, SMTP clients must STARTTLS
+# before AUTH. Leave empty on a trusted LAN (see README trust boundary).
+tls_cert: "" # e.g. /secrets/bridge.crt
+tls_key: ""  # e.g. /secrets/bridge.key
+
+# Credentials mail clients present to the bridge (SMTP AUTH + IMAP LOGIN).
+# Deliberately independent of the LM account: one bridge user per mailbox.
+bridge_auth:
+  user: alice
+  pass_file: /secrets/bridge.pass
+
+# Optional classic delivery for non-LM recipients. Omit the whole block for a
+# pure-LM bridge (mail to classic addresses is then rejected with 5xx).
+upstream_smtp:
+  host: smtp.example.org
+  port: 587
+  user: alice@example.org
+  pass_file: /secrets/upstream.pass
+  # Used as MAIL FROM upstream (overriding the LM address) and stamped as
+  # Reply-To on classic copies of mixed mail, so replies reach the LM mailbox.
+  from_address: alice@example.org
+  # none | starttls | tls (upstream hop only; empty means none)
+  tls_mode: starttls

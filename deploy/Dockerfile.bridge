@@ -1,0 +1,22 @@
+# lmbridge image (Etappe B3, CONCEPT §14): Go build (pure-Go sqlite, no CGO).
+# Build context is the repo root because bridge/go.mod replaces lm1 => ../lm1:
+#   docker build -f deploy/Dockerfile.bridge ..
+FROM golang:1.26 AS build
+WORKDIR /src
+# go.mod files first (both modules, because of the local replace) for layer caching
+COPY lm1/go.mod lm1/go.sum ./lm1/
+COPY bridge/go.mod bridge/go.sum ./bridge/
+RUN cd bridge && go mod download
+COPY lm1/ lm1/
+COPY bridge/ bridge/
+RUN cd bridge && CGO_ENABLED=0 go build -trimpath -o /out/lmbridge ./cmd/lmbridge
+
+FROM alpine:3.21
+# ca-certificates: relay_url may be https and upstream SMTP uses STARTTLS.
+# adduser -h creates /var/lib/lmbridge (SQLite state) owned by the runtime user;
+# the compose named volume inherits that ownership on first mount.
+RUN apk add --no-cache ca-certificates \
+ && adduser -D -h /var/lib/lmbridge lmbridge
+COPY --from=build /out/lmbridge /usr/local/bin/lmbridge
+# Non-root: config and secrets mount read-only, only /var/lib/lmbridge is written.
+USER lmbridge

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#0d1017"/>
+  <text x="960" y="140" text-anchor="middle" font-family="DejaVu Sans" font-size="60" font-weight="bold" fill="#ede8dc">Ein Schlüssel. Ein Transport. Ein Speicher.</text>
+  <text x="960" y="205" text-anchor="middle" font-family="DejaVu Sans" font-size="32" fill="#8b93a7">Mail, Identität und Anhang sind keine drei Produkte — sondern ein Primitiv.</text>
+  <g font-family="DejaVu Sans">
+    <!-- Säule 1 -->
+    <rect x="120" y="290" width="520" height="620" rx="20" fill="#151a24" stroke="#f7931a" stroke-opacity="0.5" stroke-width="2"/>
+    <g stroke="#f7931a" stroke-width="9" fill="none" stroke-linecap="round">
+      <circle cx="358" cy="368" r="26"/>
+      <line x1="378" y1="388" x2="412" y2="422"/>
+      <line x1="398" y1="408" x2="414" y2="392"/>
+      <line x1="410" y1="420" x2="426" y2="404"/>
+    </g>
+    <text x="380" y="500" text-anchor="middle" font-size="42" font-weight="bold" fill="#f7931a">Ein Schlüssel</text>
+    <g font-size="29" fill="#ede8dc" text-anchor="middle">
+      <text x="380" y="580">dein secp256k1-Keypair ist</text>
+      <text x="380" y="628">Postfach-Adresse · Identität</text>
+      <text x="380" y="676">Login (Passkey/YubiKey)</text>
+      <text x="380" y="724">Signatur &amp; Vertrauensanker</text>
+    </g>
+    <text x="380" y="830" text-anchor="middle" font-size="26" fill="#8b93a7">portabel über Relays (BMRV)</text>
+    <!-- Säule 2 -->
+    <rect x="700" y="290" width="520" height="620" rx="20" fill="#151a24" stroke="#f7931a" stroke-opacity="0.5" stroke-width="2"/>
+    <path d="M42 0 L8 70 H30 L20 120 L62 50 H36 Z" fill="#f7931a" transform="translate(922,330) scale(0.75)"/>
+    <text x="960" y="500" text-anchor="middle" font-size="42" font-weight="bold" fill="#f7931a">Ein Transport</text>
+    <g font-size="29" fill="#ede8dc" text-anchor="middle">
+      <text x="960" y="580">Relay + Lightning-Porto</text>
+      <text x="960" y="628">Keysend trägt den Umschlag</text>
+      <text x="960" y="676">Empfänger setzt den Preis</text>
+      <text x="960" y="724">Spam kostet — Stille ist gratis</text>
+    </g>
+    <text x="960" y="830" text-anchor="middle" font-size="26" fill="#8b93a7">✓ gesendet · ✓✓ empfangen</text>
+    <!-- Säule 3 -->
+    <rect x="1280" y="290" width="520" height="620" rx="20" fill="#151a24" stroke="#f7931a" stroke-opacity="0.5" stroke-width="2"/>
+    <g stroke="#f7931a" stroke-width="9" fill="none" stroke-linejoin="round">
+      <path d="M1500 340 L1540 322 L1580 340 L1580 388 L1540 406 L1500 388 Z"/>
+      <path d="M1500 340 L1540 358 L1580 340"/>
+      <line x1="1540" y1="358" x2="1540" y2="406"/>
+    </g>
+    <text x="1540" y="500" text-anchor="middle" font-size="42" font-weight="bold" fill="#f7931a">Ein Speicher</text>
+    <g font-size="29" fill="#ede8dc" text-anchor="middle">
+      <text x="1540" y="580">Blob-Store mit Content-Hash</text>
+      <text x="1540" y="628">Anhänge in der Mail</text>
+      <text x="1540" y="676">riesige Dateien als Chunks</text>
+      <text x="1540" y="724">Bepreisung pro Byte</text>
+    </g>
+    <text x="1540" y="830" text-anchor="middle" font-size="26" fill="#8b93a7">Relay-Mirror, Retention, Quota</text>
+  </g>
+  <text x="960" y="990" text-anchor="middle" font-family="DejaVu Sans" font-size="32" fill="#ede8dc">Alles bezahlt in derselben Ökonomie — alles hängt am selben Schlüssel.</text>
+</svg>

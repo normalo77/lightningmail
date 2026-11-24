@@ -1,0 +1,8 @@
+schema: bmail2
+records:
+  - domain: bmail.de
+    relay: https://alpha.internal:8443
+    node: notHex
+  - domain: bmail.de
+    relay: https://dup.internal:8443
+    node: 03678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb6

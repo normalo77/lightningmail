@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lightningmail · Eigenes Relay betreiben</title>
+<meta name="description" content="Eigenes lightningmail-Relay auf eigener Domain betreiben: Light-Relay (LND Neutrino, ~10 GB) vs. Full-Relay, install-relay.sh, DNS-Discovery (_bmail._tcp), Tor-Hidden-Service und LAN-Admin-Panel.">
+<link rel="canonical" href="https://lightningmail.app/relay">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://lightningmail.app/relay">
+<meta property="og:title" content="⚡ lightningmail · Eigenes Relay betreiben">
+<meta property="og:description" content="In wenigen Minuten zum eigenen föderierten lightningmail-Relay mit Go-Binary, SQLite und LND Neutrino.">
+<meta property="og:image" content="https://lightningmail.app/og-card.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#f5f3ec">
+<link rel="icon" href="/icon.png">
+<style>
+:root {
+  --bg: #f5f3ec;
+  --surface: #e8e4d8;
+  --card: #ffffff;
+  --ink: #122338;
+  --muted: #4a5a6e;
+  --accent: #f4b71a;
+  --accent-ink: #122338;
+  --margin: clamp(1rem, 2.5vw, 2.5rem);
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: clamp(1rem, 0.96rem + 0.2vw, 1.12rem);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.de-only, .en-only, .es-only, .fr-only, .pl-only { display: none !important; }
+html[lang="de"] .de-only,
+html[lang="en"] .en-only,
+html[lang="es"] .es-only,
+html[lang="fr"] .fr-only,
+html[lang="pl"] .pl-only { display: inline !important; }
+
+header.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.2rem var(--margin);
+  max-width: 1440px;
+  margin-inline: auto;
+  border-bottom: 1px solid rgba(18,35,56,0.12);
+}
+.brand-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.3rem;
+  color: var(--ink);
+}
+nav { display: flex; align-items: center; gap: 1.05rem; flex-wrap: wrap; }
+nav a { color: var(--ink); text-decoration: none; font-weight: 600; font-size: 0.94rem; }
+nav a:hover { text-decoration: underline; }
+nav a.active { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+.nav-sep { align-self: stretch; width: 1px; margin: 0.15rem 0.1rem; background: rgba(18,35,56,0.28); }
+nav a.funk {
+  background: rgba(244,183,26,0.18);
+  border: 1px solid rgba(146,64,14,0.30);
+  color: #92400e;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0.32rem 0.7rem;
+}
+nav a.funk:hover { background: rgba(244,183,26,0.34); text-decoration: none; }
+.lang {
+  background: var(--surface);
+  color: var(--ink);
+  border: 0;
+  padding: 0.48rem 0.9rem;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.menu-toggle {
+  display: none;
+  background: var(--surface);
+  color: var(--ink);
+  border: 0;
+  padding: 0.48rem 0.9rem;
+  font-family: inherit;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+main {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: clamp(1.8rem, 4vw, 3.2rem) var(--margin) 4rem;
+}
+.eyebrow {
+  display: inline-block;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+h1 {
+  font-size: clamp(1.85rem, 3.6vw, 2.85rem);
+  line-height: 1.15;
+  margin: 0 0 0.8rem;
+  letter-spacing: -0.02em;
+}
+.lead {
+  font-size: clamp(1.05rem, 1.3vw, 1.22rem);
+  color: var(--muted);
+  max-width: 74ch;
+  margin: 0 0 1.4rem;
+}
+.jump-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0 0 1.8rem;
+}
+.jump-bar a {
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.42rem 0.85rem;
+  border-radius: 999px;
+}
+.jump-bar a:hover { background: #dcd6c4; }
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 1.2rem;
+  margin-bottom: 1.5rem;
+}
+.relay-card {
+  background: var(--card);
+  border: 1px solid rgba(18,35,56,0.12);
+  border-radius: 14px;
+  padding: clamp(1.25rem, 2.6vw, 2rem);
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 10px rgba(18,35,56,0.04);
+}
+.grid2 .relay-card { margin-bottom: 0; }
+.relay-card.highlight {
+  border-color: rgba(244,183,26,0.75);
+  box-shadow: 0 4px 16px rgba(244,183,26,0.12);
+}
+.relay-card h2 {
+  margin: 0 0 0.65rem;
+  font-size: clamp(1.25rem, 2.1vw, 1.55rem);
+}
+.badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.22rem 0.62rem;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  margin-bottom: 0.5rem;
+}
+.badge.gold { background: rgba(244,183,26,0.28); color: #78350f; }
+
+ol.steps {
+  counter-reset: s;
+  list-style: none;
+  padding-left: 0;
+  margin: 1rem 0 1rem;
+}
+ol.steps li {
+  counter-increment: s;
+  position: relative;
+  padding: 0.55rem 0 0.55rem 2.75rem;
+}
+ol.steps li::before {
+  content: counter(s);
+  position: absolute;
+  left: 0;
+  top: 0.45rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+ul.clean { padding-left: 1.25rem; margin: 0.6rem 0 1rem; }
+ul.clean li { margin: 0.35rem 0; }
+
+pre {
+  background: #122338;
+  color: #f5f3ec;
+  padding: 0.95rem 1.1rem;
+  border-radius: 9px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0.85rem 0;
+}
+code:not(pre code) {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: rgba(18,35,56,0.08);
+  padding: 0.14em 0.38em;
+  border-radius: 4px;
+}
+.note {
+  background: #f6f4ee;
+  border-left: 4px solid var(--ink);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-top: 0.9rem;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  text-decoration: none;
+  font-weight: 700;
+  padding: 0.68rem 1.15rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+.btn:hover { filter: brightness(0.95); }
+.btn.ghost { background: var(--surface); color: var(--ink); }
+
+footer {
+  max-width: 1120px;
+  margin: 2rem auto 0;
+  padding: 1.5rem var(--margin) 3rem;
+  border-top: 1px solid rgba(18,35,56,0.12);
+  font-size: 0.9rem;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+footer a { color: var(--ink); font-weight: 600; text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+@media (max-width: 860px) {
+  header.top { flex-wrap: wrap; }
+  .menu-toggle { display: inline-block; }
+  nav { display: none; width: 100%; flex-direction: column; align-items: flex-start; padding-top: 0.75rem; border-top: 1px solid rgba(18,35,56,0.1); }
+  nav.open { display: flex; }
+  .nav-sep { display: none; }
+}
+@media (max-width: 600px) {
+  main { padding-left: 0.85rem; padding-right: 0.85rem; }
+  .relay-card { padding: 1.1rem 1rem; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <a href="/" class="brand-wrap">⚡ lightningmail</a>
+  <div style="display:flex;align-items:center;gap:0.5rem">
+    <select class="lang" id="langSel" aria-label="Language">
+      <option value="de">🇩🇪 DE</option>
+      <option value="en">🇬🇧 EN</option>
+      <option value="es">🇪🇸 ES</option>
+      <option value="fr">🇫🇷 FR</option>
+      <option value="pl">🇵🇱 PL</option>
+    </select>
+    <button type="button" class="menu-toggle" onclick="document.getElementById('relNav').classList.toggle('open')">☰ Menü</button>
+  </div>
+  <nav id="relNav" onclick="if(event.target.tagName==='A')this.classList.remove('open')">
+    <a href="/"><span class="de-only">Startseite</span><span class="en-only">Home</span><span class="es-only">Inicio</span><span class="fr-only">Accueil</span><span class="pl-only">Strona główna</span></a>
+    <a href="/clients"><span class="de-only">Clients</span><span class="en-only">Clients</span><span class="es-only">Clientes</span><span class="fr-only">Clients</span><span class="pl-only">Klienty</span></a>
+    <a href="/relay" class="active"><span class="de-only">Eigenes Relay</span><span class="en-only">Own Relay</span><span class="es-only">Relay propio</span><span class="fr-only">Propre relais</span><span class="pl-only">Własny relay</span></a>
+    <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektura</span></a>
+    <a href="/embed"><span class="de-only">Sign-In Einbau</span><span class="en-only">Embed Sign-In</span><span class="es-only">Integrar Sign-In</span><span class="fr-only">Intégrer Sign-In</span><span class="pl-only">Osadź Sign-In</span></a>
+    <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a>
+    <span class="nav-sep" aria-hidden="true"></span>
+    <a class="funk" href="/app/">Webmail</a>
+    <a class="funk" href="/forum">🔐 Forum Signin-Demo</a>
+    <a class="funk" href="/paywall">⚡ Paywall-Demo</a>
+  </nav>
+</header>
+
+<main>
+  <span class="eyebrow">
+    <span class="de-only">Selbstbau &amp; Betrieb</span>
+    <span class="en-only">Self-Hosting &amp; Operations</span>
+    <span class="es-only">Autoalojamiento y operación</span>
+    <span class="fr-only">Auto-hébergement et exploitation</span>
+    <span class="pl-only">Własny hosting i obsługa</span>
+  </span>
+  <h1>
+    <span class="de-only">Dein eigenes Relay — volle Kontrolle unter deiner Domain.</span>
+    <span class="en-only">Your own relay — full sovereignty under your own domain.</span>
+    <span class="es-only">Tu propio relay — control total bajo tu propio dominio.</span>
+    <span class="fr-only">Votre propre relais — maîtrise complète sous votre domaine.</span>
+    <span class="pl-only">Twój własny relay — pełna kontrola pod własną domeną.</span>
+  </h1>
+  <p class="lead">
+    <span class="de-only">lightningmail ist föderiert wie E-Mail: Jede Domain kann ihr eigenes Relay betreiben. Ein einziges Go-Binary (<code>relayd</code>, ~25 MB RAM, SQLite) plus LND reicht aus — inklusive eigener Web-App unter <code>/app/</code> und OpenID-Connect-Login-Dienst.</span>
+    <span class="en-only">lightningmail is federated like email: any domain can run its own relay. A single Go binary (<code>relayd</code>, ~25 MB RAM, SQLite) plus LND is enough — including its own web app at <code>/app/</code> and built-in OpenID Connect sign-in.</span>
+    <span class="es-only">lightningmail está federado como el correo electrónico: cualquier dominio puede operar su propio relay. Basta un único binario Go (<code>relayd</code>, ~25 MB de RAM, SQLite) más LND — incluyendo su propia app web en <code>/app/</code> y servicio OpenID Connect.</span>
+    <span class="fr-only">lightningmail est fédéré comme le courriel : tout domaine peut opérer son propre relais. Un unique binaire Go (<code>relayd</code>, ~25 Mo de RAM, SQLite) plus LND suffit — avec sa propre app web sur <code>/app/</code> et son service OpenID Connect intégré.</span>
+    <span class="pl-only">lightningmail jest sfederowany jak poczta e-mail: każda domena może prowadzić własny relay. Wystarczy jedna binarka Go (<code>relayd</code>, ~25 MB RAM, SQLite) i LND — wraz z własną aplikacją webową pod <code>/app/</code> oraz usługą OpenID Connect.</span>
+  </p>
+
+  <div class="jump-bar">
+    <a href="#modes">⚖️ Light vs. Full</a>
+    <a href="#install">🚀 Installation</a>
+    <a href="#dns">🌐 DNS-Discovery</a>
+    <a href="#tor">🧅 Tor-Option</a>
+    <a href="#admin">🛠 Admin-Panel</a>
+  </div>
+
+  <!-- 1. Light vs Full -->
+  <section id="modes" class="grid2">
+    <article class="relay-card highlight">
+      <span class="badge gold">
+        <span class="de-only">Empfohlen für Einsteiger &amp; Familien</span>
+        <span class="en-only">Recommended for individuals &amp; families</span>
+        <span class="es-only">Recomendado para particulares y familias</span>
+        <span class="fr-only">Recommandé pour particuliers et familles</span>
+        <span class="pl-only">Zalecane dla osób prywatnych i rodzin</span>
+      </span>
+      <h2>Light-Relay (LND Neutrino)</h2>
+      <ul class="clean">
+        <li><span class="de-only">Kein eigener <code>bitcoind</code> nötig — LND nutzt kompakte Blockfilter (BIP 157/158).</span><span class="en-only">No local <code>bitcoind</code> needed — LND uses compact block filters (BIP 157/158).</span><span class="es-only">Sin <code>bitcoind</code> propio — LND usa filtros compactos de bloques (BIP 157/158).</span><span class="fr-only">Pas de <code>bitcoind</code> local — LND utilise les filtres compacts (BIP 157/158).</span><span class="pl-only">Bez własnego <code>bitcoind</code> — LND używa kompaktowych filtrów bloków (BIP 157/158).</span></li>
+        <li><span class="de-only">Platzbedarf: ~10 GB, Erstsynchronisation in ~30–60 Minuten.</span><span class="en-only">Disk space: ~10 GB, initial sync in ~30–60 minutes.</span><span class="es-only">Espacio en disco: ~10 GB, sincronización inicial en ~30–60 minutos.</span><span class="fr-only">Espace disque : ~10 Go, synchronisation initiale en ~30–60 minutes.</span><span class="pl-only">Miejsce na dysku: ~10 GB, pierwsza synchronizacja w ~30–60 minut.</span></li>
+        <li><span class="de-only">Läuft auf einem kleinen VPS, Mini-PC oder Proxmox-Container (2 GB RAM).</span><span class="en-only">Runs on a small VPS, mini PC, or Proxmox container (2 GB RAM).</span><span class="es-only">Funciona en un VPS pequeño, mini-PC o contenedor Proxmox (2 GB RAM).</span><span class="fr-only">Tourne sur un petit VPS, mini-PC ou conteneur Proxmox (2 Go RAM).</span><span class="pl-only">Działa na małym VPS, mini-PC lub kontenerze Proxmox (2 GB RAM).</span></li>
+      </ul>
+    </article>
+
+    <article class="relay-card">
+      <span class="badge">
+        <span class="de-only">Maximale Unabhängigkeit</span>
+        <span class="en-only">Maximum independence</span>
+        <span class="es-only">Máxima independencia</span>
+        <span class="fr-only">Indépendance maximale</span>
+        <span class="pl-only">Maksymalna niezależność</span>
+      </span>
+      <h2>Full-Relay (LND + bitcoind)</h2>
+      <ul class="clean">
+        <li><span class="de-only">Eigener Bitcoin-Full-Node validiert jeden Block selbst.</span><span class="en-only">Your own Bitcoin full node validates every block locally.</span><span class="es-only">Tu propio nodo completo de Bitcoin valida cada bloque localmente.</span><span class="fr-only">Votre propre nœud complet Bitcoin valide chaque bloc localement.</span><span class="pl-only">Własny pełny węzeł Bitcoin samodzielnie waliduje każdy blok.</span></li>
+        <li><span class="de-only">Ideal, wenn ohnehin schon ein Bitcoin-Node im Heimnetz oder Rechenzentrum läuft.</span><span class="en-only">Ideal if you already run a Bitcoin node at home or in a data center.</span><span class="es-only">Ideal si ya operas un nodo Bitcoin en casa o en un centro de datos.</span><span class="fr-only">Idéal si vous hébergez déjà un nœud Bitcoin chez vous ou en datacenter.</span><span class="pl-only">Idealne, jeśli już utrzymujesz węzeł Bitcoin w domu lub serwerowni.</span></li>
+        <li><span class="de-only">Gleiches <code>relayd</code>-Binary, gleiches Protokoll, identische Compose-Struktur.</span><span class="en-only">Same <code>relayd</code> binary, same protocol, identical compose layout.</span><span class="es-only">Mismo binario <code>relayd</code>, mismo protocolo, misma estructura Compose.</span><span class="fr-only">Même binaire <code>relayd</code>, même protocole, même structure Compose.</span><span class="pl-only">Ta sama binarka <code>relayd</code>, ten sam protokół i struktura Compose.</span></li>
+      </ul>
+    </article>
+  </section>
+
+  <!-- 2. Installation -->
+  <section id="install" class="relay-card">
+    <h2>
+      <span class="de-only">🚀 Installation in 5 Schritten</span>
+      <span class="en-only">🚀 Setup in 5 steps</span>
+      <span class="es-only">🚀 Instalación en 5 pasos</span>
+      <span class="fr-only">🚀 Installation en 5 étapes</span>
+      <span class="pl-only">🚀 Instalacja w 5 krokach</span>
+    </h2>
+    <p>
+      <span class="de-only">Das Skript <code>deploy/install-relay.sh</code> erzeugt eine fertige <code>relay.yaml</code> und <code>.env</code> (inkl. zufälligem <code>relay_secret</code>, WebAuthn-RPID und Porto-Defaults):</span>
+      <span class="en-only">The script <code>deploy/install-relay.sh</code> generates a ready-to-run <code>relay.yaml</code> and <code>.env</code> (including random <code>relay_secret</code>, WebAuthn RPID, and postage defaults):</span>
+      <span class="es-only">El script <code>deploy/install-relay.sh</code> genera un <code>relay.yaml</code> y <code>.env</code> listos (con <code>relay_secret</code> aleatorio, WebAuthn RPID y franqueo por defecto):</span>
+      <span class="fr-only">Le script <code>deploy/install-relay.sh</code> génère un <code>relay.yaml</code> et un <code>.env</code> prêts à l'emploi (<code>relay_secret</code> aléatoire, WebAuthn RPID et port par défaut) :</span>
+      <span class="pl-only">Skrypt <code>deploy/install-relay.sh</code> generuje gotowe pliki <code>relay.yaml</code> i <code>.env</code> (w tym losowy <code>relay_secret</code>, WebAuthn RPID i domyślne stawki porto):</span>
+    </p>
+    <ol class="steps">
+      <li>
+        <span class="de-only">Repository klonen und Konfiguration erzeugen:</span>
+        <span class="en-only">Clone the repository and generate configuration:</span>
+        <span class="es-only">Clona el repositorio y genera la configuración:</span>
+        <span class="fr-only">Clonez le dépôt et générez la configuration :</span>
+        <span class="pl-only">Sklonuj repozytorium i wygeneruj konfigurację:</span>
+        <pre>git clone https://github.com/normalo77/lightningmail.git
+cd lightningmail/deploy
+./install-relay.sh --mode light --domain example.org</pre>
+      </li>
+      <li>
+        <span class="de-only">LND starten und Wallet einmalig anlegen (die 24 Seed-Wörter sicher offline verwahren!):</span>
+        <span class="en-only">Start LND and initialize the wallet once (store the 24 seed words safely offline!):</span>
+        <span class="es-only">Inicia LND y crea el monedero una sola vez (¡guarda las 24 palabras semilla offline!):</span>
+        <span class="fr-only">Démarrez LND et créez le portefeuille une fois (gardez les 24 mots hors ligne !) :</span>
+        <span class="pl-only">Uruchom LND i utwórz portfel jednorazowo (zapisz 24 słowa seed bezpiecznie offline!):</span>
+        <pre>docker compose -f docker-compose.light-relay.yml up -d lnd
+docker compose -f docker-compose.light-relay.yml exec lnd lncli create</pre>
+      </li>
+      <li>
+        <span class="de-only">Relay starten (mit <code>--profile bridge</code> optional direkt inklusive LAN-IMAP/SMTP-Bridge):</span>
+        <span class="en-only">Start the relay (optionally add <code>--profile bridge</code> to include the LAN IMAP/SMTP bridge):</span>
+        <span class="es-only">Inicia el relay (añade opcionalmente <code>--profile bridge</code> para el puente LAN IMAP/SMTP):</span>
+        <span class="fr-only">Démarrez le relais (ajoutez <code>--profile bridge</code> en option pour la passerelle LAN IMAP/SMTP) :</span>
+        <span class="pl-only">Uruchom relay (opcjonalnie z <code>--profile bridge</code>, aby dodać lokalny mostek IMAP/SMTP):</span>
+        <pre>docker compose -f docker-compose.light-relay.yml up -d</pre>
+      </li>
+      <li>
+        <span class="de-only">Optional: eigene Web-App bauen, damit <code>relayd</code> sie direkt unter <code>https://example.org/app/</code> ausliefert:</span>
+        <span class="en-only">Optional: build the web app so <code>relayd</code> serves it directly at <code>https://example.org/app/</code>:</span>
+        <span class="es-only">Opcional: compila la app web para que <code>relayd</code> la sirva directamente en <code>https://example.org/app/</code>:</span>
+        <span class="fr-only">Optionnel : compilez l'app web pour que <code>relayd</code> la serve directement sur <code>https://example.org/app/</code> :</span>
+        <span class="pl-only">Opcjonalnie: zbuduj aplikację webową, aby <code>relayd</code> serwował ją bezpośrednio pod <code>https://example.org/app/</code>:</span>
+        <pre>cd ../client/app &amp;&amp; npm install &amp;&amp; npx vite build
+mkdir -p ../../deploy/ui &amp;&amp; cp -r dist/. ../../deploy/ui/</pre>
+      </li>
+      <li>
+        <span class="de-only">TLS davorsetzen: <code>relayd</code> spricht absichtlich reines HTTP (<code>:8443</code>). Setze einen Reverse Proxy (Caddy, nginx) oder einen Cloudflare Tunnel mit gültigem HTTPS-Zertifikat davor.</span>
+        <span class="en-only">Terminate TLS in front: <code>relayd</code> intentionally speaks plain HTTP (<code>:8443</code>). Place a reverse proxy (Caddy, nginx) or a Cloudflare Tunnel with valid HTTPS in front of it.</span>
+        <span class="es-only">Termina TLS delante: <code>relayd</code> habla HTTP plano a propósito (<code>:8443</code>). Pon un proxy inverso (Caddy, nginx) o un túnel de Cloudflare con HTTPS válido delante.</span>
+        <span class="fr-only">Terminez TLS devant : <code>relayd</code> parle volontairement HTTP brut (<code>:8443</code>). Placez un reverse proxy (Caddy, nginx) ou un tunnel Cloudflare avec HTTPS valide devant.</span>
+        <span class="pl-only">Zakończ TLS z przodu: <code>relayd</code> celowo używa czystego HTTP (<code>:8443</code>). Postaw przed nim reverse proxy (Caddy, nginx) lub tunel Cloudflare z ważnym certyfikatem HTTPS.</span>
+      </li>
+    </ol>
+  </section>
+
+  <!-- 3. DNS Discovery -->
+  <section id="dns" class="relay-card">
+    <h2>
+      <span class="de-only">🌐 DNS-Discovery (<code>_bmail._tcp</code>)</span>
+      <span class="en-only">🌐 DNS Discovery (<code>_bmail._tcp</code>)</span>
+      <span class="es-only">🌐 Descubrimiento DNS (<code>_bmail._tcp</code>)</span>
+      <span class="fr-only">🌐 Découverte DNS (<code>_bmail._tcp</code>)</span>
+      <span class="pl-only">🌐 Odkrywanie DNS (<code>_bmail._tcp</code>)</span>
+    </h2>
+    <p>
+      <span class="de-only">Es gibt keinen zentralen Keyserver und kein globales Adressbuch. Damit andere Relays Postfächer unter <code>name@example.org</code> finden, genügt ein einziger DNS-TXT-Eintrag bei deinem Domain-Anbieter:</span>
+      <span class="en-only">There is no central keyserver and no global directory. For other relays to locate mailboxes at <code>name@example.org</code>, a single DNS TXT record at your domain registrar is all it takes:</span>
+      <span class="es-only">No existe servidor central de claves ni directorio global. Para que otros relays encuentren buzones en <code>name@example.org</code>, basta un único registro DNS TXT en tu proveedor de dominio:</span>
+      <span class="fr-only">Il n'existe ni serveur de clés central ni annuaire global. Pour que les autres relais trouvent les boîtes <code>name@example.org</code>, un seul enregistrement DNS TXT suffit :</span>
+      <span class="pl-only">Nie ma centralnego serwera kluczy ani globalnego katalogu. Aby inne relaye odnajdywały skrzynki <code>name@example.org</code>, wystarczy jeden rekord DNS TXT u rejestratora domeny:</span>
+    </p>
+    <pre>_bmail._tcp.example.org.  IN TXT  "v=bmail1; relay=https://example.org; node=&lt;NODE_PUBKEY&gt;"</pre>
+    <p>
+      <span class="de-only">Den 33-Byte-Pubkey deines Lightning-Nodes liefert <code>lncli getinfo | grep identity_pubkey</code>. Danach prüfst du den Eintrag per <code>dig +short TXT _bmail._tcp.example.org</code>.</span>
+      <span class="en-only">Get your 33-byte Lightning node pubkey via <code>lncli getinfo | grep identity_pubkey</code>. Verify the record afterwards with <code>dig +short TXT _bmail._tcp.example.org</code>.</span>
+      <span class="es-only">Obtén la clave pública de 33 bytes de tu nodo con <code>lncli getinfo | grep identity_pubkey</code> y verifica con <code>dig +short TXT _bmail._tcp.example.org</code>.</span>
+      <span class="fr-only">Récupérez la clé publique 33 octets de votre nœud via <code>lncli getinfo | grep identity_pubkey</code> puis vérifiez avec <code>dig +short TXT _bmail._tcp.example.org</code>.</span>
+      <span class="pl-only">33-bajtowy klucz publiczny węzła pobierzesz poleceniem <code>lncli getinfo | grep identity_pubkey</code>, a rekord sprawdzisz przez <code>dig +short TXT _bmail._tcp.example.org</code>.</span>
+    </p>
+  </section>
+
+  <!-- 4. Tor & Admin Panel -->
+  <section id="tor" class="grid2">
+    <article class="relay-card">
+      <h2>
+        <span class="de-only">🧅 Optionale Tor-Anbindung (<code>.onion</code>)</span>
+        <span class="en-only">🧅 Optional Tor Transport (<code>.onion</code>)</span>
+        <span class="es-only">🧅 Transporte Tor opcional (<code>.onion</code>)</span>
+        <span class="fr-only">🧅 Transport Tor optionnel (<code>.onion</code>)</span>
+        <span class="pl-only">🧅 Opcjonalny transport Tor (<code>.onion</code>)</span>
+      </h2>
+      <p>
+        <span class="de-only">Relays können Profil-Lookups, Quittungen und verschlüsselte Anhänge auf Wunsch über Tor v3 Onion-Services austauschen. Dafür genügt ein optionales <code>onion=&lt;v3&gt;.onion</code> im DNS-TXT-Eintrag sowie <code>tor.socks5: 127.0.0.1:9050</code> in der <code>relay.yaml</code> (Vorlagen liegen unter <code>deploy/tor/</code>).</span>
+        <span class="en-only">Relays can optionally exchange profile lookups, delivery receipts, and encrypted blob mirrors over Tor v3 onion services. Add <code>onion=&lt;v3&gt;.onion</code> to the DNS TXT record and set <code>tor.socks5: 127.0.0.1:9050</code> in <code>relay.yaml</code> (templates live in <code>deploy/tor/</code>).</span>
+        <span class="es-only">Los relays pueden intercambiar consultas de perfil, acuses y adjuntos cifrados mediante servicios onion Tor v3. Añade <code>onion=&lt;v3&gt;.onion</code> al TXT de DNS y <code>tor.socks5: 127.0.0.1:9050</code> en <code>relay.yaml</code> (plantillas en <code>deploy/tor/</code>).</span>
+        <span class="fr-only">Les relais peuvent échanger recherches de profil, accusés et pièces chiffrées via des services onion Tor v3. Ajoutez <code>onion=&lt;v3&gt;.onion</code> dans le TXT DNS et <code>tor.socks5: 127.0.0.1:9050</code> dans <code>relay.yaml</code> (modèles dans <code>deploy/tor/</code>).</span>
+        <span class="pl-only">Relaye mogą opcjonalnie wymieniać zapytania o profile, potwierdzenia i zaszyfrowane załączniki przez usługi onion Tor v3. Dodaj <code>onion=&lt;v3&gt;.onion</code> do rekordu TXT oraz <code>tor.socks5: 127.0.0.1:9050</code> w <code>relay.yaml</code> (szablony w <code>deploy/tor/</code>).</span>
+      </p>
+    </article>
+
+    <article id="admin" class="relay-card">
+      <h2>
+        <span class="de-only">🛠 LAN-Admin-Panel ohne Passwort</span>
+        <span class="en-only">🛠 Passwordless LAN Admin Panel</span>
+        <span class="es-only">🛠 Panel de administración LAN sin contraseña</span>
+        <span class="fr-only">🛠 Panneau d'administration LAN sans mot de passe</span>
+        <span class="pl-only">🛠 Panel administracyjny LAN bez hasła</span>
+      </h2>
+      <p>
+        <span class="de-only">Über einen getrennten LAN-Listener (<code>admin.listen</code>, niemals öffentlich exponiert) bietet <code>relayd</code> eine Übersicht über Speicherverbrauch, Quotas, 14-Tage-Traffic, Versand-Spool und sauberes Kaskaden-Löschen von Konten. Die Anmeldung erfolgt ohne Passwort per <code>lncli signmessage</code>-Challenge gegen den eigenen LND-Node.</span>
+        <span class="en-only">Through a dedicated LAN-only listener (<code>admin.listen</code>, never exposed publicly), <code>relayd</code> provides an overview of disk usage, quotas, 14-day traffic, send spool, and clean cascading account deletion. Sign-in uses a passwordless <code>lncli signmessage</code> challenge verified against your own LND node.</span>
+        <span class="es-only">Mediante un puerto separado solo para LAN (<code>admin.listen</code>, nunca expuesto al público), <code>relayd</code> muestra uso de almacenamiento, cuotas, tráfico de 14 días, cola de envío y borrado en cascada. El acceso es sin contraseña mediante reto <code>lncli signmessage</code> contra tu propio nodo LND.</span>
+        <span class="fr-only">Via un port séparé réservé au LAN (<code>admin.listen</code>, jamais exposé publiquement), <code>relayd</code> affiche stockage, quotas, trafic sur 14 jours, file d'envoi et suppression en cascade. La connexion sans mot de passe utilise un défi <code>lncli signmessage</code> vérifié par votre propre nœud LND.</span>
+        <span class="pl-only">Przez osobny port wyłącznie w sieci LAN (<code>admin.listen</code>, nigdy publicznie) <code>relayd</code> udostępnia podgląd zajętości dysku, limitów, ruchu z 14 dni, kolejki wysyłki i kaskadowego usuwania kont. Logowanie bez hasła odbywa się przez wyzwanie <code>lncli signmessage</code> weryfikowane przez własny węzeł LND.</span>
+      </p>
+    </article>
+  </section>
+
+  <!-- 5. Built-in extras -->
+  <section class="relay-card">
+    <h2>
+      <span class="de-only">⚡ Was jedes Relay automatisch mitbringt</span>
+      <span class="en-only">⚡ Built into every relay out of the box</span>
+      <span class="es-only">⚡ Incluido automáticamente en cada relay</span>
+      <span class="fr-only">⚡ Inclus automatiquement dans chaque relais</span>
+      <span class="pl-only">⚡ Wbudowane automatycznie w każdy relay</span>
+    </h2>
+    <ul class="clean">
+      <li><span class="de-only"><strong>OpenID Connect („Sign in with lightningmail“):</strong> Jedes Relay ist sofort ein Login-Provider für Websites — inklusive optionaler Mikro-Paywalls (<code>pay_sats</code>). <a href="/embed">Anleitung zum Einbau →</a></span><span class="en-only"><strong>OpenID Connect (“Sign in with lightningmail”):</strong> Every relay acts as a login provider for websites out of the box — including optional micro-paywalls (<code>pay_sats</code>). <a href="/embed">Integration guide →</a></span><span class="es-only"><strong>OpenID Connect («Entrar con lightningmail»):</strong> Cada relay funciona de serie como proveedor de login para webs, con micro-paywalls opcionales (<code>pay_sats</code>). <a href="/embed">Guía de integración →</a></span><span class="fr-only"><strong>OpenID Connect (« Se connecter avec lightningmail ») :</strong> Chaque relais est immédiatement fournisseur de connexion pour des sites web, avec micro-paywalls optionnels (<code>pay_sats</code>). <a href="/embed">Guide d'intégration →</a></span><span class="pl-only"><strong>OpenID Connect („Zaloguj się przez lightningmail”):</strong> Każdy relay od razu działa jako dostawca logowania dla stron WWW — wraz z opcjonalnymi mikro-paywallami (<code>pay_sats</code>). <a href="/embed">Instrukcja integracji →</a></span></li>
+      <li><span class="de-only"><strong>Versand-Spool &amp; Rückerstattung:</strong> Ist ein Gegen-Relay vorübergehend offline, hält dein Relay den Versand bis zu 14 Tage in der Warteschlange und erstattet Porto bei dauerhafter Unzustellbarkeit automatisch.</span><span class="en-only"><strong>Send spool &amp; refunds:</strong> If a peer relay is temporarily offline, your relay retries delivery for up to 14 days and automatically refunds postage on permanent failure.</span><span class="es-only"><strong>Cola de envío y reembolso:</strong> Si un relay remoto está temporalmente caído, tu relay reintenta hasta 14 días y reembolsa el franqueo automáticamente si falla de forma permanente.</span><span class="fr-only"><strong>File d'envoi et remboursement :</strong> Si un relais distant est temporairement hors ligne, votre relais retente jusqu'à 14 jours et rembourse automatiquement le port en cas d'échec définitif.</span><span class="pl-only"><strong>Kolejka wysyłki i zwroty:</strong> Jeśli zdalny relay jest chwilowo offline, twój relay ponawia próbę do 14 dni i automatycznie zwraca porto przy trwałym niepowodzeniu.</span></li>
+      <li><span class="de-only"><strong>Null-Wissen über Inhalte:</strong> Dein Relay speichert nur verschlüsselte Umschläge und Chunks — Betreiber können keine Briefe oder Laufwerksdateien mitlesen.</span><span class="en-only"><strong>Zero knowledge of content:</strong> Your relay stores only encrypted envelopes and chunks — operators cannot read mail or Drive files.</span><span class="es-only"><strong>Cero conocimiento del contenido:</strong> Tu relay solo guarda sobres y fragmentos cifrados — el operador nunca puede leer correos ni archivos de Drive.</span><span class="fr-only"><strong>Zéro connaissance du contenu :</strong> Votre relais ne stocke que des enveloppes et fragments chiffrés — l'opérateur ne peut lire ni courriels ni fichiers Drive.</span><span class="pl-only"><strong>Brak wglądu w treść:</strong> Twój relay przechowuje wyłącznie zaszyfrowane koperty i fragmenty — operator nie może czytać wiadomości ani plików z Dysku.</span></li>
+    </ul>
+    <div class="btn-row">
+      <a class="btn" href="https://github.com/normalo77/lightningmail/tree/main/deploy" target="_blank" rel="noopener">📦 <span class="de-only">Deploy-Dateien auf GitHub</span><span class="en-only">Deploy files on GitHub</span><span class="es-only">Archivos de despliegue en GitHub</span><span class="fr-only">Fichiers de déploiement sur GitHub</span><span class="pl-only">Pliki wdrożeniowe na GitHubie</span></a>
+      <a class="btn ghost" href="/clients">📱 <span class="de-only">Zu den Clients →</span><span class="en-only">View Clients →</span><span class="es-only">Ver clientes →</span><span class="fr-only">Voir les clients →</span><span class="pl-only">Zobacz klienty →</span></a>
+      <a class="btn ghost" href="/architecture">📐 <span class="de-only">Architektur &amp; ADRs</span><span class="en-only">Architecture &amp; ADRs</span><span class="es-only">Arquitectura y ADRs</span><span class="fr-only">Architecture et ADRs</span><span class="pl-only">Architektura i ADR-y</span></a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div>⚡ lightningmail · MIT License · <a href="/impressum"><span class="de-only">Impressum</span><span class="en-only">Imprint</span><span class="es-only">Aviso legal</span><span class="fr-only">Mentions légales</span><span class="pl-only">Nota prawna</span></a></div>
+  <div>
+    <a href="/"><span class="de-only">Startseite</span><span class="en-only">Home</span><span class="es-only">Inicio</span><span class="fr-only">Accueil</span><span class="pl-only">Strona główna</span></a> ·
+    <a href="/clients"><span class="de-only">Clients</span><span class="en-only">Clients</span><span class="es-only">Clientes</span><span class="fr-only">Clients</span><span class="pl-only">Klienty</span></a> ·
+    <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektura</span></a> ·
+    <a href="/embed">Sign-In</a>
+  </div>
+</footer>
+
+<script>
+const LANGS = ['de','en','es','fr','pl'];
+function setLang(l) {
+  if (!LANGS.includes(l)) l = 'de';
+  document.documentElement.lang = l;
+  const sel = document.getElementById('langSel');
+  if (sel) sel.value = l;
+  try { localStorage.setItem('lm_lang', l); } catch (e) {}
+}
+document.getElementById('langSel').addEventListener('change', (e) => setLang(e.target.value));
+(() => {
+  let saved = '';
+  try { saved = localStorage.getItem('lm_lang') || ''; } catch (e) {}
+  const nav = (navigator.language || 'de').slice(0, 2).toLowerCase();
+  setLang(LANGS.includes(saved) ? saved : (LANGS.includes(nav) ? nav : 'de'));
+})();
+</script>
+</body>
+</html>

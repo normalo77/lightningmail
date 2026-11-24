@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>⚡ lightningmail · Login-Button einbauen</title>
+<meta name="description" content="So bauen Sie „Mit lightningmail anmelden“ in Ihre Website ein: Web Component, OIDC-Endpunkte, Backend-Prüfung in PHP/Node/Next/Django, Mikro-Paywall mit pay_sats — ohne Registrierung, ohne Client-Secret.">
+<style>
+  body{font:16px/1.65 system-ui,ui-sans-serif;background:#0d1117;color:#e6edf3;margin:0;padding:40px 16px}
+  main{max-width:760px;margin:0 auto}
+  h1{font-size:1.6rem}h2{font-size:1.15rem;margin-top:2em}
+  a{color:#79c0ff}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px 24px;margin:18px 0}
+  pre{background:#21262d;border-radius:8px;padding:14px;overflow:auto;font-size:.83rem}
+  code:not(pre code){background:#21262d;border-radius:5px;padding:1px 6px;font-size:.85em}
+  .lang{color:#8b949e}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:-6px}
+  .tabs button{font:inherit;padding:7px 14px;border-radius:8px 8px 0 0;border:1px solid #30363d;border-bottom:0;background:#161b22;color:#8b949e;cursor:pointer}
+  .tabs button.on{background:#21262d;color:#e6edf3}
+  .recipe{display:none}.recipe.on{display:block}
+  .warn{border-left:3px solid #d29922;padding-left:12px;color:#e3b341}
+  ul{padding-left:1.35em}li{margin:.35em 0}
+  ol.steps{counter-reset:s;list-style:none;padding-left:0;margin:18px 0}
+  ol.steps li{counter-increment:s;position:relative;padding:12px 0 12px 48px;border-bottom:1px solid #21262d}
+  ol.steps li:last-child{border-bottom:0}
+  ol.steps li::before{content:counter(s);position:absolute;left:0;top:10px;width:30px;height:30px;border-radius:50%;background:#f7931a;color:#0d1117;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:.95rem}
+  details{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:2px 18px;margin:10px 0}
+  summary{cursor:pointer;font-weight:600;padding:10px 0}
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0}
+  .grid3 .card{margin:0;font-size:.93rem}
+  /* Language isolation: exactly one language visible per html[lang]; DE is the base. */
+  .de-only{display:inline}.en-only,.es-only,.fr-only,.pl-only{display:none}
+  html[lang=en] .en-only{display:inline}html[lang=en] .de-only,html[lang=en] .es-only,html[lang=en] .fr-only,html[lang=en] .pl-only{display:none}
+  html[lang=es] .es-only{display:inline}html[lang=es] .de-only,html[lang=es] .en-only,html[lang=es] .fr-only,html[lang=es] .pl-only{display:none}
+  html[lang=fr] .fr-only{display:inline}html[lang=fr] .de-only,html[lang=fr] .en-only,html[lang=fr] .es-only,html[lang=fr] .pl-only{display:none}
+  html[lang=pl] .pl-only{display:inline}html[lang=pl] .de-only,html[lang=pl] .en-only,html[lang=pl] .es-only,html[lang=pl] .fr-only{display:none}
+  select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid #30363d;background:#21262d;color:#e6edf3}
+</style>
+</head>
+<body>
+<main>
+  <p style="text-align:right"><select id="langSel" aria-label="Sprache">
+    <option value="de">Deutsch</option><option value="en">English</option><option value="es">Español</option><option value="fr">Français</option><option value="pl">Polski</option>
+  </select></p>
+
+  <h1>
+    <span class="de-only">„Mit lightningmail anmelden“ auf Eurer Seite</span>
+    <span class="en-only">“Sign in with lightningmail” on your site</span>
+    <span class="es-only">«Entrar con lightningmail» en vuestro sitio</span>
+    <span class="fr-only">« Se connecter avec lightningmail » sur votre site</span>
+    <span class="pl-only">„Zaloguj się przez lightningmail“ na waszej stronie</span>
+  </h1>
+
+  <div class="card">
+    <p><span class="de-only">Ein Knopf, keine Software von uns auf Eurem Server. Der Nutzer klickt, meldet sich in seinem Mail-Programm, und Ihr bekommt per OpenID Connect seine bestätigte Adresse <em>name@domain</em> plus seinen Postfach-Schlüssel. Ohne Passwort, ohne Bestätigungs-E-Mail, ohne Registrierung bei uns.</span>
+    <span class="en-only">One button, no software of ours on your server. The user clicks, signs in inside their mail app, and you receive — via OpenID Connect — their verified address <em>name@domain</em> plus their mailbox key. No password, no confirmation email, no registration with us.</span>
+    <span class="es-only">Un botón, sin software nuestro en vuestro servidor. El usuario hace clic, se autentica en su app de correo y vosotros recibís —vía OpenID Connect— su dirección verificada <em>nombre@dominio</em> y su clave de buzón. Sin contraseña, sin correo de confirmación, sin registro con nosotros.</span>
+    <span class="fr-only">Un bouton, aucun logiciel de nous sur votre serveur. L'utilisateur clique, se connecte dans son appli courriel, et vous recevez — via OpenID Connect — son adresse vérifiée <em>nom@domaine</em> et sa clé de boîte. Sans mot de passe, sans courriel de confirmation, sans inscription chez nous.</span>
+    <span class="pl-only">Jeden przycisk, żadnego naszego oprogramowania na waszym serwerze. Użytkownik klika, loguje się w swojej aplikacji pocztowej, a wy dostajecie — przez OpenID Connect — jego potwierdzony adres <em>nazwa@domena</em> i klucz skrzynki. Bez hasła, bez maila potwierdzającego, bez rejestracji u nas.</span></p>
+    <p><span class="de-only">Der Vergleich, der alles trifft: Einlass mit Personalausweis. Der Besucher hält seinen Ausweis <em>selbst</em> unters Lesegerät — Ihr seht Name und Echtheit, aber bei Ihnen liegt kein Zweitschlüssel, und kein Konzern verwaltet die Identität. Genauso funktioniert dieser Login: Der Schlüssel bleibt im Gerät des Nutzers, jeder Beweis wird frisch für diesen einen Login erzeugt.</span>
+    <span class="en-only">The comparison that fits: entry with an ID card. The visitor holds his own document under the reader — you see name and authenticity, but no spare key sits in your drawer, and no corporation manages his identity. That is exactly how this login works: the key stays in the user's device, and every proof is freshly made for this one sign-in.</span>
+    <span class="es-only">La comparación que lo resume: el control de acceso con documento de identidad. El visitante acerca su propio documento al lector — veis nombre y autenticidad, pero en vuestro cajón no queda ninguna copia maestra y ningún gigante gestiona su identidad. Así funciona este login: la clave se queda en el dispositivo del usuario y cada prueba se genera de nuevo para ese único acceso.</span>
+    <span class="fr-only">L'image qui résume tout : le contrôle d'accès avec pièce d'identité. Le visiteur présente lui-même son document au lecteur — vous voyez le nom et l'authenticité, mais aucun double des clés ne dort chez vous et aucune grande entreprise ne gère son identité. C'est exactement ce login : la clé reste dans l'appareil de l'utilisateur et chaque preuve est fabriquée pour cette seule connexion.</span>
+    <span class="pl-only">Porównanie, które trafia w sedno: wejście na dowód osobisty. Gość sam trzyma dokument przy czytniku — widzicie imię i autentyczność, ale u was w szufladzie nie leży żaden klucz zapasowy i żadna korporacja nie zarządza tożsamością. Dokładnie tak działa to logowanie: klucz zostaje w urządzeniu użytkownika, a każdy dowód jest wyrabiany na nowo do tych jednych drzwi.</span></p>
+    <p><span class="de-only">Alles, was ein Dienst tun muss: den Button einbinden und das Ergebnis serverseitig prüfen lassen — gegen das Relay, nicht gegen uns. Prüft selbst nach: die <a href="/embed-demo">Live-Demo</a> ist exakt dieser Code.</span>
+    <span class="en-only">Everything a service must do: embed the button and let the result be verified server-side — against the relay, not against us. See it yourself: the <a href="/embed-demo">live demo</a> is exactly this code.</span>
+    <span class="es-only">Todo lo que un servicio debe hacer: integrar el botón y hacer comprobar el resultado en el servidor — contra el relay, no contra nosotros. Comprobadlo: la <a href="/embed-demo">demo en vivo</a> es exactamente este código.</span>
+    <span class="fr-only">Tout ce qu'un service doit faire : intégrer le bouton et faire vérifier le résultat côté serveur — contre le relais, pas contre nous. Voyez vous-même : la <a href="/embed-demo">démo en direct</a> est exactement ce code.</span>
+    <span class="pl-only">Wszystko, co serwis musi zrobić: osadzić przycisk i pozwolić sprawdzać wynik po stronie serwera — przeciwko relayowi, nie przeciwko nam. Zobacz sam: <a href="/embed-demo">demo na żywo</a> to dokładnie ten kod.</span></p>
+  </div>
+
+  <h2><span class="de-only">Was beim Klick passiert</span><span class="en-only">What happens on click</span><span class="es-only">Qué pasa al hacer clic</span><span class="fr-only">Ce qui se passe au clic</span><span class="pl-only">Co się dzieje po kliknięciu</span></h2>
+  <ol class="steps">
+    <li><span class="de-only">Der Nutzer klickt Ihren Button. Sein Browser öffnet die Login-Seite auf <em>seinem</em> Relay — Ihre Seite wartet derweil im Hintergrund.</span>
+    <span class="en-only">The user clicks your button. Their browser opens the sign-in page on <em>their</em> relay — your page waits in the background.</span>
+    <span class="es-only">El usuario pulsa vuestro botón. Su navegador abre la página de acceso en <em>su</em> relay — vuestra página espera mientras tanto.</span>
+    <span class="fr-only">L'utilisateur clique sur votre bouton. Son navigateur ouvre la page de connexion sur <em>son</em> relais — votre page attend en arrière-plan.</span>
+    <span class="pl-only">Użytkownik klika wasz przycisk. Przeglądarka otwiera stronę logowania u <em>jego</em> relayu — wasza strona czeka w tle.</span></li>
+    <li><span class="de-only">Dort meldet er sich an wie immer: Passkey, Fingerabdruck, Schlüsseldatei oder 24 Wörter. Nichts davon erreicht jemals Ihren Server.</span>
+    <span class="en-only">There he authenticates as always: passkey, fingerprint, key file or 24 words. None of that ever reaches your server.</span>
+    <span class="es-only">Allí se autentica como siempre: passkey, huella, archivo de clave o 24 palabras. Nada de eso llega jamás a vuestro servidor.</span>
+    <span class="fr-only">Il s'y authentifie comme d'habitude : passkey, empreinte, fichier de clé ou 24 mots. Rien de tout cela n'atteint jamais votre serveur.</span>
+    <span class="pl-only">Tam loguje się jak zawsze: passkey, odcisk palca, plik klucza albo 24 słowa. Nic z tego nigdy nie trafia na wasz serwer.</span></li>
+    <li><span class="de-only">Der Relay zeigt ihm klar an, wer da was will: Ihre https-Adresse namentlich, welche Daten (die Mail-Adresse) — und falls Sie einen Preis gesetzt haben: was es kostet.</span>
+    <span class="en-only">The relay shows him plainly who wants what: your https address by name, which data (the mail address) — and if you set a price: what it costs.</span>
+    <span class="es-only">El relay le muestra con claridad quién pide qué: vuestra dirección https por su nombre, qué datos (la dirección de correo) — y si habéis puesto precio: cuánto cuesta.</span>
+    <span class="fr-only">Le relais lui indique clairement qui veut quoi : votre adresse https en toutes lettres, quelles données (l'adresse courriel) — et si vous avez fixé un prix : ce que ça coûte.</span>
+    <span class="pl-only">Relay pokazuje mu wyraźnie, kto czego chce: wasz adres https z nazwy, jakie dane (adres mailowy) — a jeśli ustawiliście cenę: ile to kosztuje.</span></li>
+    <li><span class="de-only">Der Browser signiert eine frisch ausgeloste Challenge (32 Zufallsbytes) mit dem Postfach-Schlüssel — direkt im Gerät, BIP340. Erst wenn der Relay diese Signatur geprüft hat, wirft er einen Code aus.</span>
+    <span class="en-only">The browser signs a freshly drawn challenge (32 random bytes) with the mailbox key — right on the device, BIP340. Only once the relay has verified that signature does it issue a code.</span>
+    <span class="es-only">El navegador firma un reto recién sorteado (32 bytes al azar) con la clave del buzón — en el propio dispositivo, BIP340. El relay solo suelta un código después de verificar esa firma.</span>
+    <span class="fr-only">Le navigateur signe un challenge fraîchement tiré (32 octets aléatoires) avec la clé de boîte — directement dans l'appareil, BIP340. Ce n'est qu'après vérification de cette signature que le relais émet un code.</span>
+    <span class="pl-only">Przeglądarka podpisuje świeżo wylosowane wyzwanie (32 losowe bajty) kluczem skrzynki — od razu w urządzeniu, BIP340. Relay wyda kod dopiero po sprawdzeniu tego podpisu.</span></li>
+    <li><span class="de-only">Ihr Redirect-Ziel erhält <code>?code=…</code>; Ihr Server tauscht den Code gegen den signierten ID-Token. Konto angelegt oder Sitzung geöffnet — ohne Ihre Passwort-Tabelle.</span>
+    <span class="en-only">Your redirect target receives <code>?code=…</code>; your server swaps the code for the signed ID token. Account created or session opened — without your password table.</span>
+    <span class="es-only">Vuestro destino de redirección recibe <code>?code=…</code>; vuestro servidor cambia el código por el id_token firmado. Cuenta creada o sesión abierta — sin vuestra tabla de contraseñas.</span>
+    <span class="fr-only">Votre page de redirection reçoit <code>?code=…</code> ; votre serveur échange le code contre l'ID token signé. Compte créé ou session ouverte — sans votre tableau de mots de passe.</span>
+    <span class="pl-only">Wasz cel przekierowania dostaje <code>?code=…</code>; serwer wymieniał kod na podpisany ID token. Konto założone albo sesja otwarta — bez waszej tabeli haseł.</span></li>
+  </ol>
+
+  <h2><span class="de-only">Wo testen Sie das?</span><span class="en-only">Where do you test this?</span><span class="es-only">¿Dónde lo probáis?</span><span class="fr-only">Où tester cela ?</span><span class="pl-only">Gdzie to przetestować?</span></h2>
+  <div class="grid3">
+    <div class="card"><p><span class="de-only"><strong>30-Sekunden-Testpostfach.</strong> Web-App öffnen und „Neues Konto in 30 Sek.“ — Adresse wählen, 24 Wörter bestätigen, fertig. <code>relay-a.lightningmail.app</code> ist die Regtest-Spielwiese: neue Konten bekommen 10.000 Test-Satoshis, ein oranger TEST-WELT-Banner markiert sie. Hier probieren Sie Login, Porto und Paywall ohne jedes Risiko.</span>
+    <span class="en-only"><strong>30-second test mailbox.</strong> Open the web app and choose “New account in 30 sec.” — pick an address, confirm 24 words, done. <code>relay-a.lightningmail.app</code> is the regtest playground: new accounts get 10,000 test satoshis, flagged by an orange TEST-WORLD banner. Try login, postage and paywall here with zero risk.</span>
+    <span class="es-only"><strong>Buzón de prueba en 30 segundos.</strong> Abrid la app web y «Nueva cuenta en 30 s» — elegid dirección, confirmad 24 palabras, listo. <code>relay-a.lightningmail.app</code> es el patio de juegos regtest: las cuentas nuevas reciben 10.000 satoshis de prueba, con banner naranja TEST-WORLD. Aquí probáis login, franqueo y paywall sin ningún riesgo.</span>
+    <span class="fr-only"><strong>Boîte test en 30 secondes.</strong> Ouvrez la web-app et « Nouveau compte en 30 s » — adresse au choix, 24 mots confirmés, terminé. <code>relay-a.lightningmail.app</code> est l'aire de jeu regtest : les nouveaux comptes reçoivent 10 000 satoshis de test, repérables à la bannière orange TEST-WORLD. Testez ici login, port et paywall sans aucun risque.</span>
+    <span class="pl-only"><strong>Testowa skrzynka w 30 sekund.</strong> Otwórzcie aplikację webową i „Nowe konto w 30 s" — wybierzcie adres, potwierdźcie 24 słowa, gotowe. <code>relay-a.lightningmail.app</code> to poligon regtest: nowe konta dostają 10 000 testowych satoshi, oznaczone pomarańczowym banerem TEST-WORLD. Tutaj testujecie logowanie, frankaturę i paywall bez żadnego ryzyka.</span></p></div>
+    <div class="card"><p><span class="de-only"><strong>Mainnet (ab Countdown-Ende).</strong> <code>relay.lightningmail.app</code> ist das künftige Mainnet-Relay. Aktuell sind dort noch keine Satoshis geladen und keine Lightning-Kanäle aktiv — echter Betrieb startet erst, wenn der Countdown abgelaufen ist. Zum Testen und Entwickeln bitte die Regtest-Spielwiese <code>relay-a.lightningmail.app</code> nutzen.</span>
+    <span class="en-only"><strong>Mainnet (after countdown).</strong> <code>relay.lightningmail.app</code> is the upcoming mainnet relay. No satoshis are loaded and no Lightning channels are active there yet — live operation starts only once the countdown finishes. For testing and development, use the regtest playground <code>relay-a.lightningmail.app</code>.</span>
+    <span class="es-only"><strong>Mainnet (al terminar la cuenta atrás).</strong> <code>relay.lightningmail.app</code> es el futuro relay de mainnet. Aún no hay satoshis cargados ni canales Lightning activos — el funcionamiento real empezará cuando termine la cuenta atrás. Para probar y desarrollar, usad el patio de juegos regtest <code>relay-a.lightningmail.app</code>.</span>
+    <span class="fr-only"><strong>Mainnet (à la fin du compte à rebours).</strong> <code>relay.lightningmail.app</code> est le futur relais mainnet. Aucun satoshi n'y est encore chargé et aucun canal Lightning n'est actif — la mise en service réelle commencera une fois le compte à rebours terminé. Pour tester et développer, utilisez l'aire regtest <code>relay-a.lightningmail.app</code>.</span>
+    <span class="pl-only"><strong>Mainnet (po zakończeniu odliczania).</strong> <code>relay.lightningmail.app</code> to przyszły relay mainnet. Nie ma tam jeszcze załadowanych satoshi ani aktywnych kanałów Lightning — prawdziwe działanie ruszy dopiero po zakończeniu odliczania. Do testów i rozwoju używajcie poligonu regtest <code>relay-a.lightningmail.app</code>.</span></p></div>
+    <div class="card"><p><span class="de-only"><strong>Eigenes Relay.</strong> Jedes betriebene Relay ist automatisch ein Login-Dienst: <code>issuer</code> = seine eigene Adresse, keine zusätzliche Registrierung. Aufbau in einem Durchlauf mit <code>deploy/install-relay.sh</code> — im Light-Modus genügen ein Go-Binary und LND im Neutrino-Modus (~10 GB).</span>
+    <span class="en-only"><strong>Your own relay.</strong> Every running relay is automatically a sign-in service: <code>issuer</code> = its own address, no extra registration. Set up in one pass with <code>deploy/install-relay.sh</code> — in light mode a single Go binary plus LND in Neutrino mode suffices (~10 GB).</span>
+    <span class="es-only"><strong>Relay propio.</strong> Cada relay en marcha es automáticamente un servicio de login: <code>issuer</code> = su propia dirección, sin registro adicional. Montaje en un paso con <code>deploy/install-relay.sh</code> — en modo ligero basta un binario Go y LND en modo Neutrino (~10 GB).</span>
+    <span class="fr-only"><strong>Votre propre relais.</strong> Tout relais en marche est automatiquement un service de connexion : <code>issuer</code> = sa propre adresse, aucune inscription supplémentaire. Installation en une passe avec <code>deploy/install-relay.sh</code> — en mode light, un binaire Go et LND en mode Neutrino suffisent (~10 Go).</span>
+    <span class="pl-only"><strong>Własny relay.</strong> Każdy działający relay jest automatycznie usługą logowania: <code>issuer</code> = jego własny adres, bez dodatkowej rejestracji. Instalacja w jednym przebiegu przez <code>deploy/install-relay.sh</code> — w trybie light wystarczą binarka Go i LND w trybie Neutrino (~10 GB).</span></p></div>
+  </div>
+
+  <h2><span class="de-only">Schritt 1 · Button</span><span class="en-only">Step 1 · Button</span><span class="es-only">Paso 1 · Botón</span><span class="fr-only">Étape 1 · Bouton</span><span class="pl-only">Krok 1 · Przycisk</span></h2>
+  <pre>&lt;script src="https://lightningmail.app/bmail-login.js" defer&gt;&lt;/script&gt;
+&lt;bmail-login issuer="https://relay.lightningmail.app"
+             redirect="https://example.org/login/bmail"
+             label="Mit lightningmail anmelden"&gt;&lt;/bmail-login&gt;</pre>
+  <p><span class="de-only"><code>issuer</code> = Adresse des Relays, auf dem Eure Nutzer ein Postfach haben (das eigene Relay? einfach dessen Adresse). <code>redirect</code> = eine Eurer https-Seiten, auf die der Code zurückkommt. Es gibt kein Client-Geheimnis: Euer https-Origin ist selbst die Kennung. <code>bmail-login.js</code> ist eine Datei, gut 5&nbsp;kB, MIT-Lizenz, keine Abhängigkeiten.</span>
+  <span class="en-only"><code>issuer</code> = address of the relay where your users hold mailboxes (your own relay? just its address). <code>redirect</code> = one of your https pages the code returns to. There is no client secret: your own https origin IS the identifier. <code>bmail-login.js</code> is one file, ~5.5&nbsp;kB, MIT-licensed, no dependencies.</span>
+  <span class="es-only"><code>issuer</code> = dirección del relay donde vuestros usuarios tienen buzón (¿vuestro propio relay? simplemente su dirección). <code>redirect</code> = una de vuestras páginas https a la que vuelve el código. No hay secreto de cliente: vuestro origin https ES la credencial. <code>bmail-login.js</code> es un archivo, ~5,5&nbsp;kB, licencia MIT, sin dependencias.</span>
+  <span class="fr-only"><code>issuer</code> = adresse du relais où vos utilisateurs ont leur boîte (votre propre relais ? simplement son adresse). <code>redirect</code> = une de vos pages https où le code revient. Pas de secret client : votre origine https EST l'identifiant. <code>bmail-login.js</code> tient en un fichier, ~5,5&nbsp;ko, licence MIT, sans dépendance.</span>
+  <span class="pl-only"><code>issuer</code> = adres relayu, na którym użytkownicy mają skrzynki (własny relay? po prostu jego adres). <code>redirect</code> = jedna z waszych stron https, na którą wraca kod. Nie ma sekretu klienta: wasz origin https JEST identyfikatorem. <code>bmail-login.js</code> to jeden plik, ~5,5&nbsp;kB, licencja MIT, zero zależności.</span></p>
+  <p><span class="de-only">Alle Felder des Elements: <code>issuer</code> (Pflicht), <code>redirect</code> (empfohlen — sonst die aktuelle Seite), <code>client_id</code> (Standard: Ihr eigener Origin), <code>scope</code> (Standard <code>"openid email"</code>; der Relay akzeptiert zusätzlich <code>profile</code>) und <code>label</code> (Knopf-Text). Der Klick löst ein Event aus: <code>bmail-login</code> mit den Claims im <code>detail</code>, bei Fehler <code>bmail-login-error</code>. Wer ohne Web Component arbeiten will: <code>bmailLogin.popup({issuer, redirect})</code> öffnet dasselbe Fenster, und auf Ihrer Callback-Seite genügt <code>bmailLogin.finishPopup(serverVerify)</code> — <code>serverVerify</code> ist eine einzige eigene Funktion, die Code und Verifier an Ihr Backend schickt (Schritt 2). Blockiert der Browser das Popup, schaltet der Code automatisch auf normale Weiterleitung um.</span>
+  <span class="en-only">All attributes: <code>issuer</code> (required), <code>redirect</code> (recommended — defaults to the current page), <code>client_id</code> (default: your own origin), <code>scope</code> (default <code>"openid email"</code>; the relay additionally accepts <code>profile</code>) and <code>label</code> (button text). The click fires an event: <code>bmail-login</code> with claims in <code>detail</code>, or <code>bmail-login-error</code>. Skipping the Web Component: <code>bmailLogin.popup({issuer, redirect})</code> opens the same window, and on your callback page a single <code>bmailLogin.finishPopup(serverVerify)</code> suffices — <code>serverVerify</code> is your one function that posts code and verifier to your backend (step 2). If the browser blocks the popup, the code falls back to a plain redirect automatically.</span>
+  <span class="es-only">Todos los atributos: <code>issuer</code> (obligatorio), <code>redirect</code> (recomendado — si no, la página actual), <code>client_id</code> (por defecto: vuestro propio origin), <code>scope</code> (por defecto <code>"openid email"</code>; el relay admite además <code>profile</code>) y <code>label</code> (texto del botón). El clic dispara un evento: <code>bmail-login</code> con las claims en <code>detail</code>, o <code>bmail-login-error</code>. Sin Web Component: <code>bmailLogin.popup({issuer, redirect})</code> abre la misma ventana, y en vuestra página de callback basta <code>bmailLogin.finishPopup(serverVerify)</code> — <code>serverVerify</code> es una sola función vuestra que envía código y verifier al backend (paso 2). Si el navegador bloquea el popup, el código cambia solo a redirección normal.</span>
+  <span class="fr-only">Tous les attributs : <code>issuer</code> (obligatoire), <code>redirect</code> (recommandé — sinon la page courante), <code>client_id</code> (par défaut : votre propre origine), <code>scope</code> (par défaut <code>"openid email"</code> ; le relais accepte aussi <code>profile</code>) et <code>label</code> (texte du bouton). Le clic déclenche un événement : <code>bmail-login</code> avec les claims dans <code>detail</code>, ou <code>bmail-login-error</code>. Sans Web Component : <code>bmailLogin.popup({issuer, redirect})</code> ouvre la même fenêtre, et sur votre page de rappel un seul <code>bmailLogin.finishPopup(serverVerify)</code> suffit — <code>serverVerify</code> est votre unique fonction qui poste code et verifier vers votre backend (étape 2). Si le navigateur bloque le popup, le code bascule automatiquement sur une redirection simple.</span>
+  <span class="pl-only">Wszystkie atrybuty: <code>issuer</code> (wymagany), <code>redirect</code> (zalecany — domyślnie bieżąca strona), <code>client_id</code> (domyślnie: wasz własny origin), <code>scope</code> (domyślnie <code>"openid email"</code>; relay akceptuje też <code>profile</code>) oraz <code>label</code> (tekst przycisku). Kliknięcie wysyła zdarzenie: <code>bmail-login</code> z claimami w <code>detail</code> albo <code>bmail-login-error</code>. Bez Web Component: <code>bmailLogin.popup({issuer, redirect})</code> otwiera to samo okno, a na waszej stronie callback wystarczy <code>bmailLogin.finishPopup(serverVerify)</code> — <code>serverVerify</code> to jedna wasza funkcja, która wysyła kod i verifier do backendu (krok 2). Gdy przeglądarka zablokuje popup, kod sam przechodzi na zwykłe przekierowanie.</span></p>
+
+  <h2><span class="de-only">Schritt 2 · Callback prüfen (Server)</span><span class="en-only">Step 2 · Verify the callback (server)</span><span class="es-only">Paso 2 · Comprobar el callback (servidor)</span><span class="fr-only">Étape 2 · Vérifier le callback (serveur)</span><span class="pl-only">Krok 2 · Sprawdź callback (serwer)</span></h2>
+  <div class="tabs">
+    <button class="on" data-r="php">PHP</button><button data-r="node">Express</button>
+    <button data-r="next">NextAuth</button><button data-r="django">Django</button>
+  </div>
+  <pre class="recipe on" id="r-php">&lt;?php // login/bmail.php — empfaengt ?code=... vom Button-Flow
+session_start();
+$issuer = 'https://relay.lightningmail.app';
+$verifier = $_SESSION['lm_bmail_verifier'] ?? null; // vor dem Redirect gespeichert
+$nonce    = $_SESSION['lm_bmail_nonce'] ?? null;
+$code     = $_GET['code'] ?? '';
+
+$ch = curl_init("$issuer/oidc/token");
+curl_setopt_array($ch, [CURLOPT_POST =&gt; true, CURLOPT_RETURNTRANSFER =&gt; true,
+  CURLOPT_HTTPHEADER =&gt; ['Content-Type: application/x-www-form-urlencoded'],
+  CURLOPT_POSTFIELDS =&gt; http_build_query([
+    'grant_type' =&gt; 'authorization_code', 'code' =&gt; $code,
+    'client_id' =&gt; 'https://'.$_SERVER['HTTP_HOST'],
+    'redirect_uri' =&gt; 'https://'.$_SERVER['HTTP_HOST'].'/login/bmail.php',
+    'code_verifier' =&gt; $verifier])]);
+$tok = json_decode(curl_exec($ch), true);
+
+// id_token: header.payload.signature, Signatur mit JWKS (ES256) pruefen.
+// Fertige Bibliotheken tun das: web-token/jwt + jwkset, oder firebase/php-jwt.
+$jwt = new \Firebase\JWT\JWT();
+$key = call_user_func(function () use ($issuer) {          // JWKS-Cache: 5 min
+  $jwks = json_decode(file_get_contents("$issuer/oidc/jwks"), true);
+  return \Firebase\JWT\JWK::parseKeySet($jwks); });
+$claims = (array) $jwt::decode($tok['id_token'], $key, ['ES256']);
+assert($claims['iss'] === $issuer && $claims['nonce'] === $nonce &amp;&amp; $claims['email_verified'] === true);
+
+$_SESSION['user_email'] = $claims['email'];   // = name@domain — fertig.
+// $claims['bmail'] traegt zusaetzlich den Postfach-Pubkey (BIP340-signiert).</pre>
+  <pre class="recipe" id="r-node">// Express — Route f&uuml;r ?code=..., PKCE-Werte aus dem Session-Store
+import { Issuer } from 'openid-client';
+
+const relay = await Issuer.discover('https://relay.lightningmail.app');
+// stateless public client: client_id ist Euer https-Origin, kein Secret
+const client = new relay.Client({ client_id: 'https://example.org' });
+
+const tokenSet = await client.callback('https://example.org/login/bmail',
+  req.query, { code_verifier: req.session.lmVerifier, state: req.session.lmState });
+const claims = tokenSet.claims();
+if (claims.email_verified) req.login(claims.email); // name@domain als Identitaet</pre>
+  <pre class="recipe" id="r-next">// next-auth v4 — providers-Eintrag, sonst nichts
+providers: [
+  {
+    id: 'lightningmail', name: 'lightningmail', type: 'oauth',
+    version: '2.0',
+    checks: ['pkce', 'state'],
+    clientId: 'https://deine-app.example.org',      // = Eure Origin, kein Secret
+    authorization: 'https://relay.lightningmail.app/oidc/auth?prompt=consent',
+    token: 'https://relay.lightningmail.app/oidc/token',
+    userinfo: 'https://relay.lightningmail.app/oidc/userinfo',
+    issuer: 'https://relay.lightningmail.app',
+    jwks_uri: 'https://relay.lightningmail.app/oidc/jwks',
+    profile: (p) =&gt; ({ id: p.email, email: p.email, bmail: p.bmail }),
+  },
+],</pre>
+  <pre class="recipe" id="r-django"># Social-Auth — eine Provider-Zeile + Discovery-URL
+# settings.py
+SOCIAL_AUTH_OPENID_CONNECT_RELAY = {
+  'RELAY': {
+    'SERVER_URL': 'https://relay.lightningmail.app',   #/.well-known wird entdeckt
+    'AUTHORIZATION_URL': '/oidc/auth',
+    'ACCESS_TOKEN_URL': '/oidc/token',
+    'USERINFO_URL': '/oidc/userinfo',
+    'CLIENT_ID': 'https://deine-app.example.org',
+  }
+}
+INSTALLED_APPS += ['social_django']
+AUTHENTICATION_BACKENDS += ['social_core.backends.open_id_connect.OpenIdConnectAuth']</pre>
+  <p class="warn"><span class="de-only">Wichtig: Prüfen muss der Server, nicht das Browser-JavaScript. Das Browser-Event <code>bmail-login</code> ist Komfort — Identität ist erst, was die obige Route bestätigt hat. Wer eine Bibliothek statt eigener Prüfung nutzt, bekommt dasselbe geschenkt: Es ist Standard-OIDC.</span>
+  <span class="en-only">Important: the server must verify, not the browser script. The <code>bmail-login</code> browser event is convenience — identity is only what the route above confirmed. Using a library instead of hand-rolled checks gives you the same for free: this is standard OIDC.</span>
+  <span class="es-only">Importante: comprueba el servidor, no el script del navegador. El evento <code>bmail-login</code> es comodidad — identidad es solo lo que la ruta de arriba confirmó. Quien usa una librería en vez de comprobar a mano recibe lo mismo gratis: es OIDC estándar.</span>
+  <span class="fr-only">Important : le serveur vérifie, pas le script du navigateur. L'événement <code>bmail-login</code> est du confort — l'identité n'est que ce que la route ci-dessus a confirmé. Une bibliothèque à la place du fait-maison donne la même chose gratuitement : c'est de l'OIDC standard.</span>
+  <span class="pl-only">Ważne: sprawdza serwer, nie skrypt w przeglądarce. Zdarzenie <code>bmail-login</code> to wygoda — tożsamością jest dopiero to, co potwierdziła powyższa trasa. Biblioteka zamiast własnego sprawdzania daje to samo za darmo: to standardowy OIDC.</span></p>
+
+  <h2><span class="de-only">Was im ID-Token steht</span><span class="en-only">What the ID token contains</span><span class="es-only">Qué trae el id_token</span><span class="fr-only">Ce que contient l'ID token</span><span class="pl-only">Co zawiera ID token</span></h2>
+  <pre>{
+  "iss": "https://relay.lightningmail.app",
+  "sub": "hans@lightningmail.app",
+  "aud": "https://example.org",
+  "email": "hans@lightningmail.app",
+  "email_verified": true,
+  "preferred_username": "hans",
+  "auth_time": 1764178440, "iat": 1764178441, "exp": 1764182041,
+  "nonce": "zJ8vQ2m1…",
+  "bmail": {
+    "pubkey":    "03a3f2…",
+    "challenge": "Kx9v…",
+    "sig":       "5c1a…",
+    "alg":       "bip340-sha256"
+  }
+}</pre>
+  <ul>
+    <li><span class="de-only"><code>iss</code> — das Relay, das den Token signiert hat. Legen Sie vorab fest, welche Issuer Sie akzeptieren, und lehnen Sie alle anderen ab.</span>
+    <span class="en-only"><code>iss</code> — the relay that signed the token. Decide up front which issuers you accept and reject every other.</span>
+    <span class="es-only"><code>iss</code> — el relay que firmó el token. Decidid de antemano qué emisores aceptáis y rechazad todos los demás.</span>
+    <span class="fr-only"><code>iss</code> — le relais qui a signé le token. Définissez à l'avance les émetteurs acceptés et rejetez tous les autres.</span>
+    <span class="pl-only"><code>iss</code> — relay, który podpisał token. Z góry ustalcie, jakich emitentów akceptujecie, i odrzucajcie wszystkich innych.</span></li>
+    <li><span class="de-only"><code>sub</code> und <code>email</code> — die Adresse des Nutzers, <em>name@domain</em>. Das ist der Benutzername, den Sie als Schlüssel speichern — niemals <code>preferred_username</code> allein (die Domain gehört dazu, sonst kollidieren Namen von verschiedenen Relays).</span>
+    <span class="en-only"><code>sub</code> and <code>email</code> — the user's address, <em>name@domain</em>. That is the username to store as your key — never <code>preferred_username</code> alone (the domain belongs to it, otherwise names from different relays collide).</span>
+    <span class="es-only"><code>sub</code> y <code>email</code> — la dirección del usuario, <em>nombre@dominio</em>. Ese es el nombre de usuario que guardáis como clave — nunca el <code>preferred_username</code> a secas (el dominio forma parte, si no, nombres de relays distintos chocan).</span>
+    <span class="fr-only"><code>sub</code> et <code>email</code> — l'adresse de l'utilisateur, <em>nom@domaine</em>. C'est l'identifiant à stocker comme clé — jamais le <code>preferred_username</code> seul (le domaine en fait partie, sinon les noms de relais différents entrent en collision).</span>
+    <span class="pl-only"><code>sub</code> i <code>email</code> — adres użytkownika, <em>nazwa@domena</em>. To nazwa użytkownika, którą zapisujecie jako klucz — nigdy samo <code>preferred_username</code> (domena należy do całości, inaczej nazwy z różnych relayów się zderzą).</span></li>
+    <li><span class="de-only"><code>email_verified</code> — immer <code>true</code>. Ein Postfach besitzt nur, wer den Schlüssel hat; eine Bestätigungs-Mail erübrigt sich.</span>
+    <span class="en-only"><code>email_verified</code> — always <code>true</code>. Only the holder of the key owns a mailbox; a confirmation email becomes moot.</span>
+    <span class="es-only"><code>email_verified</code> — siempre <code>true</code>. Buzón es solo de quien tiene la clave; el correo de confirmación sobra.</span>
+    <span class="fr-only"><code>email_verified</code> — toujours <code>true</code>. La boîte appartient à qui détient la clé ; le courriel de confirmation devient superflu.</span>
+    <span class="pl-only"><code>email_verified</code> — zawsze <code>true</code>. Skrzynkę posiada tylko ten, kto ma klucz; mail potwierdzający staje się zbędny.</span></li>
+    <li><span class="de-only"><code>aud</code> — <code>client_id</code> = Ihr Origin. Prüfen, dass er Ihnen gehört.</span>
+    <span class="en-only"><code>aud</code> — the <code>client_id</code>, your own origin. Check that it is yours.</span>
+    <span class="es-only"><code>aud</code> — el <code>client_id</code> = vuestro origin. Comprobad que es el vuestro.</span>
+    <span class="fr-only"><code>aud</code> — le <code>client_id</code>, votre origine. Vérifiez qu'il s'agit bien de la vôtre.</span>
+    <span class="pl-only"><code>aud</code> — <code>client_id</code> = wasz origin. Sprawdźcie, czy jest wasz.</span></li>
+    <li><span class="de-only"><code>nonce</code> — exakt der Wert, den Sie beim Start mitschickten; gleichen Sie ihn ab, dann ist der Token an <em>Ihren</em> Login gebunden und nicht weiterverwendbar.</span>
+    <span class="en-only"><code>nonce</code> — exactly the value you sent at start; compare it, and the token is bound to <em>your</em> sign-in and not reusable.</span>
+    <span class="es-only"><code>nonce</code> — justo el valor que enviasteis al iniciar; comprobadlo y el token queda atado a <em>vuestra</em> sesión y no reutilizable.</span>
+    <span class="fr-only"><code>nonce</code> — exactement la valeur envoyée au démarrage ; comparez-la et le token est lié à <em>votre</em> connexion et non réutilisable.</span>
+    <span class="pl-only"><code>nonce</code> — dokładnie wartość wysłana na starcie; porównajcie ją, a token jest przypięty do <em>waszych</em> drzwi i nie do ponownego użycia.</span></li>
+    <li><span class="de-only"><code>bmail</code> — das Extra, das kein anderer Login bietet: <code>pubkey</code> (der Postfach-Schlüssel, 66 Hex-Zeichen), <code>challenge</code> und <code>sig</code>. Der Browser des Nutzers hat <code>sha256(challenge)</code> mit BIP340 signiert, und der Relay hat diese Signatur vor der Code-Ausgabe geprüft — der Nachweis, dass wirklich der Schlüsselbesitzer vor Ihnen stand. Für Ihre Akten; verlassen müssen Sie sich nicht darauf, der Relay hat es bereits getan.</span>
+    <span class="en-only"><code>bmail</code> — the extra no other login offers: <code>pubkey</code> (the mailbox key, 66 hex characters), <code>challenge</code> and <code>sig</code>. The user's browser signed <code>sha256(challenge)</code> with BIP340, and the relay verified that signature before issuing the code — proof that the key holder himself stood before you. Keep it on file; you need not rely on it, the relay already did.</span>
+    <span class="es-only"><code>bmail</code> — lo extra que ningún otro login ofrece: <code>pubkey</code> (la clave del buzón, 66 caracteres hex), <code>challenge</code> y <code>sig</code>. El navegador del usuario firmó <code>sha256(challenge)</code> con BIP340, y el relay verificó esa firma antes de emitir el código — la prueba de que ante vosotros estaba el dueño de la clave. Guardadlo en el expediente; no hace falta confiar en ello, el relay ya lo hizo.</span>
+    <span class="fr-only"><code>bmail</code> — le supplément qu'aucun autre login n'offre : <code>pubkey</code> (la clé de boîte, 66 caractères hex), <code>challenge</code> et <code>sig</code>. Le navigateur de l'utilisateur a signé <code>sha256(challenge)</code> en BIP340, et le relais a vérifié cette signature avant d'émettre le code — la preuve que le détenteur de la clé était bien face à vous. Gardez-la au dossier ; inutile de vous y fier, le relais l'a déjà fait.</span>
+    <span class="pl-only"><code>bmail</code> — dodatek, którego nie daje żadne inne logowanie: <code>pubkey</code> (klucz skrzynki, 66 znaków hex), <code>challenge</code> i <code>sig</code>. Przeglądarka użytkownika podpisała <code>sha256(challenge)</code> metodą BIP340, a relay sprawdził ten podpis przed wydaniem kodu — dowód, że przed wami stanął naprawdę właściciel klucza. Niech leży w aktach; nie musicie na nim polegać, relay już to zrobił.</span></li>
+    <li><span class="de-only">Dasselbe Paket gibt es jederzeit ein zweites Mal: <code>GET /oidc/userinfo</code> mit dem <code>access_token</code> als Bearer — praktisch, wenn Sie Claims später erneut brauchen. Der ID-Token selbst läuft nach einer Stunde ab; der Login bleibt davon unberührt.</span>
+    <span class="en-only">The same package is available a second time anytime: <code>GET /oidc/userinfo</code> with the <code>access_token</code> as Bearer — handy when you need the claims again later. The ID token itself expires after one hour; the login remains untouched.</span>
+    <span class="es-only">El mismo paquete está disponible otra vez cuando queráis: <code>GET /oidc/userinfo</code> con el <code>access_token</code> como Bearer — útil si necesitáis las claims más tarde. El id_token caduca a la hora; el login no se ve afectado.</span>
+    <span class="fr-only">Le même paquet est disponible une seconde fois à tout moment : <code>GET /oidc/userinfo</code> avec l'<code>access_token</code> en Bearer — pratique si vous avez de nouveau besoin des claims plus tard. L'ID token lui-même expire au bout d'une heure ; la connexion reste intacte.</span>
+    <span class="pl-only">Ten sam pakiet jest dostępny po raz drugi, kiedy chcecie: <code>GET /oidc/userinfo</code> z <code>access_token</code> jako Bearer — przydatne, gdy claims będą potrzebne później. Sam ID token wygasa po godzinie; logowanie pozostaje nienaruszone.</span></li>
+  </ul>
+
+  <h2><span class="de-only">Mikro-Paywall: drei Parameter</span><span class="en-only">Micro-paywall: three parameters</span><span class="es-only">Micro-paywall: tres parámetros</span><span class="fr-only">Micro-paywall : trois paramètres</span><span class="pl-only">Mikro-paywall: trzy parametry</span></h2>
+  <p><span class="de-only">Sie können den Login gleich Kasse spielen lassen. An den <code>/oidc/auth</code>-Link hängen Sie drei zusätzliche Parameter:</span>
+  <span class="en-only">The sign-in can collect money on the side. Append three extra parameters to the <code>/oidc/auth</code> link:</span>
+  <span class="es-only">El login puede hacer de caja. Añadid tres parámetros extra al enlace <code>/oidc/auth</code>:</span>
+  <span class="fr-only">La connexion peut encaisser au passage. Ajoutez trois paramètres au lien <code>/oidc/auth</code> :</span>
+  <span class="pl-only">Logowanie może przy okazji kasować. Dołączcie trzy dodatkowe parametry do linku <code>/oidc/auth</code>:</span></p>
+  <pre>https://relay.lightningmail.app/oidc/auth
+  ? …normale Login-Parameter…
+  &amp; pay_sats=5            // Preis in Satoshis (0 bis 1.000.000)
+  &amp; pay_item=artikel-42   // wofür — steht später im Token
+  &amp; pay_to=redaktion      // optional: lokales Konto für den Erlös</pre>
+  <ul>
+    <li><span class="de-only">Auf dem Zustimmungs-Bildschirm erscheint das goldene Badge „⚡ Mikro-Paywall: N sats für <em>artikel-42</em>" — der Nutzer bestätigt Login <em>und</em> Zahlung mit einem Klick.</span>
+    <span class="en-only">The consent screen shows the gold badge “⚡ Micro-paywall: N sats for <em>artikel-42</em>" — the user confirms sign-in <em>and</em> payment in one click.</span>
+    <span class="es-only">En la pantalla de consentimiento aparece la insignia dorada «⚡ Micro-paywall: N sats por <em>artikel-42</em>" — el usuario confirma login <em>y</em> pago con un clic.</span>
+    <span class="fr-only">L'écran de consentement affiche le badge doré « ⚡ Micro-paywall : N sats pour <em>artikel-42</em> » — l'utilisateur confirme connexion <em>et</em> paiement d'un clic.</span>
+    <span class="pl-only">Na ekranie zgody pojawia się złota odznaka „⚡ Mikro-paywall: N sats za <em>artikel-42</em>" — użytkownik zatwierdza logowanie <em>i</em> płatność jednym kliknięciem.</span></li>
+    <li><span class="de-only">Abgebucht wird atomar im Moment der Zustimmung, direkt vom Postfach-Guthaben, Buchungsreferenz <code>oidc-pay:&lt;item&gt;</code>. Ohne <code>pay_to</code> bleibt der Erlös beim Relay-Betreiber, mit <code>pay_to</code> geht er an ein lokales Konto Ihrer Wahl — beides in einem Schritt, ohne dass Ihr Server Geld anfasst.</span>
+    <span class="en-only">Debit happens atomically at the moment of consent, straight from the mailbox balance, booking reference <code>oidc-pay:&lt;item&gt;</code>. Without <code>pay_to</code> the proceeds stay with the relay operator; with <code>pay_to</code> they go to a local account of your choice — both in one step, without your server ever touching money.</span>
+    <span class="es-only">El cargo es atómico en el momento del consentimiento, directo del saldo del buzón, con referencia <code>oidc-pay:&lt;item&gt;</code>. Sin <code>pay_to</code> el ingreso se queda en el operador del relay; con <code>pay_to</code> va a una cuenta local elegida por vosotros — todo en un paso, sin que vuestro servidor toque dinero.</span>
+    <span class="fr-only">Le débit est atomique au moment du consentement, directement sur le solde de la boîte, référence d'écriture <code>oidc-pay:&lt;item&gt;</code>. Sans <code>pay_to</code> le produit reste chez l'opérateur du relais, avec <code>pay_to</code> il part sur un compte local à votre choix — le tout en une étape, sans que votre serveur touche à l'argent.</span>
+    <span class="pl-only">Pobranie następuje atomowo w chwili zatwierdzenia, prosto ze salda skrzynki, z referencją <code>oidc-pay:&lt;item&gt;</code>. Bez <code>pay_to</code> utarg zostaje u operatora relaya, z <code>pay_to</code> trafia na wybrane lokalne konto — wszystko w jednym kroku, bez dotykania pieniędzy przez wasz serwer.</span></li>
+    <li><span class="de-only">Im Token stehen dann <code>paid_sats</code>, <code>paid_item</code> und <code>paid_to</code>. Geben Sie den Inhalt nur frei, wenn alle drei Werte zu Ihrer Preisliste passen — gebucht hat schließlich der Relay, nicht der Browser.</span>
+    <span class="en-only">The token then carries <code>paid_sats</code>, <code>paid_item</code> and <code>paid_to</code>. Release the content only if all three match your price list — after all, the relay booked it, not the browser.</span>
+    <span class="es-only">En el token figuran entonces <code>paid_sats</code>, <code>paid_item</code> y <code>paid_to</code>. Liberad el contenido solo si los tres valores coinciden con vuestra lista de precios — al fin y al cabo anotó el relay, no el navegador.</span>
+    <span class="fr-only">Le token contient alors <code>paid_sats</code>, <code>paid_item</code> et <code>paid_to</code>. N'ouvrez le contenu que si les trois valeurs correspondent à votre grille tarifaire — c'est le relais qui a comptabilisé, pas le navigateur.</span>
+    <span class="pl-only">W tokenie znajdą się wtedy <code>paid_sats</code>, <code>paid_item</code> i <code>paid_to</code>. Odblokujcie treść dopiero, gdy wszystkie trzy wartości pasują do waszego cennika — w końcu zaksięgował to relay, nie przeglądarka.</span></li>
+    <li><span class="de-only">Zu wenig Guthaben? Der Nutzer sieht die Meldung auf dem Relay, lädt in der App per Lightning auf — und der zweite Klick zählt.</span>
+    <span class="en-only">Balance too low? The user sees the notice on the relay, tops up via Lightning in the app — and the second click counts.</span>
+    <span class="es-only">¿Saldo insuficiente? El usuario ve el aviso en el relay, recarga por Lightning en la app — y el segundo clic vale.</span>
+    <span class="fr-only">Solde insuffisant ? L'utilisateur voit l'avis sur le relais, recharge via Lightning dans l'appli — et le second clic compte.</span>
+    <span class="pl-only">Za mały saldo? Użytkownik zobaczy komunikat na relayu, doładuje Lightningiem w aplikacji — i drugie kliknięcie się liczy.</span></li>
+    <li><span class="de-only">Live ansehen: <a href="/paywall">/paywall</a> — vier Artikel à 5 Test-Sats, exakt dieser Ablauf, von der Anmeldung bis zur Freischaltung.</span>
+    <span class="en-only">Watch it live: <a href="/paywall">/paywall</a> — four articles at 5 test sats each, exactly this flow, from sign-in to unlock.</span>
+    <span class="es-only">Vedlo en vivo: <a href="/paywall">/paywall</a> — cuatro artículos a 5 sats de prueba, exactamente este flujo, del login al desbloqueo.</span>
+    <span class="fr-only">Voir en direct : <a href="/paywall">/paywall</a> — quatre articles à 5 sats de test, exactement ce déroulé, de la connexion au déverrouillage.</span>
+    <span class="pl-only">Zobaczcie na żywo: <a href="/paywall">/paywall</a> — cztery artykuły po 5 testowych sats, dokładnie ten przepływ, od logowania do odblokowania.</span></li>
+  </ul>
+
+  <h2><span class="de-only">WordPress · Plugin</span><span class="en-only">WordPress · plugin</span><span class="es-only">WordPress · plugin</span><span class="fr-only">WordPress · extension</span><span class="pl-only">WordPress · wtyczka</span></h2>
+  <p><span class="de-only">Fertig zum Installieren: <a href="/lightningmail-login.zip">lightningmail-login.zip</a> (Plugins → Hochladen). Nach dem Aktivieren erscheint der Button unter Login-Formular und Registrierungsseite; in den Einstellungen stehen Relay-Adresse und Anzeigename. Der Plugin-Code prüft das ID-Token serverseitig gegen das Relay-JWKS, PHP-only, keine fremden Bibliotheken. <em>Status: Flow gegen das Demo-Relay getestet; Aktivierung auf einer echten WP-Instanz euch überlassen, Meldung bitte an forum.</em></span>
+  <span class="en-only">Ready to install: <a href="/lightningmail-login.zip">lightningmail-login.zip</a> (Plugins → Add new → Upload). After activation the button appears under the login form and the registration page; settings hold relay address and display name. The plugin verifies the ID token server-side against the relay JWKS, PHP-only, no third-party libraries. <em>Status: flow tested against the demo relay; activation on a live WP instance is on you — please report via the forum.</em></span>
+  <span class="es-only">Listo para instalar: <a href="/lightningmail-login.zip">lightningmail-login.zip</a> (Plugins → Añadir nuevo → Subir). Al activarlo, el botón aparece bajo el formulario de acceso y la página de registro; los ajustes guardan dirección del relay y nombre visible. El plugin comprueba el id_token en el servidor contra el JWKS del relay, solo PHP, sin librerías ajenas. <em>Estado: flujo probado contra el relay de demo; la activación en un WP real queda en vuestros manos — feedback por favor en el foro.</em></span>
+  <span class="fr-only">Prêt à installer : <a href="/lightningmail-login.zip">lightningmail-login.zip</a> (Extensions → Ajouter → Téléverser). Une fois activée, le bouton s'affiche sous le formulaire de connexion et la page d'inscription ; les réglages contiennent l'adresse du relais et le nom affiché. L'extension vérifie l'id_token côté serveur contre le JWKS du relais, en PHP seul, sans bibliothèque tierce. <em>État : flux testé contre le relais de démo ; l'activation sur un vrai WP vous revient — retour merci via le forum.</em></span>
+  <span class="pl-only">Gotowe do instalacji: <a href="/lightningmail-login.zip">lightningmail-login.zip</a> (Wtyczki → Dodaj nową → Wyślij). Po włączeniu przycisk pojawia się pod formularzem logowania i na stronie rejestracji; w ustawieniach adres relayu i nazwa wyświetlana. Wtyczka sprawdza id_token po stronie serwera wobec JWKS relayu, czysty PHP, bez bibliotek zewnętrznych. <em>Stan: flow przetestowany przeciw relayowi demo; aktywacja na żywym WP po waszej stronie — dajcie znać na forum.</em></span></p>
+
+  <h2><span class="de-only">Häufige Fragen</span><span class="en-only">Frequently asked</span><span class="es-only">Preguntas frecuentes</span><span class="fr-only">Questions fréquentes</span><span class="pl-only">Częste pytania</span></h2>
+  <details><summary><span class="de-only">Müssen wir uns bei Ihnen registrieren?</span><span class="en-only">Do we have to register with you?</span><span class="es-only">¿Tenemos que registrarnos con vosotros?</span><span class="fr-only">Devons-nous nous enregistrer chez vous ?</span><span class="pl-only">Czy musimy się u was rejestrować?</span></summary>
+  <p><span class="de-only">Nein. Es gibt kein Formular, kein Client-Geheimnis und keine Freischaltung. Ihr https-Origin ist selbst die Kundennummer (beim Entwickeln darf es auch <code>http://localhost</code> sein). Der Relay bemerkt Sie erst, wenn ein Nutzer zustimmt.</span>
+  <span class="en-only">No. There is no form, no client secret, no activation. Your https origin IS the customer number (while developing, <code>http://localhost</code> works too). The relay notices you only when a user consents.</span>
+  <span class="es-only">No. No hay formulario, ni secreto de cliente, ni activación. Vuestro origin https ES el número de cliente (en desarrollo vale también <code>http://localhost</code>). El relay se entera de vosotros cuando un usuario da su permiso.</span>
+  <span class="fr-only">Non. Pas de formulaire, pas de secret client, pas d'activation. Votre origine https EST le numéro client (en développement, <code>http://localhost</code> fonctionne aussi). Le relais ne vous remarque que lorsqu'un utilisateur consent.</span>
+  <span class="pl-only">Nie. Nie ma formularza, sekretu klienta ani aktywacji. Wasz origin https JEST numerem klienta (przy developmentzie działa też <code>http://localhost</code>). Relay zauważa was dopiero, gdy użytkownik wyrazi zgodę.</span></p></details>
+  <details><summary><span class="de-only">Müssen wir einen eigenen Server betreiben?</span><span class="en-only">Do we need to run our own server?</span><span class="es-only">¿Necesitamos montar nuestro propio servidor?</span><span class="fr-only">Faut-il faire tourner notre propre serveur ?</span><span class="pl-only">Czy musimy prowadzić własny serwer?</span></summary>
+  <p><span class="de-only">Nein — der Button und eine Server-Route zum Prüfen sind alles. Ein eigenes Postfach lohnt erst, wenn Ihr Dienst dem Nutzer Briefe schreiben will (Rechnungen, Reset-Links, Newsletter): Dann übernimmt das der Service-Connector, siehe unten.</span>
+  <span class="en-only">No — the button plus one verification route is everything. Your own mailbox pays off only when your service wants to write letters to the user (invoices, reset links, newsletters): that is the Service Connector, see below.</span>
+  <span class="es-only">No — el botón y una ruta de comprobación en el servidor es todo. Un buzón propio compensa cuando el servicio quiere escribir cartas al usuario (facturas, enlaces de recuperación, boletines): eso lo hace el Service Connector, más abajo.</span>
+  <span class="fr-only">Non — le bouton et une route de vérification suffisent. Votre propre boîte devient utile quand le service doit écrire des lettres à l'utilisateur (factures, liens de réinitialisation, infolettres) : c'est le Service Connector, voir plus bas.</span>
+  <span class="pl-only">Nie — przycisk i jedna trasa sprawdzająca na serwerze to wszystko. Własna skrzynka opłaca się, gdy serwis chce pisać do użytkownika listy (faktury, linki resetujące, newslettery): przejmuje to Service Connector, patrz niżej.</span></p></details>
+  <details><summary><span class="de-only">Kann ein Relay-Betreiber Logins erfinden?</span><span class="en-only">Could a relay operator fabricate logins?</span><span class="es-only">¿Podría un operador de relay inventar logins?</span><span class="fr-only">Un opérateur de relais peut-il inventer des connexions ?</span><span class="pl-only">Czy operator relaya mógłby wymyślać logowania?</span></summary>
+  <p><span class="de-only">Nein. Ohne die Signatur des echten Postfach-Schlüssels gibt der Relay keinen Code heraus — und die kann nur der Browser des Nutzers mit dem Private Key erzeugen. Der Betreiber sieht bei jedem Login eine frische Beweis-Signatur über 32 Zufallsbytes, kann sie aber selbst nicht produzieren. Beim Token-Prüfen vertrauen Sie ohnehin nur den Issuern auf Ihrer Akzeptanzliste.</span>
+  <span class="en-only">No. Without a signature from the real mailbox key the relay releases no code — and only the user's browser can produce it with the private key. With every login the operator sees a fresh proof signature over 32 random bytes but cannot forge it himself. When verifying tokens you trust only the issuers on your accept-list anyway.</span>
+  <span class="es-only">No. Sin la firma de la clave real del buzón el relay no suelta ningún código — solo el navegador del usuario puede generarla con la clave privada. En cada login el operador ve una firma de prueba fresca sobre 32 bytes al azar, pero no puede fabricarla. Al comprobar tokens, en todo caso solo confiáis en los emisores de vuestra lista.</span>
+  <span class="fr-only">Non. Sans signature de la vraie clé de boîte, le relais ne livre aucun code — seul le navigateur de l'utilisateur peut la produire avec la clé privée. À chaque connexion, l'opérateur voit une signature de preuve fraîche sur 32 octets aléatoires, sans pouvoir la fabriquer lui-même. Pour vérifier les tokens, vous ne faites confiance de toute façon qu'aux émetteurs de votre liste.</span>
+  <span class="pl-only">Nie. Bez podpisu prawdziwym kluczem skrzynki relay nie wyda kodu — a wytworzyć go potrafi tylko przeglądarka użytkownika z kluczem prywatnym. Operator widzi przy każdym logowaniu świeży podpis dowodowy na 32 losowe bajty, ale sam go nie sfabrykuje. Przy sprawdzaniu tokenów i tak ufacie tylko emitentom z waszej listy.</span></p></details>
+  <details><summary><span class="de-only">Was passiert, wenn ein Relay offline ist?</span><span class="en-only">What happens when a relay is offline?</span><span class="es-only">¿Qué pasa si un relay está caído?</span><span class="fr-only">Que se passe si un relais est hors ligne ?</span><span class="pl-only">Co się stanie, gdy relay będzie offline?</span></summary>
+  <p><span class="de-only">Nur die Nutzer dieses Relays kommen gerade nicht rein — so wenig wie sie dann Mail lesen können. Ihre Seite läuft weiter, und Logins über andere Relays bleiben möglich. Wenn Ihnen Verfügbarkeit wichtig ist: Akzeptieren Sie mehrere Issuer.</span>
+  <span class="en-only">Only that relay's users cannot sign in right now — exactly as little as they can read mail. Your site stays up, and sign-ins via other relays remain possible. If availability matters: accept multiple issuers.</span>
+  <span class="es-only">Solo los usuarios de ese relay no entran en ese momento — igual que no pueden leer correo. Vuestro sitio sigue en pie y los logins por otros relays siguen funcionando. Si la disponibilidad importa: aceptad varios emisores.</span>
+  <span class="fr-only">Seuls les utilisateurs de ce relais ne peuvent pas entrer sur le moment — pas plus qu'ils ne peuvent lire leurs courriels. Votre site tourne, et les connexions via d'autres relais restent possibles. Si la disponibilité compte : acceptez plusieurs émetteurs.</span>
+  <span class="pl-only">Tylko użytkownicy tego relaya nie wejdą w danym momencie — tak samo jak nie mogą czytać poczty. Wasza strona działa, a logowania przez inne relaye pozostają możliwe. Jeśli dostępność jest ważna: akceptujcie wielu emitentów.</span></p></details>
+  <details><summary><span class="de-only">Brauchen wir dann kein Passwort-Reset und keine Bestätigungs-Mail mehr?</span><span class="en-only">Does that replace password reset and confirmation mail?</span><span class="es-only">¿Sustituye a la recuperación de contraseña y al correo de confirmación?</span><span class="fr-only">Cela remplace-t-il réinitialisation et courriel de confirmation ?</span><span class="pl-only">Czy to zastępuje reset hasła i mail potwierdzający?</span></summary>
+  <p><span class="de-only">Für diese Nutzer: ja, beides entfällt. Es gibt kein Passwort zu verlieren, und wer das Postfach besitzt, ist bestätigt. Achtung: Wer seinen Schlüssel verloren hat (und auch sein Backup aus 24 Wörtern), kommt nicht mehr rein — das gilt bei jedem Anbieter. Helfen kann nur das Postfach-Backup des Nutzers selbst.</span>
+  <span class="en-only">For these users: yes, both fall away. There is no password to lose, and whoever owns the mailbox is confirmed. One caveat: a user who lost his key (and his 24-word backup) cannot get back in — that is true at every provider. Only the user's own mailbox backup helps.</span>
+  <span class="es-only">Para estos usuarios: sí, ambas cosas sobran. No hay contraseña que perder, y quien posee el buzón está confirmado. Ojo: quien perdió su clave (y su copia de las 24 palabras) no vuelve a entrar — vale para todos los proveedores. Solo ayuda la copia del propio usuario.</span>
+  <span class="fr-only">Pour ces utilisateurs : oui, les deux deviennent inutiles. Pas de mot de passe à perdre, et qui possède la boîte est confirmé. Attention : celui qui a perdu sa clé (et sa sauvegarde des 24 mots) ne rentre plus — chez tous les fournisseurs. Seule la sauvegarde de l'utilisateur aide.</span>
+  <span class="pl-only">Dla tych użytkowników: tak, oba zbędne. Nie ma hasła do zgubienia, a kto posiada skrzynkę, jest potwierdzony. Uwaga: kto zgubił klucz (i backup z 24 słów), ten nie wróci — u każdego dostawcy. Pomaga tylko własna kopia zapasowa użytkownika.</span></p></details>
+  <details><summary><span class="de-only">Welche OIDC-Bibliothek passt?</span><span class="en-only">Which OIDC library fits?</span><span class="es-only">¿Qué librería OIDC encaja?</span><span class="fr-only">Quelle bibliothèque OIDC choisir ?</span><span class="pl-only">Jaka biblioteka OIDC pasuje?</span></summary>
+  <p><span class="de-only">Jede, die Standard-Authorization-Code mit PKCE spricht: <code>openid-client</code> (Node), <code>social-auth-core</code> (Django), NextAuth, <code>firebase/php-jwt</code> zum Entschlüsseln. Die Endpunkte liefert <code>/.well-known/openid-configuration</code> des Relays. Zu beachten: nur Code-Flow mit S256, kein Implicit Flow, keine Client-Secrets, keine Refresh-Tokens — dafür ES256-Signaturen und <code>nonce</code> wie oben.</span>
+  <span class="en-only">Any library that speaks standard authorization-code with PKCE: <code>openid-client</code> (Node), <code>social-auth-core</code> (Django), NextAuth, <code>firebase/php-jwt</code> for decoding. Endpoints come from the relay's <code>/.well-known/openid-configuration</code>. To note: code flow with S256 only, no implicit flow, no client secrets, no refresh tokens — but ES256 signatures and <code>nonce</code> as above.</span>
+  <span class="es-only">Cualquiera que hable authorization-code estándar con PKCE: <code>openid-client</code> (Node), <code>social-auth-core</code> (Django), NextAuth, <code>firebase/php-jwt</code> para decodificar. Los endpoints los da el <code>/.well-known/openid-configuration</code> del relay. A tener en cuenta: solo flujo de código con S256, sin implicit flow, sin secretos de cliente, sin refresh tokens — pero firmas ES256 y <code>nonce</code> como arriba.</span>
+  <span class="fr-only">Toute bibliothèque parlant l'authorization-code standard avec PKCE : <code>openid-client</code> (Node), <code>social-auth-core</code> (Django), NextAuth, <code>firebase/php-jwt</code> pour le décodage. Les points de terminaison viennent du <code>/.well-known/openid-configuration</code> du relais. À noter : flux de code S256 uniquement, pas d'implicit flow, pas de secrets clients, pas de refresh tokens — mais des signatures ES256 et le <code>nonce</code> comme ci-dessus.</span>
+  <span class="pl-only">Dowolna biblioteka rozumiejąca standardowy authorization-code z PKCE: <code>openid-client</code> (Node), <code>social-auth-core</code> (Django), NextAuth, <code>firebase/php-jwt</code> do dekodowania. Punkty końcowe z <code>/.well-known/openid-configuration</code> relaya. Uwaga: tylko flow z kodem i S256, bez implicit flow, bez sekretów klienta, bez refresh tokenów — za to podpisy ES256 i <code>nonce</code> jak wyżej.</span></p></details>
+
+  <h2><span class="de-only">Und danach?</span><span class="en-only">And then?</span><span class="es-only">¿Y después?</span><span class="fr-only">Et après ?</span><span class="pl-only">A potem?</span></h2>
+  <p><span class="de-only">Ein Login ist keine Bestätigungs-Mail: Wenn Ihr dem Nutzer Briefe schreiben wollt (Rechnungen, Reset-links, Newsletter), braucht Euer Dienst ein eigenes Postfach — das macht der <a href="/architecture#login">Service-Connector</a> in drei Schritten. Und ja: Er antwortet dann mit Porto aus dem Vorschuss, den die Anmeldung selbst mitbringt.</span>
+  <span class="en-only">A login is not a confirmation email: if your service wants to write letters to the user (invoices, reset links, newsletters), it needs its own mailbox — the <a href="/architecture#login">Service Connector</a> does that in three steps. And yes: it then replies with postage drawn from the advance the sign-up itself brings along.</span>
+  <span class="es-only">Un registro no es un correo de confirmación: si el servicio quiere escribir cartas al usuario (facturas, enlaces de recuperación, boletines), necesita su propio buzón — el <a href="/architecture#login">Service Connector</a> lo hace en tres pasos. Y sí: responde entonces con franqueo del anticipo que el propio registro trae consigo.</span>
+  <span class="fr-only">Une connexion n'est pas un courriel de confirmation : si votre service veut écrire à l'utilisateur (factures, liens de réinitialisation, infolettres), il lui faut sa propre boîte — le <a href="/architecture#login">Service Connector</a> le fait en trois étapes. Et oui : il répond alors avec du port pris sur l'avance que l'inscription elle-même apporte.</span>
+  <span class="pl-only">Logowanie to nie mail potwierdzający: jeśli serwis chce pisać do użytkownika listy (faktury, linki resetujące, newslettery), potrzebuje własnej skrzynki — robi to <a href="/architecture#login">Service Connector</a> w trzech krokach. I tak: odpowiada potem frankaturą ze zaliczki, którą sama rejestracja przynosi.</span></p>
+
+  <p class="lang"><span class="de-only">Quellcode des Kits: <code>bmail-login.js</code> (diese Domain, MIT). Referenz-RP-Endpunkt im Python: <a href="/embed-demo">/embed-demo</a> + <code>/api/embed/verify</code>. Protokoll-Spezifikation: <a href="https://github.com/normalo77/lightningmail">GitHub · docs/CONCEPT.md §7e</a>.</span>
+  <span class="en-only">Kit source: <code>bmail-login.js</code> (this domain, MIT). Reference RP in Python: <a href="/embed-demo">/embed-demo</a> + <code>/api/embed/verify</code>. Protocol spec: <a href="https://github.com/normalo77/lightningmail">GitHub · docs/CONCEPT.md §7e</a>.</span>
+  <span class="es-only">Código del kit: <code>bmail-login.js</code> (este dominio, MIT). RP de referencia en Python: <a href="/embed-demo">/embed-demo</a> + <code>/api/embed/verify</code>. Especificación: <a href="https://github.com/normalo77/lightningmail">GitHub · docs/CONCEPT.md §7e</a>.</span>
+  <span class="fr-only">Code source du kit : <code>bmail-login.js</code> (ce domaine, MIT). PR de référence en Python : <a href="/embed-demo">/embed-demo</a> + <code>/api/embed/verify</code>. Spécification : <a href="https://github.com/normalo77/lightningmail">GitHub · docs/CONCEPT.md §7e</a>.</span>
+  <span class="pl-only">Kod zestawu: <code>bmail-login.js</code> (ta domena, MIT). Odniesieniowy RP w Pythonie: <a href="/embed-demo">/embed-demo</a> + <code>/api/embed/verify</code>. Specyfikacja: <a href="https://github.com/normalo77/lightningmail">GitHub · docs/CONCEPT.md §7e</a>.</span></p>
+</main>
+<script>
+const sel=document.getElementById('langSel');
+sel.value=localStorage.getItem('lm_lang')||'de';document.documentElement.lang=sel.value;
+sel.onchange=()=>{document.documentElement.lang=sel.value;localStorage.setItem('lm_lang',sel.value)};
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.recipe').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');document.getElementById('r-'+b.dataset.r).classList.add('on');});
+</script>
+</body>
+</html>

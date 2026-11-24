@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#0d1017"/>
+  <text x="960" y="110" text-anchor="middle" font-family="DejaVu Sans" font-size="54" font-weight="bold" fill="#ede8dc">55 Jahre, ein Bogen</text>
+  <text x="960" y="170" text-anchor="middle" font-family="DejaVu Sans" font-size="30" fill="#8b93a7">Hashcash erfand die Briefmarke gegen Spam — Lightning lässt sie beim Empfänger auszahlen.</text>
+  <line x1="90" y1="560" x2="1830" y2="560" stroke="#3a4152" stroke-width="4"/>
+  <g font-family="DejaVu Sans">
+    <!-- oben -->
+    <g fill="#ede8dc" text-anchor="middle">
+      <circle cx="140" cy="560" r="9" fill="#8b93a7"/>
+      <text x="140" y="480" font-size="30" font-weight="bold" fill="#f7931a">1971</text>
+      <text x="140" y="515" font-size="22">Erste E-Mail</text>
+      <circle cx="428" cy="560" r="9" fill="#8b93a7"/>
+      <text x="428" y="480" font-size="30" font-weight="bold" fill="#f7931a">1985</text>
+      <text x="428" y="515" font-size="22">Ender's Game</text>
+      <circle cx="716" cy="560" r="9" fill="#8b93a7"/>
+      <text x="716" y="480" font-size="30" font-weight="bold" fill="#f7931a">1994</text>
+      <text x="716" y="515" font-size="22">Spam-Flut</text>
+      <circle cx="1004" cy="560" r="9" fill="#8b93a7"/>
+      <text x="1004" y="480" font-size="30" font-weight="bold" fill="#f7931a">2008</text>
+      <text x="1004" y="515" font-size="22">Bitcoin zitiert</text>
+      <text x="1004" y="542" font-size="22">Hashcash</text>
+      <circle cx="1292" cy="560" r="9" fill="#8b93a7"/>
+      <text x="1292" y="480" font-size="30" font-weight="bold" fill="#f7931a">2022</text>
+      <text x="1292" y="515" font-size="22">LUD-16</text>
+      <text x="1292" y="542" font-size="22">Lightning Address</text>
+      <circle cx="1580" cy="560" r="9" fill="#8b93a7"/>
+      <text x="1580" y="480" font-size="30" font-weight="bold" fill="#f7931a">2025</text>
+      <text x="1580" y="515" font-size="22">LNemail lebt</text>
+    </g>
+    <!-- unten -->
+    <g fill="#ede8dc" text-anchor="middle">
+      <circle cx="284" cy="560" r="9" fill="#8b93a7"/>
+      <text x="284" y="640" font-size="30" font-weight="bold" fill="#f7931a">1980</text>
+      <text x="284" y="675" font-size="22">Usenet</text>
+      <circle cx="572" cy="560" r="9" fill="#8b93a7"/>
+      <text x="572" y="640" font-size="30" font-weight="bold" fill="#f7931a">1992</text>
+      <text x="572" y="675" font-size="22">Cypherpunks</text>
+      <circle cx="860" cy="560" r="10" fill="#ede8dc"/>
+      <text x="860" y="640" font-size="30" font-weight="bold" fill="#f7931a">1997</text>
+      <text x="860" y="675" font-size="22">Hashcash:</text>
+      <text x="860" y="702" font-size="22">die Briefmarke</text>
+      <circle cx="1148" cy="560" r="9" fill="#8b93a7"/>
+      <text x="1148" y="640" font-size="30" font-weight="bold" fill="#f7931a">2015</text>
+      <text x="1148" y="675" font-size="22">Lightning</text>
+      <circle cx="1436" cy="560" r="9" fill="#8b93a7"/>
+      <text x="1436" y="640" font-size="30" font-weight="bold" fill="#f7931a">2024</text>
+      <text x="1436" y="675" font-size="22">BIP-353</text>
+      <circle cx="1750" cy="560" r="14" fill="#f7931a"/>
+      <text x="1750" y="645" font-size="34" font-weight="bold" fill="#f7931a">2026</text>
+      <text x="1750" y="682" font-size="24" font-weight="bold">lightningmail</text>
+      <text x="1750" y="712" font-size="22" fill="#8b93a7">Porto = Guthaben</text>
+    </g>
+  </g>
+  <rect x="120" y="800" width="1680" height="160" rx="16" fill="#f7931a" fill-opacity="0.08" stroke="#f7931a" stroke-opacity="0.4" stroke-width="2"/>
+  <text x="960" y="865" text-anchor="middle" font-family="DejaVu Sans" font-size="38" fill="#ede8dc">Vom offenen Netz zum Rauschen — und zurück:</text>
+  <text x="960" y="925" text-anchor="middle" font-family="DejaVu Sans" font-size="38" font-weight="bold" fill="#f7931a">ein Protokoll, das sich selbst trägt.</text>
+</svg>

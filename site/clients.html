@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lightningmail · Clients &amp; Installation</title>
+<meta name="description" content="Alle lightningmail-Clients im Überblick: Web-App, iPhone &amp; iPad (iOS-PWA ohne App Store), Android-APK, Linux-Desktop (.deb / AppImage / CLI), Thunderbird-Add-on und LAN-E-Mail-Bridge.">
+<link rel="canonical" href="https://lightningmail.app/clients">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://lightningmail.app/clients">
+<meta property="og:title" content="⚡ lightningmail · Clients &amp; Installation">
+<meta property="og:description" content="Web-App, iPhone/iPad (Safari Home-Bildschirm + Face ID), Android-APK, Linux-Desktop und E-Mail-Bridge (IMAP/SMTP).">
+<meta property="og:image" content="https://lightningmail.app/og-card.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#f5f3ec">
+<link rel="icon" href="/icon.png">
+<style>
+:root {
+  --bg: #f5f3ec;
+  --surface: #e8e4d8;
+  --card: #ffffff;
+  --ink: #122338;
+  --muted: #4a5a6e;
+  --accent: #f4b71a;
+  --accent-ink: #122338;
+  --margin: clamp(1rem, 2.5vw, 2.5rem);
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: clamp(1rem, 0.96rem + 0.2vw, 1.12rem);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.de-only, .en-only, .es-only, .fr-only, .pl-only { display: none !important; }
+html[lang="de"] .de-only,
+html[lang="en"] .en-only,
+html[lang="es"] .es-only,
+html[lang="fr"] .fr-only,
+html[lang="pl"] .pl-only { display: inline !important; }
+
+header.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.2rem var(--margin);
+  max-width: 1440px;
+  margin-inline: auto;
+  border-bottom: 1px solid rgba(18,35,56,0.12);
+}
+.brand-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.3rem;
+  color: var(--ink);
+}
+nav { display: flex; align-items: center; gap: 1.05rem; flex-wrap: wrap; }
+nav a { color: var(--ink); text-decoration: none; font-weight: 600; font-size: 0.94rem; }
+nav a:hover { text-decoration: underline; }
+nav a.active { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+.nav-sep { align-self: stretch; width: 1px; margin: 0.15rem 0.1rem; background: rgba(18,35,56,0.28); }
+nav a.funk {
+  background: rgba(244,183,26,0.18);
+  border: 1px solid rgba(146,64,14,0.30);
+  color: #92400e;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0.32rem 0.7rem;
+}
+nav a.funk:hover { background: rgba(244,183,26,0.34); text-decoration: none; }
+.lang {
+  background: var(--surface);
+  color: var(--ink);
+  border: 0;
+  padding: 0.48rem 0.9rem;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.menu-toggle {
+  display: none;
+  background: var(--surface);
+  color: var(--ink);
+  border: 0;
+  padding: 0.48rem 0.9rem;
+  font-family: inherit;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+main {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: clamp(1.8rem, 4vw, 3.2rem) var(--margin) 4rem;
+}
+.eyebrow {
+  display: inline-block;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+h1 {
+  font-size: clamp(1.85rem, 3.6vw, 2.85rem);
+  line-height: 1.15;
+  margin: 0 0 0.8rem;
+  letter-spacing: -0.02em;
+}
+.lead {
+  font-size: clamp(1.05rem, 1.3vw, 1.22rem);
+  color: var(--muted);
+  max-width: 72ch;
+  margin: 0 0 1.4rem;
+}
+.jump-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0 0 1.6rem;
+}
+.jump-bar a {
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.42rem 0.85rem;
+  border-radius: 999px;
+}
+.jump-bar a:hover { background: #dcd6c4; }
+
+.warn-box {
+  background: #fff7db;
+  border: 1.5px solid #d99b00;
+  border-left: 5px solid #d99b00;
+  border-radius: 10px;
+  padding: 0.95rem 1.2rem;
+  margin: 0 0 2rem;
+  font-size: 0.95rem;
+}
+
+.client-card {
+  background: var(--card);
+  border: 1px solid rgba(18,35,56,0.12);
+  border-radius: 14px;
+  padding: clamp(1.25rem, 2.6vw, 2rem);
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 10px rgba(18,35,56,0.04);
+}
+.client-card.highlight {
+  border-color: rgba(244,183,26,0.75);
+  box-shadow: 0 4px 16px rgba(244,183,26,0.12);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.client-card h2 {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.2vw, 1.65rem);
+}
+.badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.badge.gold { background: rgba(244,183,26,0.28); color: #78350f; }
+
+ol.steps {
+  counter-reset: s;
+  list-style: none;
+  padding-left: 0;
+  margin: 1rem 0 1.1rem;
+}
+ol.steps li {
+  counter-increment: s;
+  position: relative;
+  padding: 0.55rem 0 0.55rem 2.75rem;
+}
+ol.steps li::before {
+  content: counter(s);
+  position: absolute;
+  left: 0;
+  top: 0.45rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+ul.clean { padding-left: 1.25rem; margin: 0.65rem 0 1rem; }
+ul.clean li { margin: 0.35rem 0; }
+
+.note {
+  background: #f6f4ee;
+  border-left: 4px solid var(--ink);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-top: 0.9rem;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+.note.caution {
+  background: #fef2f2;
+  border-left-color: #b91c1c;
+  color: #7f1d1d;
+}
+
+pre {
+  background: #122338;
+  color: #f5f3ec;
+  padding: 0.95rem 1.1rem;
+  border-radius: 9px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  margin: 0.85rem 0;
+}
+code:not(pre code) {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: rgba(18,35,56,0.08);
+  padding: 0.14em 0.38em;
+  border-radius: 4px;
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  text-decoration: none;
+  font-weight: 700;
+  padding: 0.68rem 1.15rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+.btn:hover { filter: brightness(0.95); }
+.btn.sec {
+  background: var(--ink);
+  color: #f5f3ec;
+}
+.btn.ghost {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+footer {
+  max-width: 1120px;
+  margin: 2rem auto 0;
+  padding: 1.5rem var(--margin) 3rem;
+  border-top: 1px solid rgba(18,35,56,0.12);
+  font-size: 0.9rem;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+footer a { color: var(--ink); font-weight: 600; text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+@media (max-width: 860px) {
+  header.top { flex-wrap: wrap; }
+  .menu-toggle { display: inline-block; }
+  nav { display: none; width: 100%; flex-direction: column; align-items: flex-start; padding-top: 0.75rem; border-top: 1px solid rgba(18,35,56,0.1); }
+  nav.open { display: flex; }
+  .nav-sep { display: none; }
+}
+@media (max-width: 600px) {
+  main { padding-left: 0.85rem; padding-right: 0.85rem; }
+  .client-card { padding: 1.1rem 1rem; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <a href="/" class="brand-wrap">⚡ lightningmail</a>
+  <div style="display:flex;align-items:center;gap:0.5rem">
+    <select class="lang" id="langSel" aria-label="Language">
+      <option value="de">🇩🇪 DE</option>
+      <option value="en">🇬🇧 EN</option>
+      <option value="es">🇪🇸 ES</option>
+      <option value="fr">🇫🇷 FR</option>
+      <option value="pl">🇵🇱 PL</option>
+    </select>
+    <button type="button" class="menu-toggle" onclick="document.getElementById('cliNav').classList.toggle('open')">☰ Menü</button>
+  </div>
+  <nav id="cliNav" onclick="if(event.target.tagName==='A')this.classList.remove('open')">
+    <a href="/"><span class="de-only">Startseite</span><span class="en-only">Home</span><span class="es-only">Inicio</span><span class="fr-only">Accueil</span><span class="pl-only">Strona główna</span></a>
+    <a href="/clients" class="active"><span class="de-only">Clients</span><span class="en-only">Clients</span><span class="es-only">Clientes</span><span class="fr-only">Clients</span><span class="pl-only">Klienty</span></a>
+    <a href="/relay"><span class="de-only">Eigenes Relay</span><span class="en-only">Own Relay</span><span class="es-only">Relay propio</span><span class="fr-only">Propre relais</span><span class="pl-only">Własny relay</span></a>
+    <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektura</span></a>
+    <a href="/embed"><span class="de-only">Sign-In Einbau</span><span class="en-only">Embed Sign-In</span><span class="es-only">Integrar Sign-In</span><span class="fr-only">Intégrer Sign-In</span><span class="pl-only">Osadź Sign-In</span></a>
+    <a href="https://github.com/normalo77/lightningmail" target="_blank" rel="noopener">GitHub</a>
+    <span class="nav-sep" aria-hidden="true"></span>
+    <a class="funk" href="/app/">Webmail</a>
+    <a class="funk" href="/forum">🔐 Forum Signin-Demo</a>
+    <a class="funk" href="/paywall">⚡ Paywall-Demo</a>
+  </nav>
+</header>
+
+<main>
+  <span class="eyebrow">
+    <span class="de-only">Clients &amp; Installation</span>
+    <span class="en-only">Clients &amp; Installation</span>
+    <span class="es-only">Clientes e instalación</span>
+    <span class="fr-only">Clients et installation</span>
+    <span class="pl-only">Klienty i instalacja</span>
+  </span>
+  <h1>
+    <span class="de-only">Auf jedem Gerät einsatzbereit — vom iPhone bis zur Linux-Konsole.</span>
+    <span class="en-only">Ready on every device — from iPhone to the Linux command line.</span>
+    <span class="es-only">Listo en cada dispositivo — desde el iPhone hasta la consola de Linux.</span>
+    <span class="fr-only">Prêt sur chaque appareil — de l'iPhone à la console Linux.</span>
+    <span class="pl-only">Gotowy na każdym urządzeniu — od iPhone'a po konsolę Linuksa.</span>
+  </h1>
+  <p class="lead">
+    <span class="de-only">Alle Clients teilen denselben Kryptokern, dasselbe verschlüsselte Postfach und denselben Stern-Sync über dein Relay. Du meldest dich überall mit demselben Schlüssel an.</span>
+    <span class="en-only">All clients share the same cryptographic core, the same encrypted mailbox, and the same star sync through your relay. You sign in everywhere with the same key.</span>
+    <span class="es-only">Todos los clientes comparten el mismo núcleo criptográfico, el mismo buzón cifrado y la misma sincronización en estrella a través de tu relay. Entras en todos con la misma clave.</span>
+    <span class="fr-only">Tous les clients partagent le même noyau cryptographique, la même boîte chiffrée et la même synchronisation en étoile via votre relais. Vous utilisez partout la même clé.</span>
+    <span class="pl-only">Wszystkie klienty dzielą ten sam rdzeń kryptograficzny, tę samą zaszyfrowaną skrzynkę i tę samą synchronizację gwiazdową przez twój relay. Wszędzie logujesz się tym samym kluczem.</span>
+  </p>
+
+  <div class="jump-bar">
+    <a href="#ios">📱 iPhone &amp; iPad (iOS)</a>
+    <a href="#android">🤖 Android (APK)</a>
+    <a href="#linux">🐧 Linux &amp; Thunderbird</a>
+    <a href="#bridge">🔌 E-Mail-Bridge (IMAP/SMTP)</a>
+    <a href="#web">🌐 Web-App</a>
+  </div>
+
+  <div class="warn-box">
+    ⚠️ <strong>
+      <span class="de-only">Experimentelle Software!</span>
+      <span class="en-only">Experimental software!</span>
+      <span class="es-only">¡Software experimental!</span>
+      <span class="fr-only">Logiciel expérimental !</span>
+      <span class="pl-only">Oprogramowanie eksperymentalne!</span>
+    </strong>
+    <span class="de-only">Für den Verlust echter Satoshis wird keine Verantwortung übernommen. Sparsam aufladen. Die öffentliche Spielwiese läuft im Regtest mit 10.000 Test-Satoshis Startguthaben.</span>
+    <span class="en-only">No responsibility is assumed for the loss of real satoshis. Top up sparingly. The public playground runs on regtest with 10,000 test satoshis starting balance.</span>
+    <span class="es-only">No se asume responsabilidad por la pérdida de satoshis reales. Recarga con moderación. El entorno público funciona en regtest con 10.000 satoshis de prueba iniciales.</span>
+    <span class="fr-only">Aucune responsabilité n'est assumée en cas de perte de vrais satoshis. Rechargez avec parcimonie. L'aire de test publique tourne en regtest avec 10 000 satoshis de test initiaux.</span>
+    <span class="pl-only">Nie ponosimy odpowiedzialności za utratę prawdziwych satoshi. Doładowuj ostrożnie. Publiczny poligon działa w sieci regtest z początkowym saldem 10 000 testowych satoshi.</span>
+  </div>
+
+  <!-- 1. iPhone & iPad (iOS PWA) -->
+  <section id="ios" class="client-card highlight">
+    <div class="card-head">
+      <h2>
+        <span class="de-only">📱 iPhone &amp; iPad (iOS-Web-App ohne App Store)</span>
+        <span class="en-only">📱 iPhone &amp; iPad (iOS Web App without App Store)</span>
+        <span class="es-only">📱 iPhone y iPad (app web iOS sin App Store)</span>
+        <span class="fr-only">📱 iPhone et iPad (application web iOS sans App Store)</span>
+        <span class="pl-only">📱 iPhone i iPad (aplikacja webowa iOS bez App Store)</span>
+      </h2>
+      <span class="badge gold">
+        <span class="de-only">Face ID ab iOS 18 · Kein Store-Zwang</span>
+        <span class="en-only">Face ID on iOS 18+ · No store gatekeeper</span>
+        <span class="es-only">Face ID en iOS 18+ · Sin App Store</span>
+        <span class="fr-only">Face ID dès iOS 18 · Sans App Store</span>
+        <span class="pl-only">Face ID od iOS 18 · Bez App Store</span>
+      </span>
+    </div>
+    <p>
+      <span class="de-only">Auf dem iPhone wird keine Datei heruntergeladen (iOS installiert keine <code>.apk</code>). Stattdessen speicherst du die Web-App über Safari direkt auf dem Home-Bildschirm — sie öffnet sich danach im Vollbild ohne Browser-Leiste wie eine normale App.</span>
+      <span class="en-only">On iPhone, you do not download an installer file (iOS does not install <code>.apk</code> packages). Instead, you add the web app straight to your Home Screen from Safari — it then launches full-screen without browser chrome just like a regular app.</span>
+      <span class="es-only">En el iPhone no hace falta descargar ningún instalador (iOS no instala archivos <code>.apk</code>). En su lugar, guardas la app web desde Safari en la pantalla de inicio y luego se abre a pantalla completa sin barras del navegador.</span>
+      <span class="fr-only">Sur iPhone, aucun fichier n'est à télécharger (iOS n'installe pas d'<code>.apk</code>). Vous ajoutez simplement l'application web à l'écran d'accueil depuis Safari : elle s'ouvre ensuite en plein écran sans barre de navigateur.</span>
+      <span class="pl-only">Na iPhonie nie pobierasz pliku instalacyjnego (iOS nie instaluje plików <code>.apk</code>). Zamiast tego dodajesz aplikację webową z Safari bezpośrednio na ekran główny — potem uruchamia się na pełnym ekranie bez paska przeglądarki.</span>
+    </p>
+    <ol class="steps">
+      <li>
+        <span class="de-only">Öffne <a href="/app/"><strong>https://lightningmail.app/app</strong></a> (oder dein eigenes Relay <code>https://dein-relay/app/</code>) im <strong>Safari-Browser</strong>.</span>
+        <span class="en-only">Open <a href="/app/"><strong>https://lightningmail.app/app</strong></a> (or your own relay <code>https://your-relay/app/</code>) in <strong>Safari</strong>.</span>
+        <span class="es-only">Abre <a href="/app/"><strong>https://lightningmail.app/app</strong></a> (o tu propio relay <code>https://tu-relay/app/</code>) en <strong>Safari</strong>.</span>
+        <span class="fr-only">Ouvrez <a href="/app/"><strong>https://lightningmail.app/app</strong></a> (ou votre propre relais <code>https://votre-relais/app/</code>) dans <strong>Safari</strong>.</span>
+        <span class="pl-only">Otwórz <a href="/app/"><strong>https://lightningmail.app/app</strong></a> (lub swój relay <code>https://twoj-relay/app/</code>) w przeglądarce <strong>Safari</strong>.</span>
+      </li>
+      <li>
+        <span class="de-only">Tippe unten in der Leiste auf das <strong>Teilen-Symbol</strong> (Kästchen mit Pfeil nach oben <code>□↑</code>).</span>
+        <span class="en-only">Tap the <strong>Share button</strong> in the bottom bar (square with upward arrow <code>□↑</code>).</span>
+        <span class="es-only">Pulsa el botón <strong>Compartir</strong> en la barra inferior (cuadrado con flecha hacia arriba <code>□↑</code>).</span>
+        <span class="fr-only">Touchez le bouton <strong>Partager</strong> dans la barre inférieure (carré avec flèche vers le haut <code>□↑</code>).</span>
+        <span class="pl-only">Stuknij przycisk <strong>Udostępnij</strong> na dolnym pasku (kwadrat ze strzałką w górę <code>□↑</code>).</span>
+      </li>
+      <li>
+        <span class="de-only">Wähle <strong>„Zum Home-Bildschirm“</strong> und bestätige mit <strong>„Hinzufügen“</strong>. Starte lightningmail danach über das neue Symbol auf dem Startbildschirm.</span>
+        <span class="en-only">Choose <strong>“Add to Home Screen”</strong> and tap <strong>“Add”</strong>. From then on, launch lightningmail from the new icon on your Home Screen.</span>
+        <span class="es-only">Elige <strong>«Añadir a pantalla de inicio»</strong> y pulsa <strong>«Añadir»</strong>. A partir de entonces abre lightningmail desde ese icono.</span>
+        <span class="fr-only">Choisissez <strong>« Sur l'écran d'accueil »</strong> puis touchez <strong>« Ajouter »</strong>. Lancez ensuite lightningmail depuis cette icône.</span>
+        <span class="pl-only">Wybierz <strong>„Dodaj do ekranu początkowego”</strong> i potwierdź przyciskiem <strong>„Dodaj”</strong>. Od tej pory uruchamiaj lightningmail z nowej ikony.</span>
+      </li>
+      <li>
+        <span class="de-only">Nach dem ersten Login oben auf <strong>🔑 Passkey</strong> tippen: ab <strong>iOS 18</strong> entsperrst du dein Postfach danach per <strong>Face ID / Touch ID</strong> (WebAuthn PRF).</span>
+        <span class="en-only">After your first sign-in, tap <strong>🔑 Passkey</strong> in the header: starting with <strong>iOS 18</strong>, you can unlock your mailbox with <strong>Face ID / Touch ID</strong> (WebAuthn PRF).</span>
+        <span class="es-only">Tras el primer acceso, pulsa <strong>🔑 Passkey</strong> arriba: desde <strong>iOS 18</strong> podrás desbloquear el buzón con <strong>Face ID / Touch ID</strong> (WebAuthn PRF).</span>
+        <span class="fr-only">Après la première connexion, touchez <strong>🔑 Passkey</strong> en haut : dès <strong>iOS 18</strong>, vous déverrouillez votre boîte avec <strong>Face ID / Touch ID</strong> (WebAuthn PRF).</span>
+        <span class="pl-only">Po pierwszym logowaniu kliknij <strong>🔑 Passkey</strong> u góry: od <strong>iOS 18</strong> odblokujesz skrzynkę przez <strong>Face ID / Touch ID</strong> (WebAuthn PRF).</span>
+      </li>
+    </ol>
+    <div class="note">
+      <strong>
+        <span class="de-only">Technik-Hinweis iOS:</span>
+        <span class="en-only">iOS technical note:</span>
+        <span class="es-only">Nota técnica iOS:</span>
+        <span class="fr-only">Note technique iOS :</span>
+        <span class="pl-only">Uwaga techniczna iOS:</span>
+      </strong>
+      <span class="de-only">WebAuthn PRF (iOS 18+) schützt deinen Postfach-Schlüssel indirekt über einen Passkey in der Ende-zu-Ende-verschlüsselten iCloud-Keychain (der Schlüssel selbst liegt verschlüsselt lokal). Auf iOS 17 und älter nutzt die App automatisch den Passphrase-Login. Durch die Home-Screen-Installation schützt iOS den lokalen Speicher vor der normalen 7-Tage-Browser-Löschung.</span>
+      <span class="en-only">WebAuthn PRF (iOS 18+) wraps your mailbox key using a passkey stored in end-to-end encrypted iCloud Keychain (the key itself stays encrypted locally). On iOS 17 and older, the app automatically falls back to passphrase unlock. Adding the app to the Home Screen protects local storage from Safari's 7-day tab eviction.</span>
+      <span class="es-only">WebAuthn PRF (iOS 18+) protege tu clave de buzón mediante una passkey en el llavero cifrado de iCloud (la clave permanece cifrada localmente). En iOS 17 o anterior se usa automáticamente la contraseña. Instalarla en la pantalla de inicio evita el borrado automático de 7 días de Safari.</span>
+      <span class="fr-only">WebAuthn PRF (iOS 18+) protège votre clé de boîte via une clé d'accès dans le trousseau iCloud chiffré de bout en bout (la clé reste chiffrée en local). Sur iOS 17 et antérieur, l'application bascule automatiquement sur le déverrouillage par phrase secrète. L'installation sur l'écran d'accueil évite la purge Safari après 7 jours.</span>
+      <span class="pl-only">WebAuthn PRF (iOS 18+) chroni klucz skrzynki poprzez klucz dostępu w szyfrowanym pęku kluczy iCloud (sam klucz pozostaje lokalnie zaszyfrowany). Na iOS 17 i starszych aplikacja automatycznie używa hasła. Dodanie na ekran główny chroni pamięć lokalną przed 7-dniowym czyszczeniem Safari.</span>
+    </div>
+    <div class="btn-row">
+      <a class="btn" href="/app/">⚡ <span class="de-only">Web-App in Safari öffnen</span><span class="en-only">Open web app in Safari</span><span class="es-only">Abrir app web en Safari</span><span class="fr-only">Ouvrir l'app web dans Safari</span><span class="pl-only">Otwórz aplikację w Safari</span></a>
+    </div>
+  </section>
+
+  <!-- 2. Android APK -->
+  <section id="android" class="client-card">
+    <div class="card-head">
+      <h2>
+        <span class="de-only">🤖 Android-App (.apk)</span>
+        <span class="en-only">🤖 Android App (.apk)</span>
+        <span class="es-only">🤖 Aplicación Android (.apk)</span>
+        <span class="fr-only">🤖 Application Android (.apk)</span>
+        <span class="pl-only">🤖 Aplikacja Android (.apk)</span>
+      </h2>
+      <span class="badge">
+        <span class="de-only">Hardware-Keystore (StrongBox / TEE)</span>
+        <span class="en-only">Hardware Keystore (StrongBox / TEE)</span>
+        <span class="es-only">Almacén de claves hardware (StrongBox / TEE)</span>
+        <span class="fr-only">Keystore matériel (StrongBox / TEE)</span>
+        <span class="pl-only">Sprzętowy Keystore (StrongBox / TEE)</span>
+      </span>
+    </div>
+    <p>
+      <span class="de-only">Die signierte Android-App bündelt die Oberfläche lokal in der APK (keine Google-Play-Dienste nötig), nutzt den Android-Hardware-Keystore mit biometrischer Bindung (<code>BiometricPrompt</code>) und lässt dich in den Einstellungen auch dein eigenes Relay als Startserver hinterlegen.</span>
+      <span class="en-only">The signed Android app bundles the interface locally inside the APK (no Google Play Services required), uses Android's hardware keystore bound to biometrics (<code>BiometricPrompt</code>), and lets you point the app to your own relay in settings.</span>
+      <span class="es-only">La aplicación Android firmada incluye la interfaz de forma local dentro del APK (sin servicios de Google Play), usa el almacén de claves hardware vinculado a biometría (<code>BiometricPrompt</code>) y permite configurar tu propio relay.</span>
+      <span class="fr-only">L'application Android signée embarque l'interface localement dans l'APK (sans Google Play Services), utilise le keystore matériel lié à la biométrie (<code>BiometricPrompt</code>) et permet de choisir votre propre relais.</span>
+      <span class="pl-only">Podpisana aplikacja Android zawiera interfejs lokalnie w pliku APK (bez usług Google Play), korzysta ze sprzętowego Keystore powiązanego z biometrią (<code>BiometricPrompt</code>) i pozwala ustawić własny relay.</span>
+    </p>
+    <ul class="clean">
+      <li><span class="de-only">APK herunterladen und auf dem Smartphone antippen.</span><span class="en-only">Download the APK and tap it on your phone.</span><span class="es-only">Descarga el APK y tócalo en tu teléfono.</span><span class="fr-only">Téléchargez l'APK et ouvrez-le sur votre téléphone.</span><span class="pl-only">Pobierz plik APK i uruchom go na telefonie.</span></li>
+      <li><span class="de-only">Falls Android fragt: „Installation aus dieser Quelle erlauben“ einmalig freigeben.</span><span class="en-only">If Android prompts: allow “Install unknown apps” once for your browser.</span><span class="es-only">Si Android pregunta: permite «Instalar aplicaciones desconocidas» una vez.</span><span class="fr-only">Si Android le demande : autorisez une fois l'installation depuis cette source.</span><span class="pl-only">Jeśli Android zapyta: zezwól jednorazowo na instalację z nieznanych źródeł.</span></li>
+      <li><span class="de-only">Nach dem Login oben auf <strong>🔑 Passkey</strong> tippen, um den Hardware-Tresor für deinen Fingerabdruck zu aktivieren.</span><span class="en-only">After signing in, tap <strong>🔑 Passkey</strong> at the top to seal your key into the hardware biometric vault.</span><span class="es-only">Tras entrar, pulsa <strong>🔑 Passkey</strong> arriba para activar el almacén biométrico hardware.</span><span class="fr-only">Après connexion, touchez <strong>🔑 Passkey</strong> en haut pour activer le coffre biométrique matériel.</span><span class="pl-only">Po zalogowaniu kliknij <strong>🔑 Passkey</strong> u góry, aby aktywować sprzętowy skarbiec biometryczny.</span></li>
+    </ul>
+    <div class="btn-row">
+      <a class="btn dl-warn" href="/lightningmail.apk" download>⬇ <span class="de-only">Android-APK herunterladen</span><span class="en-only">Download Android APK</span><span class="es-only">Descargar APK de Android</span><span class="fr-only">Télécharger l'APK Android</span><span class="pl-only">Pobierz APK dla Androida</span></a>
+    </div>
+  </section>
+
+  <!-- 3. Linux Desktop, CLI & Thunderbird -->
+  <section id="linux" class="client-card">
+    <div class="card-head">
+      <h2>
+        <span class="de-only">🐧 Linux-Desktop, Kommandozeile &amp; Thunderbird</span>
+        <span class="en-only">🐧 Linux Desktop, Command Line &amp; Thunderbird</span>
+        <span class="es-only">🐧 Escritorio Linux, línea de comandos y Thunderbird</span>
+        <span class="fr-only">🐧 Bureau Linux, ligne de commande et Thunderbird</span>
+        <span class="pl-only">🐧 Pulpit Linux, wiersz poleceń i Thunderbird</span>
+      </h2>
+      <span class="badge">x86_64 · GTK4 / Go / XPI</span>
+    </div>
+    <p>
+      <span class="de-only">Für Linux gibt es drei schlanke Wege — alle ohne Electron-Ballast und mit vollem Zugriff auf Postfach, Adressbuch, Laufwerk und optionalem Tor-Proxy:</span>
+      <span class="en-only">Linux users have three lightweight options — all without Electron bloat and with full access to mailbox, address book, Drive, and optional Tor SOCKS5 proxy:</span>
+      <span class="es-only">En Linux existen tres opciones ligeras — sin peso de Electron y con acceso completo a buzón, agenda, Drive y proxy Tor opcional:</span>
+      <span class="fr-only">Sur Linux, trois options légères sont disponibles — sans lourdeur Electron, avec boîte, carnet d'adresses, Drive et proxy Tor optionnel :</span>
+      <span class="pl-only">Na Linuksie dostępne są trzy lekkie warianty — bez ciężkiego Electrona, z pełną obsługą skrzynki, książki adresowej, Dysku i opcjonalnego proxy Tor:</span>
+    </p>
+    <ul class="clean">
+      <li><strong><span class="de-only">Nativer Desktop (<code>lmdesk</code>):</span><span class="en-only">Native Desktop (<code>lmdesk</code>):</span><span class="es-only">Escritorio nativo (<code>lmdesk</code>):</span><span class="fr-only">Bureau natif (<code>lmdesk</code>) :</span><span class="pl-only">Natywny pulpit (<code>lmdesk</code>):</span></strong> <span class="de-only">GTK4/Adwaita + WebKit-Reader (JavaScript im Mail-Reader deaktiviert), für Ubuntu/Debian ab 24.04 als <code>.deb</code> oder <code>.AppImage</code>.</span><span class="en-only">GTK4/Adwaita + WebKit reader (JavaScript disabled inside mail view), packaged as <code>.deb</code> or <code>.AppImage</code> for Ubuntu/Debian 24.04+.</span><span class="es-only">GTK4/Adwaita + lector WebKit (JavaScript desactivado al leer correos), en formato <code>.deb</code> o <code>.AppImage</code> para Ubuntu/Debian 24.04+.</span><span class="fr-only">GTK4/Adwaita + lecteur WebKit (JavaScript désactivé dans les courriels), en <code>.deb</code> ou <code>.AppImage</code> pour Ubuntu/Debian 24.04+.</span><span class="pl-only">GTK4/Adwaita + czytnik WebKit (JavaScript wyłączony w podglądzie wiadomości), jako <code>.deb</code> lub <code>.AppImage</code> dla Ubuntu/Debiana 24.04+.</span></li>
+      <li><strong><span class="de-only">Kommandozeile &amp; lokales UI (<code>lmcli</code>):</span><span class="en-only">Command line &amp; local UI (<code>lmcli</code>):</span><span class="es-only">Línea de comandos e interfaz local (<code>lmcli</code>):</span><span class="fr-only">Ligne de commande et interface locale (<code>lmcli</code>) :</span><span class="pl-only">Wiersz poleceń i lokalne UI (<code>lmcli</code>):</span></strong> <span class="de-only">Einzelnes Go-Binary für Skripte, Cronjobs und Terminal-Workflows (<code>init</code>, <code>inbox</code>, <code>send</code>, <code>topup</code>, <code>withdraw</code>, <code>statement</code>).</span><span class="en-only">Single Go binary for scripts, cron jobs, and terminal workflows (<code>init</code>, <code>inbox</code>, <code>send</code>, <code>topup</code>, <code>withdraw</code>, <code>statement</code>).</span><span class="es-only">Un único binario Go para scripts, cron y terminal (<code>init</code>, <code>inbox</code>, <code>send</code>, <code>topup</code>, <code>withdraw</code>, <code>statement</code>).</span><span class="fr-only">Binaire Go unique pour scripts, cron et terminal (<code>init</code>, <code>inbox</code>, <code>send</code>, <code>topup</code>, <code>withdraw</code>, <code>statement</code>).</span><span class="pl-only">Pojedyncza binarka Go do skryptów, crona i terminala (<code>init</code>, <code>inbox</code>, <code>send</code>, <code>topup</code>, <code>withdraw</code>, <code>statement</code>).</span></li>
+      <li><strong>Thunderbird-Tab-Add-on (<code>.xpi</code>):</strong> <span class="de-only">Öffnet dein Postfach als eigenen Tab direkt in Thunderbird (<em>Add-ons → Aus Datei installieren</em>).</span><span class="en-only">Opens your mailbox as a dedicated tab right inside Thunderbird (<em>Add-ons → Install Add-on From File</em>).</span><span class="es-only">Abre tu buzón como pestaña propia dentro de Thunderbird (<em>Complementos → Instalar desde archivo</em>).</span><span class="fr-only">Ouvre votre boîte dans un onglet dédié de Thunderbird (<em>Modules → Installer depuis un fichier</em>).</span><span class="pl-only">Otwiera skrzynkę jako osobną kartę w Thunderbirdzie (<em>Dodatki → Zainstaluj dodatek z pliku</em>).</span></li>
+    </ul>
+    <pre>sudo apt install ./lightningmail-desktop_1.0.6_amd64.deb
+# oder / or AppImage:
+chmod +x lightningmail-desktop-1.0.6-x86_64.AppImage &amp;&amp; ./lightningmail-desktop-1.0.6-x86_64.AppImage</pre>
+    <div class="btn-row">
+      <a class="btn dl-warn" href="/lightningmail-desktop_1.0.6_amd64.deb" download>⬇ Linux Desktop (.deb)</a>
+      <a class="btn sec dl-warn" href="/lightningmail-desktop-1.0.6-x86_64.AppImage" download>⬇ Linux AppImage</a>
+      <a class="btn ghost dl-warn" href="/lightningmail-linux-amd64" download>⬇ CLI Binary (x86_64)</a>
+      <a class="btn ghost dl-warn" href="/lightningmail-thunderbird.xpi" download>⬇ Thunderbird (.xpi)</a>
+    </div>
+  </section>
+
+  <!-- 4. LAN Email Bridge -->
+  <section id="bridge" class="client-card">
+    <div class="card-head">
+      <h2>
+        <span class="de-only">🔌 E-Mail-Bridge (<code>lm-bridge</code> — IMAP &amp; SMTP)</span>
+        <span class="en-only">🔌 Email Bridge (<code>lm-bridge</code> — IMAP &amp; SMTP)</span>
+        <span class="es-only">🔌 Puente de correo (<code>lm-bridge</code> — IMAP y SMTP)</span>
+        <span class="fr-only">🔌 Passerelle courriel (<code>lm-bridge</code> — IMAP et SMTP)</span>
+        <span class="pl-only">🔌 Mostek e-mail (<code>lm-bridge</code> — IMAP i SMTP)</span>
+      </h2>
+      <span class="badge">
+        <span class="de-only">Nur LAN / VPN · Sidecar</span>
+        <span class="en-only">LAN / VPN only · Sidecar</span>
+        <span class="es-only">Solo LAN / VPN · Sidecar</span>
+        <span class="fr-only">LAN / VPN uniquement · Sidecar</span>
+        <span class="pl-only">Tylko LAN / VPN · Sidecar</span>
+      </span>
+    </div>
+    <p>
+      <span class="de-only">Mit der lokalen Bridge nutzt du jedes klassische IMAP/SMTP-Mailprogramm (Thunderbird, Apple Mail, K-9 Mail usw.) ohne Plugin. Die Bridge läuft als Sidecar neben deinem Relay oder im eigenen Heimnetz: eingehende lightningmail-Briefe werden lokal entschlüsselt und per <strong>IMAP (Port 1143)</strong> bereitgestellt; ausgehende Post über <strong>Smart-SMTP (Port 1025)</strong> geht an lightningmail-Empfänger automatisch Ende-zu-Ende-verschlüsselt und an klassische Adressen optional über deinen gewohnten SMTP-Anbieter.</span>
+      <span class="en-only">With the local bridge, any classic IMAP/SMTP mail client (Thunderbird, Apple Mail, K-9 Mail, etc.) works with zero plugins. Run it as a sidecar next to your relay or on your home LAN: incoming lightningmail letters are decrypted locally and served via <strong>IMAP (port 1143)</strong>; outgoing mail via <strong>Smart-SMTP (port 1025)</strong> goes end-to-end encrypted to lightningmail recipients and optionally falls back to your classic SMTP relay for everyone else.</span>
+      <span class="es-only">Con el puente local puedes usar cualquier cliente clásico IMAP/SMTP (Thunderbird, Apple Mail, K-9 Mail, etc.) sin complementos. Se ejecuta junto a tu relay o en tu red local: los correos entrantes se descifran en local y se sirven por <strong>IMAP (puerto 1143)</strong>; los salientes por <strong>Smart-SMTP (puerto 1025)</strong> salen cifrados de extremo a extremo hacia destinatarios lightningmail y opcionalmente por tu SMTP clásico hacia el resto.</span>
+      <span class="fr-only">Avec la passerelle locale, tout client IMAP/SMTP classique (Thunderbird, Apple Mail, K-9 Mail, etc.) fonctionne sans extension. Elle tourne à côté de votre relais ou sur votre réseau local : les messages entrants sont déchiffrés en local et servis en <strong>IMAP (port 1143)</strong> ; les envois via <strong>Smart-SMTP (port 1025)</strong> partent chiffrés de bout en bout vers les comptes lightningmail et, en option, via votre SMTP classique pour les autres.</span>
+      <span class="pl-only">Dzięki lokalnemu mostkowi działa każdy klasyczny program pocztowy IMAP/SMTP (Thunderbird, Apple Mail, K-9 Mail itd.) bez wtyczek. Uruchamiany obok relayu lub w sieci domowej: poczta przychodząca jest odszyfrowywana lokalnie i udostępniana przez <strong>IMAP (port 1143)</strong>, a wychodząca przez <strong>Smart-SMTP (port 1025)</strong> trafia szyfrowana end-to-end do odbiorców lightningmail lub opcjonalnie przez klasyczny serwer SMTP do pozostałych.</span>
+    </p>
+    <pre>cp bridge/bridge.yaml.example deploy/bridge.yaml
+# Key-Datei &amp; Passwortdateien nach deploy/bridge-secrets/ legen
+docker compose -f deploy/docker-compose.light-relay.yml --profile bridge up -d</pre>
+    <div class="note caution">
+      <strong>
+        <span class="de-only">Sicherheitsgrenze:</span>
+        <span class="en-only">Trust boundary:</span>
+        <span class="es-only">Límite de confianza:</span>
+        <span class="fr-only">Limite de confiance :</span>
+        <span class="pl-only">Granica zaufania:</span>
+      </strong>
+      <span class="de-only">Die Bridge entschlüsselt Postfächer lokal im Klartext für IMAP/SMTP — sie gehört ausschließlich ins <strong>LAN oder VPN</strong>, niemals hinter einen öffentlichen Tunnel. Das neue Microsoft Outlook verweigert lokale IMAP-Server (gleiche Einschränkung wie bei Proton Mail Bridge).</span>
+      <span class="en-only">The bridge decrypts mail locally into plaintext IMAP/SMTP — keep ports 1025/1143 strictly inside your <strong>LAN or VPN</strong>, never behind a public tunnel. New Microsoft Outlook refuses local IMAP servers (same limitation as Proton Mail Bridge).</span>
+      <span class="es-only">El puente descifra el correo en texto plano para IMAP/SMTP: mantenlo estrictamente en <strong>LAN o VPN</strong>, nunca en un túnel público. El nuevo Microsoft Outlook rechaza servidores IMAP locales.</span>
+      <span class="fr-only">La passerelle déchiffre les courriels en clair pour IMAP/SMTP : gardez les ports 1025/1143 strictement en <strong>LAN ou VPN</strong>, jamais derrière un tunnel public. Le nouvel Outlook refuse les serveurs IMAP locaux.</span>
+      <span class="pl-only">Mostek odszyfrowuje pocztę lokalnie dla IMAP/SMTP — porty 1025/1143 muszą pozostać wyłącznie w <strong>sieci LAN lub VPN</strong>, nigdy w publicznym tunelu. Nowy Microsoft Outlook blokuje lokalne serwery IMAP.</span>
+    </div>
+    <div class="btn-row">
+      <a class="btn ghost" href="https://github.com/normalo77/lightningmail/tree/main/bridge" target="_blank" rel="noopener">📄 <span class="de-only">Bridge-Doku auf GitHub</span><span class="en-only">Bridge docs on GitHub</span><span class="es-only">Documentación del puente en GitHub</span><span class="fr-only">Doc passerelle sur GitHub</span><span class="pl-only">Dokumentacja mostka na GitHubie</span></a>
+    </div>
+  </section>
+
+  <!-- 5. Web App -->
+  <section id="web" class="client-card">
+    <div class="card-head">
+      <h2>
+        <span class="de-only">🌐 Web-App im Browser (jedes Betriebssystem)</span>
+        <span class="en-only">🌐 Browser Web App (any operating system)</span>
+        <span class="es-only">🌐 Aplicación web en el navegador (cualquier sistema)</span>
+        <span class="fr-only">🌐 Application web dans le navigateur (tout système)</span>
+        <span class="pl-only">🌐 Aplikacja webowa w przeglądarce (każdy system)</span>
+      </h2>
+      <span class="badge">Windows · macOS · Linux · iOS · Android</span>
+    </div>
+    <p>
+      <span class="de-only">Ohne Installation direkt im Browser unter <code>/app/</code> — funktioniert auf Windows, macOS, Linux und Mobilgeräten. Verschlüsselung und Signatur laufen vollständig im Browser; das Relay sieht niemals deinen privaten Schlüssel. Auch dein eigenes Relay liefert dieselbe Web-App automatisch unter <code>/app/</code> aus.</span>
+      <span class="en-only">Zero installation straight in your browser at <code>/app/</code> — works on Windows, macOS, Linux, and mobile. Encryption and signing run entirely inside the browser; the relay never sees your private key. Your own relay also serves the exact same web app at <code>/app/</code>.</span>
+      <span class="es-only">Sin instalación, directo en el navegador en <code>/app/</code> — funciona en Windows, macOS, Linux y móviles. El cifrado y la firma ocurren por completo en el navegador; el relay nunca ve tu clave privada. Tu propio relay sirve la misma app en <code>/app/</code>.</span>
+      <span class="fr-only">Sans installation directement dans le navigateur sur <code>/app/</code> — fonctionne sous Windows, macOS, Linux et mobile. Chiffrement et signature s'exécutent entièrement dans le navigateur ; le relais ne voit jamais votre clé privée. Votre propre relais sert la même app sur <code>/app/</code>.</span>
+      <span class="pl-only">Bez instalacji wprost w przeglądarce pod <code>/app/</code> — działa na Windowsie, macOS, Linuksie i telefonach. Szyfrowanie i podpisywanie odbywa się w całości w przeglądarce; relay nigdy nie widzi klucza prywatnego. Własny relay udostępnia dokładnie tę samą aplikację pod <code>/app/</code>.</span>
+    </p>
+    <div class="btn-row">
+      <a class="btn" href="/app/">⚡ <span class="de-only">Web-App jetzt öffnen</span><span class="en-only">Open Web App now</span><span class="es-only">Abrir app web ahora</span><span class="fr-only">Ouvrir l'app web</span><span class="pl-only">Otwórz aplikację webową</span></a>
+      <a class="btn ghost" href="/relay">🛰 <span class="de-only">Eigenes Relay betreiben →</span><span class="en-only">Run your own relay →</span><span class="es-only">Montar tu propio relay →</span><span class="fr-only">Opérer son propre relais →</span><span class="pl-only">Uruchom własny relay →</span></a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div>⚡ lightningmail · MIT License · <a href="/impressum"><span class="de-only">Impressum</span><span class="en-only">Imprint</span><span class="es-only">Aviso legal</span><span class="fr-only">Mentions légales</span><span class="pl-only">Nota prawna</span></a></div>
+  <div>
+    <a href="/"><span class="de-only">Startseite</span><span class="en-only">Home</span><span class="es-only">Inicio</span><span class="fr-only">Accueil</span><span class="pl-only">Strona główna</span></a> ·
+    <a href="/relay"><span class="de-only">Eigenes Relay</span><span class="en-only">Own Relay</span><span class="es-only">Relay propio</span><span class="fr-only">Propre relais</span><span class="pl-only">Własny relay</span></a> ·
+    <a href="/architecture"><span class="de-only">Architektur</span><span class="en-only">Architecture</span><span class="es-only">Arquitectura</span><span class="fr-only">Architecture</span><span class="pl-only">Architektura</span></a> ·
+    <a href="/embed">Sign-In</a>
+  </div>
+</footer>
+
+<script>
+const LANGS = ['de','en','es','fr','pl'];
+const DL_WARN = {
+  de: '⚠️ Experimentelle Software!\nFür den Verlust echter Satoshis wird keine Verantwortung übernommen. Sparsam aufladen.\n\nDownload jetzt starten?',
+  en: '⚠️ Experimental software!\nNo responsibility is assumed for the loss of real satoshis. Top up sparingly.\n\nStart download now?',
+  es: '⚠️ ¡Software experimental!\nNo se asume responsabilidad por la pérdida de satoshis reales. Recarga con moderación.\n\n¿Iniciar descarga ahora?',
+  fr: '⚠️ Logiciel expérimental !\nAucune responsabilité n\'est assumée en cas de perte de vrais satoshis. Rechargez avec parcimonie.\n\nLancer le téléchargement ?',
+  pl: '⚠️ Oprogramowanie eksperymentalne!\nNie ponosimy odpowiedzialności za utratę prawdziwych satoshi. Doładowuj ostrożnie.\n\nRozpocząć pobieranie?'
+};
+function setLang(l) {
+  if (!LANGS.includes(l)) l = 'de';
+  document.documentElement.lang = l;
+  const sel = document.getElementById('langSel');
+  if (sel) sel.value = l;
+  try { localStorage.setItem('lm_lang', l); } catch (e) {}
+}
+document.getElementById('langSel').addEventListener('change', (e) => setLang(e.target.value));
+document.querySelectorAll('a.dl-warn').forEach((a) => {
+  a.addEventListener('click', (ev) => {
+    const l = document.documentElement.lang || 'de';
+    if (!confirm(DL_WARN[l] || DL_WARN.de)) ev.preventDefault();
+  });
+});
+(() => {
+  let saved = '';
+  try { saved = localStorage.getItem('lm_lang') || ''; } catch (e) {}
+  const nav = (navigator.language || 'de').slice(0, 2).toLowerCase();
+  setLang(LANGS.includes(saved) ? saved : (LANGS.includes(nav) ? nav : 'de'));
+})();
+</script>
+</body>
+</html>

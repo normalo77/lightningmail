@@ -1,0 +1,23 @@
+{
+  "manifest_version": 2,
+  "name": "lightningmail",
+  "version": "1.0.6",
+  "description": "⚡ lightningmail — verschlüsselte Mail über lightningmail.app oder dein eigenes Relay, als Tab in Thunderbird.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "lightningmail@lightningmail.app",
+      "strict_min_version": "102.0"
+    }
+  },
+  "browser_action": {
+    "default_title": "lightningmail",
+    "default_icon": {
+      "32": "icon.svg",
+      "64": "icon.svg"
+    }
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "permissions": ["storage", "https://*/*", "http://*/*"]
+}

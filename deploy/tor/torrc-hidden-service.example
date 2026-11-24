@@ -1,0 +1,32 @@
+# torrc-hidden-service.example — Etappe T, Stufe 2 "Empfang" (CONCEPT §33)
+#
+# Hidden-Service vor dem relayd-Port 8443: reiner Eingang, kein Exit,
+# kein fremder Klartext-Traffic. Inhalt dieses Blocks in /etc/tor/torrc
+# (Debian/Ubuntu) übernehmen, dann:
+#
+#   sudo mkdir -p /var/lib/tor/bmail_relay
+#   sudo chown debian-tor:debian-tor /var/lib/tor/bmail_relay
+#   sudo chmod 700 /var/lib/tor/bmail_relay
+#   sudo systemctl restart tor
+#   cat /var/lib/tor/bmail_relay/hostname     # -> <hash>.onion (Stufe-2-Adresse)
+#
+# Die onion-Adresse gehört zu diesem Schlüsselverzeichnis: es sichern,
+# neu erzeugen = neue Adresse.
+
+# Lokaler SOCKS5-Endpunkt — relayd dialt darüber *.onion-Peers.
+# Dazu in relay.yaml:  tor: {socks5: '127.0.0.1:9050'}
+SOCKSPort 9050
+
+# Exit ist immer ausgeschlossen (Etappe T, alle Stufen): dieses Relay
+# verlässt niemals fremden Traffic ins normale Internet.
+ExitRelay 0
+
+HiddenServiceDir /var/lib/tor/bmail_relay
+# Port 80 auf der Onion-Seite: relayd spricht hinter dem Hidden-Service
+# reines HTTP (TLS nicht nötig — die Onion-Verbindung ist ohnehin
+# Ende-zu-Ende verschlüsselt). PeerURL in relayd wählt http://<hash>.onion,
+# das läuft standardmäßig auf Port 80 auf.
+HiddenServicePort 8443 127.0.0.1:8443
+# v3 ist die einzige erlaubte Version bei heutigem Tor (ab 0.4.7
+# automatisch — die Zeile steht nur für ältere Pakete hier).
+HiddenServiceVersion 3
